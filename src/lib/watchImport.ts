@@ -3,6 +3,7 @@ import { UserProfile } from '../types/tracking';
 import { TrackPoint, decimateRoute } from './geo';
 import { currentRestingHr, getMaxHr, trimp } from './calc';
 import { downsampleHr } from './workoutStats';
+import { mergeTracks } from './trackMerge';
 
 /** A workout recorded on the watch on its own (phone left behind), as sent by the watch app. */
 export interface WatchWorkoutPayload {
@@ -23,6 +24,8 @@ export interface WatchWorkoutPayload {
   laps?: number[][];
   /** The shoes or bike picked on the watch before it started. */
   shoeId?: string;
+  /** Recorded while the phone was recording the same workout: only its route is used, to fill gaps in the phone's. */
+  shared?: boolean;
 }
 
 const TYPES: WorkoutType[] = ['Walking', 'Running', 'Cycling', 'Rowing', 'Hiking', 'Strength', 'Calisthenics', 'HIIT', 'Core', 'Mobility', 'Treadmill', 'IndoorCycling', 'Elliptical', 'Yoga'];
@@ -68,6 +71,46 @@ export const watchWorkoutToSession = (p: WatchWorkoutPayload, profile: UserProfi
     // The shoes or bike picked on the watch, so the mileage lands on the right pair.
     shoeId: typeof p.shoeId === 'string' && p.shoeId && p.shoeId !== 'none' ? p.shoeId : undefined,
   };
+};
+
+/** How far apart the two devices' start times may be and still count as the same workout. */
+const SAME_WORKOUT_MS = 3 * 60_000;
+
+/** The watch's route points from a payload. */
+const payloadTrack = (p: WatchWorkoutPayload): TrackPoint[] =>
+  (p.track ?? [])
+    .filter((r) => r.length >= 5 && r[0] != null && r[1] != null && r[2] != null)
+    .map((r) => ({ t: r[0] as number, lat: r[1] as number, lng: r[2] as number, alt: r[3] == null ? undefined : (r[3] as number), d: (r[4] as number) ?? 0 }));
+
+export interface TrackFill {
+  workouts: WorkoutSession[];
+  /** The phone's workout was found, whether or not the watch had anything to add. */
+  matched: boolean;
+  /** Points added from the watch. */
+  filled: number;
+}
+
+/**
+ * For a workout both devices recorded: fills gaps in the phone's route (pocket, tunnel, lost fix) with the watch's points and
+ * recalculates the distance to match. The phone's own record stays the main one, and is only changed where it had no fix.
+ */
+export const fillTrackFromWatch = (workouts: WorkoutSession[], p: WatchWorkoutPayload): TrackFill => {
+  const idx = workouts.findIndex(
+    (w) => !w.id.startsWith('w-watch-') && w.startedAt !== undefined && Math.abs(w.startedAt - p.startedAt) <= SAME_WORKOUT_MS
+  );
+  if (idx < 0) return { workouts, matched: false, filled: 0 };
+  const mine = workouts[idx];
+  const merged = mergeTracks(mine.track ?? [], payloadTrack(p));
+  if (merged.filled === 0) return { workouts, matched: true, filled: 0 };
+  const next = [...workouts];
+  next[idx] = {
+    ...mine,
+    gpsTracked: true,
+    track: merged.track,
+    route: decimateRoute(merged.track.map((t): [number, number] => [t.lat, t.lng]), 300),
+    distanceKm: Number(merged.distanceKm.toFixed(3)),
+  };
+  return { workouts: next, matched: true, filled: merged.filled };
 };
 
 /** Adds imported workouts that are not already saved. Newest first. */

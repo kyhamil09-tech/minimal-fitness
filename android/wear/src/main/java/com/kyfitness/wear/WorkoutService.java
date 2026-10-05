@@ -1,6 +1,7 @@
 package com.kyfitness.wear;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -10,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.location.Location;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -34,6 +36,12 @@ import androidx.wear.ongoing.OngoingActivity;
 import androidx.wear.ongoing.Status;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -284,6 +292,7 @@ public class WorkoutService extends Service {
         };
         exerciseClient.setUpdateCallback(mainExecutor, callback);
         tryStart(0);
+        startFusedFallback();
     }
 
     /**
@@ -366,10 +375,71 @@ public class WorkoutService extends Service {
 
     private void recordLocation(LocationData loc, long at) {
         if (WorkoutState.paused || loc == null) return;
+        lastHsFixAt = System.currentTimeMillis();
         if (at - lastTrackAt < 3000 || track.size() >= 8000) return;
         lastTrackAt = at;
         double alt = loc.getAltitude();
-        track.add(new double[] {at, loc.getLatitude(), loc.getLongitude(), Double.isNaN(alt) ? Double.NaN : alt, WorkoutState.watchDistanceM / 1000.0});
+        // Never behind the last point, which a fallback fix may have moved ahead.
+        double km = WorkoutState.watchDistanceM / 1000.0;
+        if (!track.isEmpty()) km = Math.max(km, track.get(track.size() - 1)[4]);
+        track.add(new double[] {at, loc.getLatitude(), loc.getLongitude(), Double.isNaN(alt) ? Double.NaN : alt, km});
+    }
+
+    // ---- fallback location (Fused Location Provider) ----
+
+    private FusedLocationProviderClient fused;
+    private LocationCallback fusedCallback;
+    private long lastHsFixAt = 0;
+
+    /**
+     * Health Services gives the watch its route during a workout. Fused Location runs beside it as a fallback: it can use
+     * the watch's own GPS or, when the watch is linked to the phone, the phone's position, and it fills in only while Health
+     * Services has gone quiet (no fix for 10 seconds), so the route is not cut short.
+     */
+    @SuppressLint("MissingPermission")
+    private void startFusedFallback() {
+        if (!Sports.find(WorkoutState.type).gps || !hasLocationPermission()) return;
+        try {
+            fused = LocationServices.getFusedLocationProviderClient(this);
+            fusedCallback = new LocationCallback() {
+                @Override
+                public void onLocationResult(@NonNull LocationResult result) {
+                    for (Location l : result.getLocations()) recordFusedFix(l);
+                }
+            };
+            LocationRequest request = new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 5000)
+                .setMinUpdateIntervalMillis(3000)
+                .setWaitForAccurateLocation(false)
+                .build();
+            fused.requestLocationUpdates(request, fusedCallback, Looper.getMainLooper());
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Fallback location unavailable: " + e.getMessage());
+            fused = null;
+            fusedCallback = null;
+        }
+    }
+
+    private void stopFusedFallback() {
+        if (fused != null && fusedCallback != null) fused.removeLocationUpdates(fusedCallback);
+        fused = null;
+        fusedCallback = null;
+    }
+
+    private void recordFusedFix(Location l) {
+        if (WorkoutState.paused || l == null) return;
+        if (System.currentTimeMillis() - lastHsFixAt < 10_000) return; // Health Services is delivering: it stays the main source
+        if (l.hasAccuracy() && l.getAccuracy() > 50f) return; // too vague to draw a route with
+        long at = l.getTime();
+        if (at - lastTrackAt < 3000 || track.size() >= 8000) return;
+        double km = WorkoutState.watchDistanceM / 1000.0;
+        if (!track.isEmpty()) {
+            double[] prev = track.get(track.size() - 1);
+            float[] step = new float[1];
+            Location.distanceBetween(prev[1], prev[2], l.getLatitude(), l.getLongitude(), step);
+            km = Math.max(km, prev[4] + step[0] / 1000.0);
+        }
+        lastTrackAt = at;
+        track.add(new double[] {at, l.getLatitude(), l.getLongitude(), l.hasAltitude() ? l.getAltitude() : Double.NaN, km});
     }
 
     // ---- once-a-second logic ----
@@ -570,6 +640,7 @@ public class WorkoutService extends Service {
             if (callback != null) exerciseClient.clearUpdateCallbackAsync(callback);
             if (exerciseStarted) exerciseClient.endExerciseAsync();
         }
+        stopFusedFallback();
         if (fellBackToHrOnly) stopService(new Intent(this, HeartRateService.class));
         super.onDestroy();
         KyComplicationService.requestUpdate(this);
@@ -592,11 +663,13 @@ public class WorkoutService extends Service {
 
         WorkoutStore.add(this, s.type, WorkoutState.startedAt, elapsed, s.avgHr, s.maxHr, s.kcal, WorkoutState.distanceLabel());
 
-        if (s.standalone) {
+        // With the phone recording too, only the route goes over: the phone fills gaps in its own route from it.
+        boolean shareRoute = !s.standalone && track.size() >= 2;
+        if (s.standalone || shareRoute) {
             // Recorded without the phone: send it over so it appears in the app (delivered whenever the phone is reachable).
             try {
-                WorkoutSync.send(this, String.valueOf(WorkoutState.startedAt), payload(s));
-                s.sentToPhone = true;
+                WorkoutSync.send(this, String.valueOf(WorkoutState.startedAt), payload(s, shareRoute));
+                if (s.standalone) s.sentToPhone = true;
             } catch (RuntimeException | JSONException e) {
                 Log.w(TAG, "Could not queue workout for the phone: " + e.getMessage());
             }
@@ -604,8 +677,9 @@ public class WorkoutService extends Service {
         WorkoutState.summary = s;
     }
 
-    private String payload(WorkoutState.Summary s) throws JSONException {
+    private String payload(WorkoutState.Summary s, boolean shared) throws JSONException {
         JSONObject o = new JSONObject();
+        if (shared) o.put("shared", true);
         o.put("id", String.valueOf(WorkoutState.startedAt));
         o.put("type", s.type);
         o.put("startedAt", WorkoutState.startedAt);

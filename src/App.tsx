@@ -35,7 +35,7 @@ import { afterWorkout } from './lib/rewards';
 import { announce } from './lib/rewardsBus';
 import { watchSystemInsets } from './lib/systemInsets';
 import { currentStreak, pickRestingHr, setZoneConfig, workoutDateKeys, workoutsInWeek } from './lib/calc';
-import { WatchWorkoutPayload, mergeWatchWorkouts, watchWorkoutToSession } from './lib/watchImport';
+import { WatchWorkoutPayload, fillTrackFromWatch, mergeWatchWorkouts, watchWorkoutToSession } from './lib/watchImport';
 import { clearAppData, clearSecrets } from './lib/backup';
 import { useReminders } from './hooks/useReminders';
 import { setWeekStartsOnSunday, toDateKey, todayKey } from './lib/dates';
@@ -293,6 +293,9 @@ export default function App() {
   });
   // Every list starts empty: nothing is pre-loaded, each install only ever holds its own user's data.
   const [workouts, setWorkouts] = usePersistentState<WorkoutSession[]>('workouts', []);
+  // The newest list, for callbacks that run on a timer.
+  const workoutsRef = useRef(workouts);
+  workoutsRef.current = workouts;
   const [sleepLogs, setSleepLogs] = usePersistentState<SleepLogEntry[]>('sleep_logs', []);
   const [fastingSessions, setFastingSessions] = usePersistentState<FastingSession[]>('fasting_sessions', []);
   const [food, setFood] = usePersistentState<FoodEntry[]>('food', []);
@@ -609,6 +612,14 @@ export default function App() {
         for (const raw of items) {
           try {
             const payload = JSON.parse(raw) as WatchWorkoutPayload;
+            if (payload.shared) {
+              // The watch's route for a workout the phone recorded too: fill gaps in the phone's route with it.
+              const fill = fillTrackFromWatch(workoutsRef.current, payload);
+              if (fill.filled > 0) setWorkouts(fill.workouts);
+              // The phone may not have saved its copy yet: try again on the next check, for up to half an hour.
+              if (fill.matched || Date.now() - (payload.startedAt + payload.durationSec * 1000) > 30 * 60_000) done.push(String(payload.id));
+              continue;
+            }
             const session = watchWorkoutToSession(payload, profile);
             if (session) sessions.push(session);
             done.push(String(payload.id));
