@@ -1,0 +1,153 @@
+export type IntervalStepKind = 'warmup' | 'work' | 'recover' | 'cooldown';
+
+/** One piece of a structured workout. A step ends after `durationSec` seconds or `distanceKm` kilometres. */
+export interface IntervalStep {
+  kind: IntervalStepKind;
+  label: string;
+  durationSec?: number;
+  distanceKm?: number;
+}
+
+export interface IntervalWorkout {
+  id: string;
+  name: string;
+  description: string;
+  steps: IntervalStep[];
+}
+
+const min = (m: number) => m * 60;
+
+const warm = (m: number): IntervalStep => ({ kind: 'warmup', label: 'Warm up', durationSec: min(m) });
+const cool = (m: number): IntervalStep => ({ kind: 'cooldown', label: 'Cool down', durationSec: min(m) });
+
+/** Repeats a work/recover pair `reps` times (the last recovery is dropped so the cool-down follows the last effort). */
+export const repeatSets = (
+  reps: number,
+  work: { durationSec?: number; distanceKm?: number; label?: string },
+  recover: { durationSec?: number; distanceKm?: number; label?: string }
+): IntervalStep[] => {
+  const out: IntervalStep[] = [];
+  for (let i = 1; i <= reps; i++) {
+    out.push({ kind: 'work', label: work.label ?? `Interval ${i} of ${reps}`, durationSec: work.durationSec, distanceKm: work.distanceKm });
+    if (i < reps) out.push({ kind: 'recover', label: recover.label ?? 'Recover', durationSec: recover.durationSec, distanceKm: recover.distanceKm });
+  }
+  return out;
+};
+
+export const INTERVAL_WORKOUTS: IntervalWorkout[] = [
+  {
+    id: 'run-walk',
+    name: 'Run / walk',
+    description: 'A gentle start: 8 rounds of 1 minute running and 2 minutes walking.',
+    steps: [
+      { kind: 'warmup', label: 'Brisk walk', durationSec: min(5) },
+      ...repeatSets(8, { durationSec: min(1), label: 'Run' }, { durationSec: min(2), label: 'Walk' }),
+      cool(5),
+    ],
+  },
+  {
+    id: '5x3',
+    name: '5 × 3 minutes',
+    description: 'Five hard 3-minute efforts with 2 minutes easy between.',
+    steps: [warm(8), ...repeatSets(5, { durationSec: min(3) }, { durationSec: min(2) }), cool(6)],
+  },
+  {
+    id: '8x400',
+    name: '8 × 400 m',
+    description: 'Track-style speed work: eight 400 m repeats, 90 seconds easy between.',
+    steps: [warm(10), ...repeatSets(8, { distanceKm: 0.4 }, { durationSec: 90 }), cool(8)],
+  },
+  {
+    id: '6x800',
+    name: '6 × 800 m',
+    description: 'Six 800 m repeats at 5K effort with a 2 minute jog between.',
+    steps: [warm(10), ...repeatSets(6, { distanceKm: 0.8 }, { durationSec: min(2) }), cool(8)],
+  },
+  {
+    id: 'tempo20',
+    name: 'Tempo 20',
+    description: '10 minutes easy, 20 minutes comfortably hard, 10 minutes easy.',
+    steps: [warm(10), { kind: 'work', label: 'Tempo', durationSec: min(20) }, cool(10)],
+  },
+  {
+    id: 'pyramid',
+    name: 'Pyramid',
+    description: 'Build up and back down: 1, 2, 3, 2, 1 minutes hard with equal rests.',
+    steps: [
+      warm(8),
+      ...[1, 2, 3, 2, 1].flatMap((m, i, a): IntervalStep[] => {
+        const hard: IntervalStep = { kind: 'work', label: `${m} minute effort`, durationSec: min(m) };
+        return i < a.length - 1 ? [hard, { kind: 'recover', label: 'Recover', durationSec: min(m) }] : [hard];
+      }),
+      cool(6),
+    ],
+  },
+  {
+    id: 'fartlek',
+    name: 'Fartlek',
+    description: 'Playful speed changes: 6 rounds of 90 seconds fast, 90 seconds easy.',
+    steps: [warm(8), ...repeatSets(6, { durationSec: 90, label: 'Fast' }, { durationSec: 90, label: 'Easy' }), cool(6)],
+  },
+];
+
+export interface CustomIntervalInput {
+  reps: number;
+  /** Work length: minutes, or kilometres when `workByDistance`. */
+  work: number;
+  workByDistance: boolean;
+  recoverMin: number;
+  warmupMin: number;
+  cooldownMin: number;
+}
+
+export const buildCustomIntervals = (c: CustomIntervalInput): IntervalStep[] => {
+  const reps = Math.max(1, Math.min(30, Math.round(c.reps)));
+  const steps: IntervalStep[] = [];
+  if (c.warmupMin > 0) steps.push(warm(c.warmupMin));
+  steps.push(
+    ...repeatSets(
+      reps,
+      c.workByDistance ? { distanceKm: Math.max(0.05, c.work) } : { durationSec: Math.max(10, Math.round(c.work * 60)) },
+      { durationSec: Math.max(0, Math.round(c.recoverMin * 60)) }
+    ).filter((s) => !(s.kind === 'recover' && (s.durationSec ?? 0) === 0))
+  );
+  if (c.cooldownMin > 0) steps.push(cool(c.cooldownMin));
+  return steps;
+};
+
+/** Total planned time in seconds (distance steps are not counted). */
+export const plannedSeconds = (steps: IntervalStep[]): number => steps.reduce((s, st) => s + (st.durationSec ?? 0), 0);
+
+/** The step to announce and how far through the current one you are, given the elapsed clock and distance. */
+export interface StepProgress {
+  /** 0..1 within the current step. */
+  fraction: number;
+  /** Seconds or kilometres left in the current step. */
+  remainingSec?: number;
+  remainingKm?: number;
+  done: boolean;
+}
+
+export const stepProgress = (step: IntervalStep, secInStep: number, kmInStep: number): StepProgress => {
+  if (step.durationSec !== undefined) {
+    const left = Math.max(0, step.durationSec - secInStep);
+    return { fraction: Math.min(1, secInStep / Math.max(1, step.durationSec)), remainingSec: left, done: left <= 0 };
+  }
+  const total = step.distanceKm ?? 0;
+  const left = Math.max(0, total - kmInStep);
+  return { fraction: total > 0 ? Math.min(1, kmInStep / total) : 1, remainingKm: left, done: left <= 0 };
+};
+
+/** Spoken description of a step, e.g. "Interval 2 of 8. 400 metres." */
+export const describeStep = (step: IntervalStep, miles: boolean): string => {
+  if (step.durationSec !== undefined) {
+    const s = step.durationSec;
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    const time = m > 0 ? `${m} minute${m === 1 ? '' : 's'}${r ? ` ${r} seconds` : ''}` : `${r} seconds`;
+    return `${step.label}. ${time}.`;
+  }
+  const km = step.distanceKm ?? 0;
+  if (miles) return `${step.label}. ${(km / 1.609344).toFixed(2)} miles.`;
+  return km < 1 ? `${step.label}. ${Math.round(km * 1000)} metres.` : `${step.label}. ${km.toFixed(1)} kilometres.`;
+};

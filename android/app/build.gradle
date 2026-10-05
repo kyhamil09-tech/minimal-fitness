@@ -1,0 +1,88 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+kotlin {
+    jvmToolchain(21)
+}
+
+android {
+    // One stable key for every build (the key your installed apps already use), so updates install over the top
+    // and keep your data. Keep a copy of ../signing/ky-fitness-signing.keystore somewhere safe.
+    signingConfigs {
+        ky {
+            storeFile rootProject.file('../signing/ky-fitness-signing.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    namespace = "com.kyfitness.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.kyfitness.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.ky
+        }
+        release {
+            signingConfig signingConfigs.ky
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    // Wear OS Data Layer: receives live heart rate from the Pixel Watch app
+    implementation 'com.google.android.gms:play-services-wearable:19.0.0'
+    // Opens the watch app when a workout starts on the phone
+    implementation 'androidx.wear:wear-remote-interactions:1.1.0'
+    // Background route recording (foreground location service)
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    // Health Connect (sleep sessions and steps recorded by the Pixel Watch / Google Health apps)
+    implementation 'androidx.health.connect:connect-client:1.1.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    // Periodic phone step-counter sampling and folder backups
+    implementation 'androidx.work:work-runtime:2.10.0'
+    implementation 'androidx.biometric:biometric:1.1.0'
+    implementation 'com.google.guava:guava:33.4.0-android'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

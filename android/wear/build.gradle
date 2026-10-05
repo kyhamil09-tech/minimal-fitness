@@ -1,0 +1,57 @@
+apply plugin: 'com.android.application'
+
+// Pixel Watch / Wear OS companion. Uses the same applicationId as the phone app so the Wear OS
+// Data Layer routes messages between the two; both must be signed with the same key (the default
+// debug key is shared automatically when both are built on the same machine).
+android {
+    // One stable key for every build (the key your installed apps already use), so updates install over the top
+    // and keep your data. Keep a copy of ../signing/ky-fitness-signing.keystore somewhere safe.
+    signingConfigs {
+        ky {
+            storeFile rootProject.file('../signing/ky-fitness-signing.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    namespace = "com.kyfitness.wear"
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "com.kyfitness.app"
+        minSdkVersion 30
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.ky
+        }
+        release {
+            signingConfig signingConfigs.ky
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+dependencies {
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation 'androidx.health:health-services-client:1.0.0'
+    implementation 'com.google.android.gms:play-services-wearable:19.0.0'
+    // Activity recognition on the watch: notices a run or ride so the app can offer to record it
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'com.google.guava:guava:33.4.0-android'
+    implementation 'androidx.wear:wear-ongoing:1.0.0'
+    implementation 'androidx.wear.tiles:tiles:1.4.1'
+    implementation 'androidx.viewpager2:viewpager2:1.1.0'
+    implementation 'androidx.wear.protolayout:protolayout:1.2.1'
+    implementation 'androidx.wear.watchface:watchface-complications-data-source:1.2.1'
+}

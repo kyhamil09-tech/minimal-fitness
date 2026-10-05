@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Smart alarm: start listening at the window's start time -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="Minimal Fitness"
+        android:theme="@style/KyTheme">
+
+        <uses-library android:name="com.google.android.wearable" android:required="true" />
+        <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- The phone opens the watch app with this link when a workout starts there. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kyfit" android:host="workout" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".HeartRateService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+
+        <service
+            android:name=".WorkoutService"
+            android:exported="false"
+            android:foregroundServiceType="health|location" />
+
+        <!-- Daily steps from Health Services, forwarded to the phone -->
+        <service
+            android:name=".StepsPassiveService"
+            android:exported="true"
+            android:permission="com.google.android.wearable.healthservices.permission.PASSIVE_DATA_BINDING">
+            <intent-filter>
+                <action android:name="hs.passive.listener.service" />
+            </intent-filter>
+        </service>
+
+        <!-- Registers all-day tracking again after a restart or an update -->
+        <receiver
+            android:name=".VitalsBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Notices a run or ride (and optionally a walk) and offers to record it -->
+        <receiver
+            android:name=".WatchDetectReceiver"
+            android:exported="false" />
+
+        <!-- Every half hour: asks Health Services for its held readings and sends them to the phone -->
+        <receiver
+            android:name=".VitalsAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Tile: steps and one-tap workout start -->
+        <service
+            android:name=".KyTileService"
+            android:exported="true"
+            android:label="Minimal Fitness"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <!-- Complication for watch faces: running workout timer / quick start. -->
+        <service
+            android:name=".KyComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher"
+            android:label="Minimal Fitness workout"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="0" />
+        </service>
+
+        <!-- Ready-made complications for any watch face: readiness, steps, the month's goal and the fasting timer -->
+        <service
+            android:name=".ReadinessComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_heart"
+            android:label="Readiness"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
+            android:name=".StepsComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_walk"
+            android:label="Steps and goal"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
+            android:name=".MonthGoalComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_bolt"
+            android:label="Monthly goal"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
+            android:name=".FastingComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_cardio"
+            android:label="Fasting timer"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+
+        <!-- Smart alarm: listens (movement and heart rate) only while its window is open, then buzzes the wrist -->
+        <service
+            android:name=".SmartAlarmService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+        <receiver
+            android:name=".SmartAlarmReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.kyfitness.wear.SMART_ALARM_START" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Receives the phone's glance numbers (readiness, month goal, fast, step goal) -->
+        <service
+            android:name=".GlanceListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/ky/glance" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/ky/alarm" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/ky/look" />
+            </intent-filter>
+        </service>
+
+        <!-- Receives workout state and start/stop from the phone app. -->
+        <service
+            android:name=".PhoneCommandService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/ky/hr/" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/ky/workout/" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/ky/detect/" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

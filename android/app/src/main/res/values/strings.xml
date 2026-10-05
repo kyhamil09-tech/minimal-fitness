@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Minimal Fitness</string>
+    <string name="title_activity_main">Minimal Fitness</string>
+    <string name="package_name">com.kyfitness.app</string>
+    <string name="custom_url_scheme">com.kyfitness.app</string>
+    <string name="widget_fasting_description">Fasting timer with start and end</string>
+    <string name="widget_quick_description">Steps, workouts this week, readiness and one-tap Run or Walk</string>
+</resources>

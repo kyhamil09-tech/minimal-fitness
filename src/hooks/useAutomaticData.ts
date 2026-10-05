@@ -1,0 +1,318 @@
+import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
+import { HealthConnect, HcFitnessDay, HcStatus, HcWorkout, Steps, StepsTotals, isAndroidApp } from '../lib/native';
+import { applyVitalsToLogs, bestSteps, mergeImportedSleep, nightsNeedingVitals, sessionToLog } from '../lib/healthConnect';
+import { resetHealthWriteCache } from '../lib/healthWrite';
+import { isDismissedSleep, mergeDetectedSleep, readSleepSegments, segmentsToLogs, sleepDetectEnabled, startSleepDetect } from '../lib/sleepDetect';
+import { usePersistentState, readStored, KEY_PREFIX } from './usePersistentState';
+import { FIRST_DAYS, LATER_DAYS, PER_READ, SEEN_KEY } from '../lib/hcWorkouts';
+import { readPrefs } from '../lib/prefs';
+import { SleepLogEntry } from '../types/health';
+import { syncOwnSensors } from '../lib/ownSensors';
+import { mergeEstimatedSleep } from '../lib/sleepEstimate';
+import type { OwnDay } from '../lib/fitnessMetrics';
+
+const ASKED_KEY = 'kyfit_steps_asked';
+
+/**
+ * Health Connect calls take about two seconds each on a phone, so the full read (sleep, overnight readings, daily numbers)
+ * runs at most this often. Tapping Sync, opening the app after a while, or granting access reads straight away.
+ */
+const HC_EVERY_MS = 10 * 60_000;
+
+/** Vitals and daily totals read from Health Connect (what the watch and other apps recorded). */
+export interface HcVitals {
+  /** When this was last read. */
+  at: number;
+  /** 0 when unknown. */
+  restingBpm: number;
+  latestBpm: number;
+  latestAt: number;
+  avgBpm24h: number;
+  daily: Record<string, { totalKcal: number; activeKcal: number; distanceKm: number; avgHr: number }>;
+  weights: { id: string; time: number; kg: number; own: boolean }[];
+  bodyFatPct: number;
+  heightCm: number;
+  /** Blood pressure and glucose other apps and devices saved (this app's own are left out). */
+  bp: { id: string; time: number; systolic: number; diastolic: number }[];
+  glucose: { id: string; time: number; mgdl: number }[];
+  /** Heart-rate range, resting heart rate, floors, exercise minutes and HRV per day, up to 30 days. Older saves lack it. */
+  fitness?: Record<string, HcFitnessDay>;
+  /** VO2 max history (cardio fitness): [epoch ms, ml/kg/min]. Older saves lack it. */
+  vo2?: [number, number][];
+}
+
+export interface AutomaticData {
+  /** Steps per day counted automatically (phone counter, watch, Health Connect). */
+  autoSteps: Record<string, number>;
+  steps: StepsTotals | null;
+  hc: HcStatus | null;
+  /** Heart rate, calories, distance and body measurements from Health Connect, or null before the first read. */
+  vitals: HcVitals | null;
+  hcError: string;
+  hcLastSyncAt: number;
+  hcNightsImported: number;
+  /** Daily numbers the app's own watch and phone sensors measured. */
+  own: Record<string, OwnDay>;
+  /** What the watch has delivered on its own: when it last did, and how many heart-rate readings today (null before the first look). */
+  watchData: { watchSyncAt: number; hrToday: number } | null;
+  enableSteps: () => Promise<void>;
+  connectHealthConnect: () => Promise<void>;
+  syncNow: () => Promise<void>;
+}
+
+/**
+ * Pulls steps and sleep in automatically:
+ * - steps from the phone's step counter, the Pixel Watch, and Health Connect (the highest wins);
+ * - sleep sessions with measured stages from Health Connect, merged into the sleep log.
+ * Everything is read on-device; nothing leaves the phone.
+ */
+export function useAutomaticData(
+  active: boolean,
+  setSleepLogs: Dispatch<SetStateAction<SleepLogEntry[]>>,
+  /** Called with workouts other apps saved to Health Connect that have not been seen before (Google Health and others). */
+  onHcWorkouts?: (sessions: HcWorkout[]) => void
+): AutomaticData {
+  const workoutsCb = useRef(onHcWorkouts);
+  workoutsCb.current = onHcWorkouts;
+  const [autoSteps, setAutoSteps] = usePersistentState<Record<string, number>>('auto_steps', {});
+  const [steps, setSteps] = useState<StepsTotals | null>(null);
+  const [hc, setHc] = useState<HcStatus | null>(null);
+  const [vitals, setVitals] = usePersistentState<HcVitals | null>('hc_vitals', null);
+  const [hcError, setHcError] = useState('');
+  const [hcLastSyncAt, setHcLastSyncAt] = useState(0);
+  const [hcNightsImported, setHcNightsImported] = useState(0);
+  const [own, setOwn] = usePersistentState<Record<string, OwnDay>>('own_daily', {});
+  const [watchData, setWatchData] = useState<{ watchSyncAt: number; hrToday: number } | null>(null);
+  const busy = useRef(false);
+  const lastHc = useRef(0);
+
+  const record = useCallback(
+    (date: string, ...values: (number | undefined)[]) =>
+      setAutoSteps((prev) => {
+        const next = bestSteps(prev[date], ...values);
+        return next === prev[date] ? prev : { ...prev, [date]: next };
+      }),
+    [setAutoSteps]
+  );
+
+  const sync = useCallback(
+    async (askForSteps = false, forceHc = false) => {
+      if (!isAndroidApp() || busy.current) return;
+      busy.current = true;
+      try {
+        const totals = askForSteps ? await Steps.start() : await Steps.getToday();
+        setSteps(totals);
+        record(totals.day, totals.phone, totals.watch);
+
+        // Sleep the phone itself detected (bedtime and wake time). Health Connect nights below replace these.
+        if (sleepDetectEnabled()) {
+          void startSleepDetect();
+          const detected = segmentsToLogs(await readSleepSegments());
+          if (detected.length > 0) setSleepLogs((prev) => mergeDetectedSleep(prev, detected));
+        }
+
+        // What the watch and phone measured by themselves: daily numbers and estimated nights (Health Connect below still wins).
+        try {
+          const ownRes = await syncOwnSensors();
+          if (ownRes) {
+            setOwn(ownRes.own);
+            setWatchData({ watchSyncAt: ownRes.watchSyncAt, hrToday: ownRes.hrToday });
+            if (ownRes.estimates.length > 0) setSleepLogs((prev) => mergeEstimatedSleep(prev, ownRes.estimates, isDismissedSleep));
+          }
+        } catch {
+          // own sensors are optional: a problem here must not stop the Health Connect sync
+        }
+
+        const status = await HealthConnect.status();
+        setHc(status);
+        resetHealthWriteCache();
+        // The full read is slow (every Health Connect call costs about two seconds), so it runs every ten minutes or on request.
+        if (!forceHc && Date.now() - lastHc.current < HC_EVERY_MS) return;
+        lastHc.current = Date.now();
+
+        // Sleep first: it is one quick read and the thing you open the app for.
+        if (status.available && status.sleepGranted) {
+          try {
+            const { sessions } = await HealthConnect.readSleep({ days: 30 });
+            const logs = sessions.map(sessionToLog).filter((l): l is SleepLogEntry => l !== null);
+            setHcNightsImported(logs.length);
+            if (logs.length > 0) setSleepLogs((prev) => mergeImportedSleep(prev, logs));
+            setHcLastSyncAt(Date.now());
+            setHcError('');
+          } catch (err: any) {
+            setHcError(err?.message || 'Could not read sleep from Health Connect.');
+          }
+          // Then the overnight readings (heart rate, HRV, breathing, oxygen, skin temperature) for the few nights that lack them.
+          try {
+            const ask = nightsNeedingVitals(readStored<SleepLogEntry[]>('sleep_logs', []));
+            if (ask.length > 0) {
+              const { nights } = await HealthConnect.readSleepVitals({ nights: ask });
+              // A night that came back empty is still marked as looked up, so it is not asked about every ten minutes.
+              setSleepLogs((prev) => applyVitalsToLogs(prev, ask.map((a) => nights.find((n) => n.id === a.id) ?? { id: a.id })));
+            }
+          } catch {
+            // overnight readings are optional
+          }
+        }
+        if (status.available && status.stepsGranted) {
+          try {
+            const { days } = await HealthConnect.readSteps({ days: 30 });
+            days.forEach((d) => record(d.date, d.steps));
+          } catch {
+            // steps from Health Connect are optional
+          }
+        }
+        if (status.available && status.canRead) {
+          // Everything else Health Connect holds: each read is optional and fails on its own.
+          const next: HcVitals = {
+            at: Date.now(),
+            restingBpm: 0,
+            latestBpm: 0,
+            latestAt: 0,
+            avgBpm24h: 0,
+            daily: {},
+            weights: [],
+            bodyFatPct: 0,
+            heightCm: 0,
+            bp: [],
+            glucose: [],
+            fitness: {},
+            vo2: [],
+          };
+          let got = false;
+          try {
+            const hr = await HealthConnect.readHeartRate({ hours: 24 });
+            next.restingBpm = hr.restingBpm || 0;
+            if (hr.samples.length > 0) {
+              const last = hr.samples[hr.samples.length - 1];
+              next.latestAt = last[0];
+              next.latestBpm = last[1];
+              next.avgBpm24h = Math.round(hr.samples.reduce((s, x) => s + x[1], 0) / hr.samples.length);
+            }
+            got = true;
+          } catch {
+            // heart rate not shared
+          }
+          try {
+            const { days } = await HealthConnect.readDaily({ days: 30 });
+            for (const d of days) {
+              next.daily[d.date] = {
+                totalKcal: Math.round(d.totalKcal),
+                activeKcal: Math.round(d.activeKcal),
+                distanceKm: Math.round(d.distanceKm * 100) / 100,
+                avgHr: d.avgHr,
+              };
+            }
+            got = true;
+          } catch {
+            // daily totals not shared
+          }
+          try {
+            const fit = await HealthConnect.readFitness({ days: 30 });
+            for (const d of fit.days) next.fitness![d.date] = d;
+            next.vo2 = fit.vo2;
+            got = true;
+          } catch {
+            // fitness numbers not shared
+          }
+          try {
+            const body = await HealthConnect.readBody({ days: 90 });
+            next.weights = body.weights;
+            next.bodyFatPct = body.bodyFat.length ? [...body.bodyFat].sort((a, b) => b.time - a.time)[0].pct : 0;
+            next.heightCm = body.heightCm || 0;
+            got = true;
+          } catch {
+            // body measurements not shared
+          }
+          try {
+            const logs = await HealthConnect.readLogs({ days: 30 });
+            next.bp = logs.bloodPressure.filter((x) => !x.own);
+            next.glucose = logs.glucose.filter((x) => !x.own);
+            got = true;
+          } catch {
+            // blood pressure and glucose not shared
+          }
+          if (got) setVitals(next);
+        }
+        // Workouts other apps saved (the Google Health / Fitbit app, for one): a few at a time, newest first, each seen once so a
+        // workout you delete here does not come back. Every session costs two slow calls, so a sync takes at most four batches.
+        if (status.available && status.canRead && workoutsCb.current && readPrefs().importHcWorkouts) {
+          try {
+            for (let batch = 0; batch < 4; batch++) {
+              const seen = readStored<string[]>(SEEN_KEY, []);
+              const { sessions, remaining } = await HealthConnect.readWorkouts({ days: seen.length ? LATER_DAYS : FIRST_DAYS, max: PER_READ, skip: seen });
+              if (sessions.length === 0) break;
+              workoutsCb.current(sessions);
+              try {
+                localStorage.setItem(KEY_PREFIX + SEEN_KEY, JSON.stringify([...seen, ...sessions.map((s) => s.id)].slice(-600)));
+              } catch {
+                // storage full: they may be offered again, and the merge skips duplicates
+              }
+              if (remaining <= 0) break;
+            }
+          } catch {
+            // workouts not shared or the read failed: try again next time
+          }
+        }
+      } catch {
+        // plugin not ready yet; the next tick will try again
+      } finally {
+        busy.current = false;
+      }
+    },
+    [record, setOwn, setSleepLogs, setVitals]
+  );
+
+  // First launch after setup: ask once for step counting (Android shows its own permission dialog).
+  useEffect(() => {
+    if (!active || !isAndroidApp()) return;
+    const asked = readStored<boolean>('steps_asked', false);
+    sync(!asked, true);
+    if (!asked) {
+      try {
+        localStorage.setItem('kyfit_steps_asked', 'true');
+      } catch {
+        // ignore
+      }
+    }
+    const timer = setInterval(() => sync(false), 60_000);
+    const onVisible = () => document.visibilityState === 'visible' && sync(false, Date.now() - lastHc.current > 2 * 60_000);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [active, sync]);
+
+  const enableSteps = useCallback(() => sync(true), [sync]);
+
+  const connectHealthConnect = useCallback(async () => {
+    setHcError('');
+    try {
+      const status = await HealthConnect.requestAccess();
+      setHc(status);
+      resetHealthWriteCache();
+      if (!(status.grantedCount ?? 0) && !status.sleepGranted && !status.stepsGranted) {
+        setHcError('No access was granted. Tap Open to switch permissions on in Health Connect.');
+      }
+      await sync(false, true);
+    } catch (err: any) {
+      setHcError(err?.message || 'Could not open Health Connect.');
+    }
+  }, [sync]);
+
+  return {
+    autoSteps,
+    steps,
+    hc,
+    vitals,
+    hcError,
+    hcLastSyncAt,
+    hcNightsImported,
+    own,
+    watchData,
+    enableSteps,
+    connectHealthConnect,
+    syncNow: () => sync(false, true),
+  };
+}

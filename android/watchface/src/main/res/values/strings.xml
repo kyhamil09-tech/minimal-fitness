@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="watch_face_name">Minimal Fitness</string>
+    <string name="cfg_theme">Color scheme</string>
+    <string name="slot_0">Top ring</string>
+    <string name="slot_1">Top button</string>
+    <string name="slot_2">Left ring</string>
+    <string name="slot_3">Bottom ring</string>
+    <string name="slot_4">Bottom button</string>
+    <string name="slot_5">Top-left text</string>
+    <string name="slot_6">Bottom-left text</string>
+    <string name="slot_7">Right arc top</string>
+    <string name="slot_8">Right arc bottom</string>
+    <string name="theme_0">Volt Run</string>
+    <string name="theme_1">Fire</string>
+    <string name="theme_2">Steel Blue</string>
+    <string name="theme_3">Toxic</string>
+    <string name="theme_4">Stealth</string>
+    <string name="theme_5">Gold Rush</string>
+    <string name="theme_6">Ice</string>
+    <string name="theme_7">Red Alert</string>
+    <string name="theme_8">Grounded Sage</string>
+    <string name="theme_9">HighEnergy Slate</string>
+    <string name="theme_10">Mind and Body</string>
+    <string name="theme_11">Calm Ocean</string>
+    <string name="theme_12">Grounded Sage AMOLED</string>
+    <string name="theme_13">HighEnergy Slate AMOLED</string>
+    <string name="theme_14">Mind and Body AMOLED</string>
+    <string name="theme_15">Calm Ocean AMOLED</string>
+    <string name="theme_16">HyperMint Titanium</string>
+    <string name="theme_17">Cyber Ice and Cobalt</string>
+    <string name="theme_18">Solar Flame and Onyx</string>
+    <string name="theme_19">Ultra Violet Pulse</string>
+    <string name="theme_20">Pure Crimson Pulse</string>
+    <string name="theme_21">Electric Neon Lime</string>
+    <string name="theme_22">Sunset Gold and Solar</string>
+    <string name="theme_23">Stealth Platinum</string>
+    <string name="theme_24">Tokyo Synthwave Neon</string>
+    <string name="theme_25">Matrix Code Emerald</string>
+    <string name="theme_26">Arctic Glacier Blue</string>
+    <string name="theme_27">Blood Moon Eclipse</string>
+    <string name="theme_28">Blade Runner Amber</string>
+    <string name="theme_29">Luxe Rose Gold</string>
+</resources>

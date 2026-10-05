@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="logo_bg_forest">#30633F</color>
+    <color name="logo_bg_charcoal">#17181B</color>
+    <color name="logo_bg_cream">#F6F0E4</color>
+    <color name="logo_bg_terracotta">#C8643F</color>
+    <color name="logo_bg_lavender">#B8A9D9</color>
+    <color name="logo_bg_ocean">#2F5D86</color>
+    <color name="logo_bg_rose">#D9A5A8</color>
+    <color name="logo_bg_lime">#C8F135</color>
+</resources>

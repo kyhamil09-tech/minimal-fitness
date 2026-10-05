@@ -1,0 +1,251 @@
+{
+ "looks": [
+  {
+   "id": "grounded",
+   "name": "Grounded Sage",
+   "colors": [
+    "#ff8fb287",
+    "#ffd9784f",
+    "#ffe58f79",
+    "#ffe3b565"
+   ],
+   "bg": "#ff131a16",
+   "ink": "#ffeef0e4",
+   "dim": "#ff98a69b"
+  },
+  {
+   "id": "high_energy",
+   "name": "High-Energy Slate",
+   "colors": [
+    "#ffc8f135",
+    "#ffff4a1c",
+    "#ffff6b3d",
+    "#ffffd23f"
+   ],
+   "bg": "#ff11151c",
+   "ink": "#ffe9eef5",
+   "dim": "#ff8e9aab"
+  },
+  {
+   "id": "mind_body",
+   "name": "Mind & Body",
+   "colors": [
+    "#ffd9a5a8",
+    "#ffb8a9d9",
+    "#ffd9b66f",
+    "#ffd9b66f"
+   ],
+   "bg": "#ff1a161c",
+   "ink": "#fff1e9ee",
+   "dim": "#ffa596a3"
+  },
+  {
+   "id": "ocean_calm",
+   "name": "Calm Ocean",
+   "colors": [
+    "#ff7fa8c9",
+    "#ffd9c49a",
+    "#ffd9b66f",
+    "#ffd9b66f"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "volt",
+   "name": "Volt Run Club",
+   "colors": [
+    "#ffcbff00",
+    "#ffff5a1f",
+    "#ffff5a1f",
+    "#ffff5a1f"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "hyper_mint",
+   "name": "Hyper-Mint Titanium",
+   "colors": [
+    "#ff05f196",
+    "#ff818cf8",
+    "#ffff6b4a",
+    "#ff818cf8"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "cyber_ice",
+   "name": "Cyber Ice & Cobalt",
+   "colors": [
+    "#ff00e5ff",
+    "#ff818cf8",
+    "#fff43f5e",
+    "#ff818cf8"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "solar_flame",
+   "name": "Solar Flame & Onyx",
+   "colors": [
+    "#ffff6e40",
+    "#ff38bdf8",
+    "#ff10b981",
+    "#ff38bdf8"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "ultra_violet",
+   "name": "Ultra Violet Pulse",
+   "colors": [
+    "#ffd500f9",
+    "#ffa855f7",
+    "#ff00e5ff",
+    "#ffa855f7"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "crimson_pulse",
+   "name": "Pure Crimson Pulse",
+   "colors": [
+    "#ffff1744",
+    "#fffb7185",
+    "#fffbbf24",
+    "#fffb7185"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "electric_lime",
+   "name": "Electric Neon Lime",
+   "colors": [
+    "#ff76ff03",
+    "#ff00e5ff",
+    "#ffff9100",
+    "#ff00e5ff"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "sunset_gold",
+   "name": "Sunset Gold & Solar",
+   "colors": [
+    "#ffffd600",
+    "#fffb923c",
+    "#ff00e676",
+    "#fffb923c"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "stealth_platinum",
+   "name": "Stealth Platinum",
+   "colors": [
+    "#fff1f5f9",
+    "#ff94a3b8",
+    "#ff38bdf8",
+    "#ff94a3b8"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "tokyo_neon",
+   "name": "Tokyo Synthwave Neon",
+   "colors": [
+    "#ffff007f",
+    "#ff00f5ff",
+    "#ff76ff03",
+    "#ff00f5ff"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "emerald_matrix",
+   "name": "Matrix Code Emerald",
+   "colors": [
+    "#ff00ff66",
+    "#ff00e5ff",
+    "#ffa3e635",
+    "#ff00e5ff"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "arctic_glacier",
+   "name": "Arctic Glacier Blue",
+   "colors": [
+    "#ff38bdf8",
+    "#ff818cf8",
+    "#ff34d399",
+    "#ff818cf8"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "blood_moon",
+   "name": "Blood Moon Eclipse",
+   "colors": [
+    "#ffe11d48",
+    "#fffb7185",
+    "#fff59e0b",
+    "#fffb7185"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "cyber_amber",
+   "name": "Blade Runner Amber",
+   "colors": [
+    "#fff59e0b",
+    "#fffb923c",
+    "#ff10b981",
+    "#fffb923c"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "rose_gold",
+   "name": "Luxe Rose Gold",
+   "colors": [
+    "#fffb7185",
+    "#ffc084fc",
+    "#fff472b6",
+    "#ffc084fc"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  }
+ ]
+}

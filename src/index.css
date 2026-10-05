@@ -1,0 +1,1141 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   Design tokens - "Run Club"
+   Track-black canvas, flat cards, condensed italic display type, one loud accent.
+   --accent / --accent-2 are set at runtime from the selected theme (App.tsx).
+   ========================================================================= */
+:root {
+  --font-sans: 'Figtree Variable', 'Figtree', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', Impact, sans-serif;
+  --accent: #cbff00;
+  --accent-2: #ff5a1f;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-2-soft: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  /* Surfaces: soft off-black and warm cream ink by default. useAppearance() replaces these with the chosen background. */
+  --page-bg: #17181b;
+  --bg: #17181b;
+  --nav-bg: rgba(23, 24, 27, 0.94);
+  --ink: #f2ede3;
+  --ink-dim: #a29e95;
+  --on-accent: #14130f;
+  --on-accent-2: #14130f;
+  --card: #212226;
+  --card-2: #2b2c31;
+  --hairline: #34353b;
+  --hairline-strong: #47484f;
+  --glass: #212226;
+  --glass-strong: #2b2c31;
+  --panel: #212226;
+  /* Data colours */
+  --g-blue: #7dd3fc;
+  --g-green: #cbff00;
+  --g-cyan: #5eead4;
+  --g-red: #ff4d4d;
+  --g-yellow: #ffd23f;
+  --g-purple: #b794ff;
+  --edge: #34353b;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    background-color: var(--page-bg);
+    color-scheme: dark;
+  }
+
+  body {
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: 'tnum';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: none;
+    letter-spacing: -0.005em;
+  }
+
+  /* Hide scrollbars everywhere; content stays scrollable */
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+}
+
+body {
+  background: var(--page-bg) !important;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------------------------
+   Typography: big numbers and headlines are condensed, heavy and slanted
+   ------------------------------------------------------------------------- */
+.font-mono {
+  font-family: var(--font-sans) !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.font-mono[class*='text-3xl'],
+.font-mono[class*='text-4xl'],
+.font-mono[class*='text-5xl'],
+.font-mono[class*='text-6xl'],
+.font-mono[class*='text-7xl'] {
+  font-family: var(--font-display) !important;
+  font-style: italic;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+  line-height: 0.95;
+}
+
+h1,
+.display {
+  font-family: var(--font-display);
+  font-size: 2.5rem !important;
+  line-height: 0.92 !important;
+  font-weight: 800 !important;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: -0.005em !important;
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
+}
+
+h1 + p {
+  color: var(--ink-dim) !important;
+  font-size: 0.85rem !important;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+/* Section labels: small, tracked-out capitals */
+.uppercase.tracking-wider,
+.uppercase.tracking-wide,
+.uppercase[class*='tracking-['] {
+  font-size: 0.7rem !important;
+  letter-spacing: 0.12em !important;
+  font-weight: 700 !important;
+  color: var(--ink-dim);
+}
+
+/* -------------------------------------------------------------------------
+   Surfaces: flat cards on pure black
+   ------------------------------------------------------------------------- */
+[class~='rounded-3xl'][class~='border'],
+[class~='rounded-[28px]'][class~='border'],
+[class~='rounded-[32px]'][class~='border'],
+section[class~='rounded-2xl'][class~='border'],
+article[class~='rounded-2xl'][class~='border'] {
+  border-radius: 22px;
+  background-color: var(--card) !important;
+  background-image: none;
+  border-color: var(--hairline) !important;
+  box-shadow: none;
+  transition:
+    transform 0.25s var(--ease),
+    border-color 0.2s;
+}
+[class~='cursor-pointer'][class~='border']:active {
+  transform: scale(0.985);
+}
+
+/* Pieces used by the redesigned screens */
+.glass-hero {
+  border-radius: 26px !important;
+}
+.glass-tile {
+  min-height: 128px;
+}
+.glass-inset {
+  background: var(--card-2);
+  border: 1px solid var(--hairline);
+}
+.glass-chip {
+  background: var(--glass-strong);
+  border: 1px solid var(--hairline-strong);
+}
+.glass-nav {
+  background: var(--nav-bg);
+  border-top: 1px solid var(--hairline);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+/* Type scale */
+.gh-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.gh-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  line-height: 1;
+  color: var(--ink);
+}
+.gh-chip {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.gh-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.gh-value {
+  font-family: var(--font-display);
+  font-size: 2.3rem;
+  line-height: 1;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+.gh-unit {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+  letter-spacing: 0;
+}
+.gh-sub {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: var(--ink-dim);
+}
+
+/* Hard-coded dark panels (settings lists etc.) */
+[class~='bg-[#0B0D11]'],
+[class~='bg-[#12151C]'] {
+  background-color: var(--card) !important;
+  border-color: var(--hairline) !important;
+}
+
+/* Nested tiles inside cards sit one step lighter */
+[class~='bg-black/40'],
+[class~='bg-black/50'],
+[class~='bg-black/60'] {
+  background-color: var(--card-2) !important;
+}
+[class~='bg-neutral-900'],
+[class~='bg-neutral-950'] {
+  background-color: var(--glass-strong) !important;
+}
+
+/* Hairlines */
+[class~='border-[#1A1E26]'],
+[class~='border-[#1A1E26]/50'],
+[class~='border-neutral-900'],
+[class~='border-neutral-800'] {
+  border-color: var(--hairline) !important;
+}
+[class~='divide-[#1A1E26]'] > * {
+  border-color: var(--hairline) !important;
+}
+button[class~='border-neutral-700']:hover,
+button[class~='hover:border-neutral-700']:hover {
+  border-color: var(--hairline-strong) !important;
+}
+
+/* Hard-coded greens follow the theme accent */
+[class~='text-emerald-400'],
+[class~='text-emerald-300'] {
+  color: var(--accent) !important;
+}
+[class~='bg-emerald-500'],
+[class~='bg-emerald-400'],
+[class~='bg-[#00E676]'] {
+  background-color: var(--accent) !important;
+  color: var(--on-accent) !important;
+}
+[class~='bg-emerald-950'],
+[class~='bg-emerald-950/40'] {
+  background-color: var(--accent-soft) !important;
+}
+[class~='border-emerald-500'],
+[class~='border-emerald-500/50'],
+[class~='border-emerald-800/60'],
+[class~='border-emerald-900'] {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Controls
+   ------------------------------------------------------------------------- */
+button {
+  transition:
+    transform 0.18s var(--ease),
+    background-color 0.2s,
+    border-color 0.2s,
+    opacity 0.2s,
+    color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+/* Primary action buttons: solid accent, black label, pill */
+button[style*='background-color'][class~='text-black'],
+button[class~='bg-emerald-500'],
+button[class~='bg-[#00E676]'] {
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: none !important;
+}
+
+input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='file']),
+select,
+textarea {
+  background-color: var(--card-2) !important;
+  border: 1px solid var(--hairline-strong) !important;
+  border-radius: 14px;
+  color: var(--ink);
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--ink-dim) 80%, transparent);
+}
+/* An input that sits inside a field the surrounding box already draws (search bars, big number entry) */
+input.bare-input.bare-input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='file']) {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0;
+}
+input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='file']):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+}
+input[type='range'],
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+}
+select option {
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* Keyboard focus */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Modals: flat sheet */
+.glass-sheet {
+  background: #0c0c0c;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 -20px 80px -20px rgba(0, 0, 0, 0.9);
+}
+
+/* -------------------------------------------------------------------------
+   Run Club components
+   ------------------------------------------------------------------------- */
+/* Giant slanted number used in heroes and the live run screen */
+.hero-num {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  line-height: 0.85;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.hero-unit {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+}
+.stat-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.eyebrow-accent {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+/* The big round GO button */
+.go-btn {
+  width: 148px;
+  height: 148px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 3.2rem;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 0 0 10px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0 0 22px color-mix(in srgb, var(--accent) 6%, transparent);
+  animation: goPulse 2.6s ease-in-out infinite;
+}
+@keyframes goPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 10px color-mix(in srgb, var(--accent) 14%, transparent),
+      0 0 0 22px color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 14px color-mix(in srgb, var(--accent) 18%, transparent),
+      0 0 0 30px color-mix(in srgb, var(--accent) 4%, transparent);
+  }
+}
+.round-btn {
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass-strong);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+}
+.sport-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--card-2);
+  border: 1px solid var(--hairline-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--ink) 82%, transparent);
+  white-space: nowrap;
+}
+.sport-pill[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+.week-dot {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--hairline-strong);
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.week-dot[data-done='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.week-dot[data-today='true']:not([data-done='true']) {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+/* Edge-to-edge dark panel with a diagonal accent band, used for hero banners */
+.hero-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 26px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+}
+.hero-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, transparent 64%, color-mix(in srgb, var(--accent) 90%, #000) 64.2%, color-mix(in srgb, var(--accent) 90%, #000) 82%, transparent 82.2%),
+    linear-gradient(115deg, transparent 85%, color-mix(in srgb, var(--accent-2) 90%, #000) 85.2%, color-mix(in srgb, var(--accent-2) 90%, #000) 91%, transparent 91.2%);
+  opacity: 0.95;
+}
+.hero-banner > * {
+  position: relative;
+}
+
+/* -------------------------------------------------------------------------
+   Motion
+   ------------------------------------------------------------------------- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes slideFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(34px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slideFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-34px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* A swipe to the left brings the next screen in from the right, and the other way round */
+.animate-slide-left {
+  animation: slideFromRight 0.28s var(--ease) backwards;
+}
+.animate-slide-right {
+  animation: slideFromLeft 0.28s var(--ease) backwards;
+}
+@keyframes sheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.3s var(--ease) both;
+}
+/* `backwards` (not `both`) so no stacking context lingers after the animation and modals can sit above the nav */
+.animate-rise {
+  animation: rise 0.45s var(--ease) backwards;
+}
+.animate-sheet {
+  animation: sheetUp 0.35s var(--ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Settings > Look & feel */
+html.large-text {
+  font-size: 118%;
+}
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* -------------------------------------------------------------------------
+   Aurora glow (Settings > Look & feel > Background glow)
+   Soft theme-coloured light drifting behind the screens. Only transform and opacity animate, so the
+   page is never repainted. "always" mode steps the motion (about 8 updates a second) to save battery.
+   ------------------------------------------------------------------------- */
+.aurora {
+  /* Blended in oklch so the in-between colours stay vivid instead of going grey */
+  --glow-c: color-mix(in oklch, var(--accent) 50%, var(--accent-2));
+  --glow-d: color-mix(in oklch, var(--accent-2) 55%, var(--g-purple));
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  opacity: 0;
+  transition: opacity 1.2s ease-out;
+}
+.aurora[data-on='true'] {
+  opacity: var(--aurora-strength, 0.6);
+}
+.aurora[data-on='false'] {
+  transition-duration: 2s;
+}
+.aurora-burst {
+  --aurora-strength: 0.55;
+  --speed: 0.3;
+}
+.aurora-always {
+  --aurora-strength: 0.36;
+  --speed: 1;
+}
+/* Used by liquid glass when the glow is off: the same light, standing still */
+.aurora-still {
+  --aurora-strength: 0.5;
+  --speed: 1;
+}
+.aurora-still .blob,
+.aurora-still .ribbon,
+.aurora-still .dust {
+  animation: none;
+  will-change: auto;
+}
+/* Light theme: the page is inverted, so the glow is drawn stronger to show as a soft colour wash on white */
+html[data-theme='light'] .aurora-burst {
+  --aurora-strength: 0.8;
+}
+html[data-theme='light'] .aurora-always {
+  --aurora-strength: 0.6;
+}
+html[data-theme='light'] .aurora-still {
+  --aurora-strength: 0.7;
+}
+.aurora .blob,
+.aurora .ribbon {
+  position: absolute;
+  display: block;
+  will-change: transform;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+.aurora .blob {
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--c) 62%, transparent) 0%,
+    color-mix(in srgb, var(--c) 38%, transparent) 30%,
+    color-mix(in srgb, var(--c) 16%, transparent) 58%,
+    color-mix(in srgb, var(--c) 4%, transparent) 82%,
+    transparent 100%
+  );
+}
+.aurora .ribbon {
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--c) 42%, transparent) 0%,
+    color-mix(in srgb, var(--c) 22%, transparent) 40%,
+    color-mix(in srgb, var(--c) 7%, transparent) 75%,
+    transparent 100%
+  );
+}
+.aurora .b1 {
+  --c: var(--accent);
+  width: 105vw;
+  height: 105vw;
+  left: -38vw;
+  top: -22vw;
+  animation-name: auroraA;
+  animation-duration: calc(26s * var(--speed));
+}
+.aurora .b2 {
+  --c: var(--accent-2);
+  width: 115vw;
+  height: 115vw;
+  right: -52vw;
+  top: 42vh;
+  animation-name: auroraB;
+  animation-duration: calc(31s * var(--speed));
+}
+.aurora .b3 {
+  --c: var(--glow-c);
+  width: 90vw;
+  height: 90vw;
+  left: -26vw;
+  top: 58vh;
+  animation-name: auroraC;
+  animation-duration: calc(23s * var(--speed));
+}
+.aurora .b4 {
+  --c: var(--glow-d);
+  width: 80vw;
+  height: 80vw;
+  right: -20vw;
+  top: -14vw;
+  animation-name: auroraD;
+  animation-duration: calc(29s * var(--speed));
+}
+.aurora .r1 {
+  --c: var(--accent);
+  width: 170vw;
+  height: 46vw;
+  left: -35vw;
+  top: 28vh;
+  animation-name: ribbonA;
+  animation-duration: calc(34s * var(--speed));
+}
+.aurora .r2 {
+  --c: var(--glow-c);
+  width: 150vw;
+  height: 40vw;
+  left: -25vw;
+  top: 62vh;
+  animation-name: ribbonB;
+  animation-duration: calc(37s * var(--speed));
+}
+/* A few faint specks that twinkle and rise very slowly */
+.aurora .dust {
+  position: absolute;
+  display: block;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  will-change: transform, opacity;
+  animation: dustRise calc(18s * var(--speed)) ease-in-out infinite alternate;
+}
+.aurora .d1 {
+  left: 7vw;
+  top: 9vh;
+  background: color-mix(in srgb, var(--accent) 55%, #fff);
+  box-shadow:
+    31vw 6vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    63vw 2vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    12vw 23vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    47vw 31vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    82vw 19vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    24vw 47vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    71vw 52vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    38vw 68vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff),
+    8vw 79vh 0 0 color-mix(in srgb, var(--accent) 55%, #fff);
+}
+.aurora .d2 {
+  left: 15vw;
+  top: 4vh;
+  animation-delay: -4s;
+  background: color-mix(in srgb, var(--accent-2) 45%, #fff);
+  box-shadow:
+    22vw 11vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    55vw 16vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    76vw 41vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    5vw 36vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    44vw 49vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    66vw 74vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    20vw 62vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    52vw 84vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff),
+    80vw 88vh 0 0 color-mix(in srgb, var(--accent-2) 45%, #fff);
+}
+.aurora-always .blob,
+.aurora-always .ribbon {
+  animation-timing-function: steps(240);
+}
+.aurora-always .dust {
+  animation-timing-function: steps(30);
+}
+@keyframes auroraA {
+  to {
+    transform: translate3d(34vw, 26vw, 0);
+  }
+}
+@keyframes auroraB {
+  to {
+    transform: translate3d(-30vw, -28vw, 0);
+  }
+}
+@keyframes auroraC {
+  to {
+    transform: translate3d(28vw, -20vw, 0);
+  }
+}
+@keyframes auroraD {
+  to {
+    transform: translate3d(-22vw, 34vw, 0);
+  }
+}
+@keyframes ribbonA {
+  from {
+    transform: translate3d(-8vw, -4vw, 0) rotate(-26deg);
+  }
+  to {
+    transform: translate3d(10vw, 6vw, 0) rotate(-19deg);
+  }
+}
+@keyframes ribbonB {
+  from {
+    transform: translate3d(8vw, 3vw, 0) rotate(21deg);
+  }
+  to {
+    transform: translate3d(-12vw, -5vw, 0) rotate(27deg);
+  }
+}
+@keyframes dustRise {
+  from {
+    opacity: 0.1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(1vw, -3vh, 0);
+  }
+}
+/* Not on the live workout screen (it is solid black anyway) */
+body:has([aria-label='Workout in progress']) .aurora {
+  display: none;
+}
+
+/* Utility classes for mobile feel */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe-area padding for the floating nav */
+.pb-safe {
+  /* --sys-gesture-bottom is the height of Android's gesture-navigation zone, set natively (see lib/systemInsets). Taps inside that
+     zone are claimed by the system's swipe-home gesture, so the tab buttons stop above it. */
+  padding-bottom: max(0.25rem, env(safe-area-inset-bottom), var(--sys-gesture-bottom, 0px));
+}
+
+/* Glow helpers */
+.glow-accent {
+  box-shadow: 0 0 24px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.glow-subtle {
+  box-shadow: 0 0 14px -3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Dark map: desaturated charcoal tiles, the route layer keeps its colour */
+.map-dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) saturate(0.25) brightness(0.8) contrast(1.15);
+}
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: #0b0b0b;
+}
+.leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: #9a9a9a !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a {
+  color: #bdbdbd !important;
+}
+.leaflet-bar a {
+  background: rgba(20, 20, 20, 0.9) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Light theme (Settings > Display > Appearance)
+   The dark design is inverted and hues are rotated back, so accent colours keep their meaning
+   while black becomes white and white text becomes dark. Maps are flipped back so they show normally.
+   ------------------------------------------------------------------------- */
+html[data-theme='light'] {
+  background-color: var(--page-bg);
+  color-scheme: light;
+}
+html[data-theme='light'] body {
+  background: var(--page-bg) !important;
+}
+html[data-theme='light'] #root {
+  filter: invert(1) hue-rotate(180deg);
+}
+html[data-theme='light'] .leaflet-container {
+  filter: invert(1) hue-rotate(180deg);
+}
+html[data-theme='light'] .map-dark .leaflet-tile-pane {
+  filter: none;
+}
+/* -------------------------------------------------------------------------
+   Liquid glass (Settings > Look & feel > Liquid glass)
+   Cards, bars and sheets turn into frosted, see-through glass over the background glow: a blur of what is behind,
+   a soft sheen across the surface and a bright edge on the top. The surface colours are all variables, so most of the
+   work is re-pointing them at translucent values. On the light theme the page is inverted, so the same values are
+   written "inside out" (black frost in the dark page becomes white frost).
+   ------------------------------------------------------------------------- */
+html.liquid-glass {
+  --card: rgba(255, 255, 255, 0.075);
+  --card-2: rgba(255, 255, 255, 0.11);
+  --glass-strong: rgba(255, 255, 255, 0.15);
+  --panel: rgba(255, 255, 255, 0.075);
+  --hairline: rgba(255, 255, 255, 0.15);
+  --hairline-strong: rgba(255, 255, 255, 0.26);
+  --gl-edge: rgba(255, 255, 255, 0.5);
+  --gl-sheen: rgba(255, 255, 255, 0.13);
+  --gl-shadow: rgba(0, 0, 0, 0.55);
+  --gl-nav: rgba(12, 12, 14, 0.62);
+}
+html.liquid-glass[data-theme='light'] {
+  --card: rgba(0, 0, 0, 0.1);
+  --card-2: rgba(0, 0, 0, 0.14);
+  --glass-strong: rgba(0, 0, 0, 0.18);
+  --panel: rgba(0, 0, 0, 0.1);
+  --hairline: rgba(255, 255, 255, 0.2);
+  --hairline-strong: rgba(255, 255, 255, 0.34);
+  --gl-edge: rgba(0, 0, 0, 0.7);
+  --gl-sheen: rgba(0, 0, 0, 0.14);
+  --gl-shadow: rgba(255, 255, 255, 0.45);
+  --gl-nav: rgba(0, 0, 0, 0.5);
+}
+html.liquid-glass [class~='rounded-3xl'][class~='border'],
+html.liquid-glass [class~='rounded-[28px]'][class~='border'],
+html.liquid-glass [class~='rounded-[32px]'][class~='border'],
+html.liquid-glass section[class~='rounded-2xl'][class~='border'],
+html.liquid-glass article[class~='rounded-2xl'][class~='border'],
+html.liquid-glass [class~='bg-[#0B0D11]'],
+html.liquid-glass [class~='bg-[#12151C]'] {
+  background-image:
+    linear-gradient(135deg, var(--gl-sheen) 0%, transparent 38%, transparent 62%, color-mix(in srgb, var(--gl-sheen) 45%, transparent) 100%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.7);
+  backdrop-filter: blur(18px) saturate(1.7);
+  box-shadow:
+    inset 0 1px 0 var(--gl-edge),
+    inset 0 -1px 0 color-mix(in srgb, var(--gl-edge) 20%, transparent),
+    inset 1px 0 0 color-mix(in srgb, var(--gl-edge) 14%, transparent),
+    0 14px 34px -16px var(--gl-shadow);
+}
+/* Smaller pieces inside cards: translucent but not blurred again, which keeps scrolling smooth */
+html.liquid-glass .glass-inset,
+html.liquid-glass .glass-chip {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gl-edge) 55%, transparent);
+}
+html.liquid-glass .glass-nav {
+  background: var(--gl-nav);
+  border-top-color: var(--hairline-strong);
+  -webkit-backdrop-filter: blur(26px) saturate(1.8);
+  backdrop-filter: blur(26px) saturate(1.8);
+  box-shadow: inset 0 1px 0 var(--gl-edge);
+}
+html.liquid-glass .glass-sheet {
+  background: var(--card-2);
+  border-color: var(--hairline-strong);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 var(--gl-edge),
+    0 -20px 80px -20px var(--gl-shadow);
+}
+html.liquid-glass input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='file']),
+html.liquid-glass select,
+html.liquid-glass textarea {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gl-edge) 35%, transparent);
+}
+/* With the status bar hidden the app draws under the camera cutout: keep content clear of it */
+#root {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+
+
+/* -------------------------------------------------------------------------
+   Hard-coded dark panels, edges and secondary text follow the chosen background and palette
+   (the same variables the cards use), so a cream, pastel or off-black page recolours them too.
+   ------------------------------------------------------------------------- */
+[class~='bg-[#0B0D11]'],
+[class~='bg-[#12151C]'],
+[class~='bg-[#111]'] {
+  background-color: var(--panel) !important;
+}
+[class~='bg-[#151921]'] {
+  background-color: var(--card-2) !important;
+}
+[class~='border-[#1A1E26]'],
+[class~='border-[#222836]'] {
+  border-color: var(--hairline) !important;
+}
+[class~='divide-[#1A1E26]'] > :not(:last-child) {
+  border-color: var(--hairline) !important;
+}
+[class~='text-[#7E889B]'] {
+  color: var(--ink-dim) !important;
+}
+
+
+
+/* -------------------------------------------------------------------------
+   Gentle motion: presses, colour changes, a ring that has just closed, and the pop-in used by onboarding.
+   All of it is switched off by Reduce motion (see html.reduce-motion above).
+   ------------------------------------------------------------------------- */
+button {
+  transition:
+    transform 0.16s var(--ease),
+    background-color 0.25s,
+    border-color 0.25s,
+    color 0.25s,
+    opacity 0.2s;
+}
+button:not(:disabled):active {
+  transform: scale(0.965);
+}
+html {
+  transition: background-color 0.5s ease;
+}
+body,
+[class~='rounded-3xl'][class~='border'],
+.hero-banner,
+.glass-inset,
+.glass-nav {
+  transition:
+    background-color 0.5s ease,
+    border-color 0.5s ease,
+    transform 0.25s var(--ease);
+}
+
+.ring-pop {
+  animation: ringPop 0.9s var(--ease) 1;
+}
+@keyframes ringPop {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  35% {
+    transform: scale(1.07);
+    filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 70%, transparent));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+.pop-in {
+  opacity: 0;
+  transform: translateY(14px) scale(0.96);
+  animation: popIn 0.55s var(--ease) forwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 60ms);
+}
+@keyframes popIn {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Award celebration confetti */
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.confetti span {
+  position: absolute;
+  top: -14px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confettiFall linear 1 forwards;
+}
+@keyframes confettiFall {
+  0% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  100% {
+    opacity: 0;
+    translate: 24px 105vh;
+    rotate: 540deg;
+  }
+}
+html.reduce-motion .confetti {
+  display: none;
+}
+.fade-up {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: popIn 0.5s var(--ease) forwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.slide-in {
+  animation: slideIn 0.45s var(--ease) both;
+}
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.check-draw {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: checkDraw 0.5s 0.55s var(--ease) forwards;
+}
+@keyframes checkDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.soft-float {
+  animation: softFloat 5s ease-in-out infinite;
+}
+@keyframes softFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Lists with a hairline between rows, drawn in the current look */
+.row-divide > li + li {
+  border-top: 1px solid var(--hairline);
+}

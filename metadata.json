@@ -1,0 +1,5 @@
+{
+  "name": "Minimal Fitness",
+  "description": "Privacy-first fitness tracker: workouts with GPS routes, nutrition, sleep and a Pixel Watch companion. Everything stays on your device.",
+  "requestFramePermissions": []
+}

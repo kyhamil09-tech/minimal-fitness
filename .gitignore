@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Signing keys and secrets: never commit these
+signing/
+keystore.properties
+*.keystore
+*.jks
+android/local.properties
+android/.gradle/
+android/**/build/
