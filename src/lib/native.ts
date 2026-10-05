@@ -15,7 +15,10 @@ export interface StepsTotals {
 
 export const Steps = registerPlugin<{
   start(): Promise<StepsTotals>;
-  getToday(): Promise<StepsTotals>;
+  /** `sensor: false` returns what is stored (the watch's total) without reading the phone's step counter. */
+  getToday(options?: { sensor?: boolean }): Promise<StepsTotals>;
+  /** Stops the background step counting. Today's saved total stays; start() turns it back on. */
+  stop(): Promise<void>;
 }>('Steps');
 
 export interface HcStatus {

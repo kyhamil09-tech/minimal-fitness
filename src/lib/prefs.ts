@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import { WorkoutType } from '../types/health';
 import type { ZoneMethod } from './calc';
+import { STEP_SOURCES, type StepSource } from './steps';
 
 /** Everything in Settings that is a simple choice, kept in one saved object. */
 export interface AppPrefs {
@@ -67,6 +68,8 @@ export interface AppPrefs {
   detectWalks: boolean;
   /** Wheel rollout in millimetres, for speed from a wheel sensor (2105 is a common road tyre). */
   wheelMm: number;
+  /** Which source counts your steps: the best of all, only the phone, only the watch, or only Health Connect. */
+  stepSource: StepSource;
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -105,6 +108,7 @@ export const DEFAULT_PREFS: AppPrefs = {
   detectWorkouts: true,
   detectWalks: false,
   wheelMm: 2105,
+  stepSource: 'auto',
 };
 
 const KEY = 'kyfit_prefs';
@@ -172,6 +176,7 @@ export const sanitizePrefs = (raw: Partial<AppPrefs>): AppPrefs => {
     detectWorkouts: bool(raw.detectWorkouts, d.detectWorkouts),
     detectWalks: bool(raw.detectWalks, d.detectWalks),
     wheelMm: num(raw.wheelMm, 1200, 2400, d.wheelMm),
+    stepSource: pick(raw.stepSource, STEP_SOURCES, d.stepSource),
   };
 };
 

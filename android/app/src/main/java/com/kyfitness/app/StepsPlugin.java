@@ -74,9 +74,17 @@ public class StepsPlugin extends Plugin {
         WorkManager.getInstance(getContext()).enqueueUniquePeriodicWork("ky_steps", ExistingPeriodicWorkPolicy.KEEP, req);
     }
 
+    /** Cancels the 15-minute sampling, so the phone's own step counter is no longer read in the background. */
+    @PluginMethod
+    public void stop(PluginCall call) {
+        WorkManager.getInstance(getContext()).cancelUniqueWork("ky_steps");
+        call.resolve();
+    }
+
     @PluginMethod
     public void getToday(PluginCall call) {
-        if (!hasPermission()) {
+        // sensor=false answers from what is already stored (the watch's total) without waking the phone's counter.
+        if (!call.getBoolean("sensor", true) || !hasPermission()) {
             call.resolve(totals());
             return;
         }

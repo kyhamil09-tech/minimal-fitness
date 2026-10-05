@@ -12,6 +12,7 @@ import { clearTileCache, tileCacheCount } from '../lib/tileCache';
 import { setSleepDetectEnabled, sleepDetectEnabled, startSleepDetect, stopSleepDetect } from '../lib/sleepDetect';
 import { ownSensorsEnabled, setOwnSensorsEnabled } from '../lib/ownSensors';
 import { usePrefs } from '../lib/prefs';
+import { StepsSettings } from './StepsSettings';
 
 interface AutomationSettingsProps {
   theme: ColorPalette;
@@ -40,7 +41,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
   const { prefs, setPrefs } = usePrefs();
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [logText, setLogText] = useState<string | null>(null);
-  const { steps, hc } = automation;
+  const { hc } = automation;
   const [tiles, setTiles] = useState<number | null>(null);
   const [sleepOn, setSleepOn] = useState<boolean>(sleepDetectEnabled);
   const [ownOn, setOwnOn] = useState<boolean>(ownSensorsEnabled);
@@ -80,26 +81,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
           Automatic data
         </div>)}
         <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] divide-y divide-[#1A1E26] overflow-hidden">
-          <Row
-            icon={<Footprints className="w-5 h-5 text-sky-300" />}
-            title="Steps"
-            sub={
-              !android
-                ? 'Automatic step counting works in the Android app.'
-                : steps && !steps.permission
-                  ? 'Allow physical-activity access so the phone can count your steps.'
-                  : steps && !steps.sensor
-                    ? 'This phone has no step counter. Use a watch or Health Connect, or enter steps by hand.'
-                    : `Phone ${steps?.phone ?? 0}${steps?.watch ? ` · watch ${steps.watch}` : ''}${hc?.stepsGranted ? ' · Health Connect' : ''} today. The highest source is used.`
-            }
-            action={
-              android && steps && !steps.permission ? (
-                <button onClick={automation.enableSteps} className={primary} style={{ backgroundColor: theme.primary }}>
-                  Allow
-                </button>
-              ) : undefined
-            }
-          />
+          <StepsSettings theme={theme} automation={automation} android={android} />
           <Row
             icon={<BedDouble className="w-5 h-5 text-indigo-300" />}
             title="Detect sleep with this phone"

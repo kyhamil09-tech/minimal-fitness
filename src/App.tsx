@@ -316,7 +316,7 @@ export default function App() {
   const automation = useAutomaticData(profile.onboarded, setSleepLogs, (sessions) => {
     const converted = sessions.map((s) => hcWorkoutToSession(s, profile)).filter((w): w is WorkoutSession => w !== null);
     if (converted.length > 0) setWorkouts((prev) => mergeImportedWorkouts(prev, converted).merged);
-  });
+  }, prefs.stepSource);
 
   // "Looks like you started a run": the phone's own activity recognition offers to record (needs the physical-activity permission the step counter asks for).
   const stepsReady = automation.steps !== null;
@@ -375,12 +375,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hcWeightStamp]);
 
-  // A day's steps are the highest of what you typed and what was counted automatically.
+  // A day's steps are the highest of what you added and what the chosen source counted, unless you set or deleted that day.
   const mergedSteps = useMemo(() => {
     const out: Record<string, number> = { ...stepsLog };
     for (const [day, n] of Object.entries(automation.autoSteps)) out[day] = Math.max(out[day] ?? 0, n);
+    for (const [day, n] of Object.entries(automation.stepOverrides)) out[day] = n;
     return out;
-  }, [stepsLog, automation.autoSteps]);
+  }, [stepsLog, automation.autoSteps, automation.stepOverrides]);
 
   // Today's readiness: last night's sleep, HRV and resting heart rate against your usual, and your recent training load.
   const fitnessDays = useMemo(
@@ -540,6 +541,16 @@ export default function App() {
 
   const todaySteps = mergedSteps[todayKey()] || 0;
   const handleSetSteps = (n: number) => setStepsLog((prev) => ({ ...prev, [todayKey()]: n }));
+  // Correct (a number) or delete (0) a day's steps, or return it to the automatic count (null). Also clears an older typed value for that day.
+  const handleSetDaySteps = (date: string, n: number | null) => {
+    automation.setDaySteps(date, n);
+    setStepsLog((prev) => {
+      if (!(date in prev)) return prev;
+      const { [date]: _gone, ...rest } = prev;
+      return rest;
+    });
+  };
+  const stepsAutomation = { ...automation, setDaySteps: handleSetDaySteps };
   const handleSetStepGoal = (n: number) => setGoals((g) => ({ ...g, dailySteps: n }));
 
   // Wipes every kyfit_/aegis_ key and reloads, which returns the app to first-run onboarding.
@@ -709,6 +720,9 @@ export default function App() {
             sleepLogs={sleepLogs}
             steps={todaySteps}
             onSetSteps={handleSetSteps}
+            stepsAdjusted={todayKey() in automation.stepOverrides}
+            onEditSteps={(n) => handleSetDaySteps(todayKey(), n)}
+            onResetSteps={() => handleSetDaySteps(todayKey(), null)}
             food={food}
             water={water}
             activePlan={activePlan}
@@ -843,7 +857,7 @@ export default function App() {
             showCycle={profile.sex === 'female'}
             ble={ble}
             watch={watch}
-            automation={automation}
+            automation={stepsAutomation}
             backup={backup}
             runOptions={runOptions}
             onRunOptionsChange={setRunOptions}

@@ -81,6 +81,12 @@ interface TodayScreenProps {
   sleepLogs: SleepLogEntry[];
   steps: number;
   onSetSteps: (n: number) => void;
+  /** Today's steps were set or deleted by hand rather than counted automatically. */
+  stepsAdjusted: boolean;
+  /** Sets today's steps exactly (0 deletes them); the automatic count no longer changes today's number. */
+  onEditSteps: (n: number) => void;
+  /** Returns today's steps to the automatic count. */
+  onResetSteps: () => void;
   food: FoodEntry[];
   water: WaterEntry[];
   activePlan: ActivePlan | null;
@@ -122,6 +128,9 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   sleepLogs,
   steps: currentSteps,
   onSetSteps,
+  stepsAdjusted,
+  onEditSteps,
+  onResetSteps,
   food,
   water,
   activePlan,
@@ -186,7 +195,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
 
   const handleSaveStepGoal = (newGoal: number, newSteps: number) => {
     onSetStepGoal(newGoal);
-    onSetSteps(newSteps);
+    if (newSteps !== currentSteps) onEditSteps(newSteps);
     setShowGoalModal(false);
   };
 
@@ -631,7 +640,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26]">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Footprints className="w-4 h-4 text-emerald-400" />
-                Configure Daily Step Goal
+                Steps
               </h3>
               <button onClick={() => setShowGoalModal(false)} className="text-neutral-400 hover:text-white">
                 <X className="w-4 h-4" />
@@ -641,7 +650,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             <div className="py-4 space-y-4">
               <div className="space-y-1">
                 <label htmlFor="ts-steps" className="text-[11px] text-neutral-400">
-                  Add steps (counted automatically; enter a higher total only if the phone missed some)
+                  Steps today
                 </label>
                 <input
                   id="ts-steps"
@@ -651,8 +660,32 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                   className={fieldClass}
                 />
                 <p className="text-[10px] text-neutral-600">
-                  The Android app counts steps itself. A number you enter is only used when it is higher.
+                  {stepsAdjusted
+                    ? 'You set this number, so it will not change on its own.'
+                    : 'Counted automatically. Change it to correct today; it stays at the number you set.'}
                 </p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      onEditSteps(0);
+                      setShowGoalModal(false);
+                    }}
+                    className="flex-1 py-2 rounded-xl border border-rose-500/40 text-[11px] font-semibold text-rose-300 hover:bg-rose-500/10"
+                  >
+                    Delete today's steps
+                  </button>
+                  {stepsAdjusted && (
+                    <button
+                      onClick={() => {
+                        onResetSteps();
+                        setShowGoalModal(false);
+                      }}
+                      className="flex-1 py-2 rounded-xl border border-neutral-700 text-[11px] font-semibold text-neutral-200 hover:text-white"
+                    >
+                      Use automatic count
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="text-center">
                 <span className="text-4xl font-bold font-mono text-white tabular-nums">

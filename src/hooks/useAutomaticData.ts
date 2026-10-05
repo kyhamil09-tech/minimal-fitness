@@ -1,6 +1,8 @@
-import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StepSource, StepsBySource, migrateOldSteps, recordSource, resolveSteps, usesHealthConnect, usesPhone } from '../lib/steps';
+import { todayKey } from '../lib/dates';
 import { HealthConnect, HcFitnessDay, HcStatus, HcWorkout, Steps, StepsTotals, isAndroidApp } from '../lib/native';
-import { applyVitalsToLogs, bestSteps, mergeImportedSleep, nightsNeedingVitals, sessionToLog } from '../lib/healthConnect';
+import { applyVitalsToLogs, mergeImportedSleep, nightsNeedingVitals, sessionToLog } from '../lib/healthConnect';
 import { resetHealthWriteCache } from '../lib/healthWrite';
 import { isDismissedSleep, mergeDetectedSleep, readSleepSegments, segmentsToLogs, sleepDetectEnabled, startSleepDetect } from '../lib/sleepDetect';
 import { usePersistentState, readStored, KEY_PREFIX } from './usePersistentState';
@@ -42,8 +44,14 @@ export interface HcVitals {
 }
 
 export interface AutomaticData {
-  /** Steps per day counted automatically (phone counter, watch, Health Connect). */
+  /** Steps per day from the chosen source (see Settings), with any day you corrected or deleted already applied. */
   autoSteps: Record<string, number>;
+  /** Sets a day's steps by hand (0 deletes the day), or `null` to go back to the automatic count. */
+  setDaySteps: (date: string, steps: number | null) => void;
+  /** Days whose steps you set or deleted by hand. */
+  stepOverrides: Record<string, number>;
+  /** What each source counted for each day, before any correction. */
+  stepsBySource: StepsBySource;
   steps: StepsTotals | null;
   hc: HcStatus | null;
   /** Heart rate, calories, distance and body measurements from Health Connect, or null before the first read. */
@@ -70,11 +78,28 @@ export function useAutomaticData(
   active: boolean,
   setSleepLogs: Dispatch<SetStateAction<SleepLogEntry[]>>,
   /** Called with workouts other apps saved to Health Connect that have not been seen before (Google Health and others). */
-  onHcWorkouts?: (sessions: HcWorkout[]) => void
+  onHcWorkouts?: (sessions: HcWorkout[]) => void,
+  /** Which source counts steps (Settings > Steps). The phone's counter and Health Connect are only read when chosen. */
+  stepSource: StepSource = 'auto'
 ): AutomaticData {
   const workoutsCb = useRef(onHcWorkouts);
   workoutsCb.current = onHcWorkouts;
-  const [autoSteps, setAutoSteps] = usePersistentState<Record<string, number>>('auto_steps', {});
+  // Totals saved before sources were kept apart move across once, so past days keep their numbers.
+  const [stepsBySource, setStepsBySource] = usePersistentState<StepsBySource>('steps_by_source', () =>
+    migrateOldSteps(readStored<Record<string, number>>('auto_steps', {}), {}, todayKey())
+  );
+  const [stepOverrides, setStepOverrides] = usePersistentState<Record<string, number>>('steps_override', {});
+  const autoSteps = useMemo(() => resolveSteps(stepsBySource, stepSource, stepOverrides), [stepsBySource, stepSource, stepOverrides]);
+  const setDaySteps = useCallback(
+    (date: string, n: number | null) =>
+      setStepOverrides((prev) => {
+        const next = { ...prev };
+        if (n === null) delete next[date];
+        else next[date] = Math.max(0, Math.round(n));
+        return next;
+      }),
+    [setStepOverrides]
+  );
   const [steps, setSteps] = useState<StepsTotals | null>(null);
   const [hc, setHc] = useState<HcStatus | null>(null);
   const [vitals, setVitals] = usePersistentState<HcVitals | null>('hc_vitals', null);
@@ -87,12 +112,9 @@ export function useAutomaticData(
   const lastHc = useRef(0);
 
   const record = useCallback(
-    (date: string, ...values: (number | undefined)[]) =>
-      setAutoSteps((prev) => {
-        const next = bestSteps(prev[date], ...values);
-        return next === prev[date] ? prev : { ...prev, [date]: next };
-      }),
-    [setAutoSteps]
+    (date: string, source: 'phone' | 'watch' | 'hc', value: number | undefined) =>
+      setStepsBySource((prev) => recordSource(prev, date, source, value)),
+    [setStepsBySource]
   );
 
   const sync = useCallback(
@@ -100,9 +122,12 @@ export function useAutomaticData(
       if (!isAndroidApp() || busy.current) return;
       busy.current = true;
       try {
-        const totals = askForSteps ? await Steps.start() : await Steps.getToday();
+        // The phone's own counter is only read when the phone is a chosen source; the watch's total is always stored.
+        const phoneOn = usesPhone(stepSource);
+        const totals = askForSteps && phoneOn ? await Steps.start() : await Steps.getToday({ sensor: phoneOn });
         setSteps(totals);
-        record(totals.day, totals.phone, totals.watch);
+        if (phoneOn) record(totals.day, 'phone', totals.phone);
+        record(totals.day, 'watch', totals.watch);
 
         // Sleep the phone itself detected (bedtime and wake time). Health Connect nights below replace these.
         if (sleepDetectEnabled()) {
@@ -154,10 +179,10 @@ export function useAutomaticData(
             // overnight readings are optional
           }
         }
-        if (status.available && status.stepsGranted) {
+        if (status.available && status.stepsGranted && usesHealthConnect(stepSource)) {
           try {
             const { days } = await HealthConnect.readSteps({ days: 30 });
-            days.forEach((d) => record(d.date, d.steps));
+            days.forEach((d) => record(d.date, 'hc', d.steps));
           } catch {
             // steps from Health Connect are optional
           }
@@ -260,8 +285,18 @@ export function useAutomaticData(
         busy.current = false;
       }
     },
-    [record, setOwn, setSleepLogs, setVitals]
+    [record, setOwn, setSleepLogs, setVitals, stepSource]
   );
+
+  // Choosing a source that leaves out the phone cancels its background counting; choosing it again turns that back on.
+  const phoneWasOn = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!active || !isAndroidApp()) return;
+    const on = usesPhone(stepSource);
+    if (!on) void Steps.stop().catch(() => {});
+    else if (phoneWasOn.current === false) void Steps.start().catch(() => {});
+    phoneWasOn.current = on;
+  }, [active, stepSource]);
 
   // First launch after setup: ask once for step counting (Android shows its own permission dialog).
   useEffect(() => {
@@ -303,6 +338,9 @@ export function useAutomaticData(
 
   return {
     autoSteps,
+    setDaySteps,
+    stepOverrides,
+    stepsBySource,
     steps,
     hc,
     vitals,
