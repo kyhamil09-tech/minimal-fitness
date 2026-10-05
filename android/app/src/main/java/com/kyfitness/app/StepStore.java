@@ -3,6 +3,8 @@ package com.kyfitness.app;
 import android.content.Context;
 import android.content.SharedPreferences;
 import java.time.LocalDate;
+import org.json.JSONArray;
+import org.json.JSONException;
 
 /**
  * Daily step totals. The phone's step counter reports a running total since the phone booted, so the
@@ -48,7 +50,45 @@ final class StepStore {
             .putFloat("carry", carry)
             .putInt("steps", steps)
             .apply();
+        appendLog(c, "log", steps);
         return steps;
+    }
+
+    /** Samples kept: about two weeks at one every 15 minutes, plus the extra ones taken whenever the app is opened. */
+    private static final int MAX_LOG = 1600;
+
+    /** Remembers "steps so far today" with the time, so steps in a period (a drive, say) can be taken out later. */
+    private static void appendLog(Context c, String key, int steps) {
+        try {
+            SharedPreferences p = prefs(c);
+            JSONArray log = new JSONArray(p.getString(key, "[]"));
+            long now = System.currentTimeMillis();
+            int n = log.length();
+            if (n > 0) {
+                JSONArray lastRow = log.getJSONArray(n - 1);
+                // Same reading again within a minute: nothing new to keep.
+                if (lastRow.getInt(1) == steps && now - lastRow.getLong(0) < 60_000L) return;
+            }
+            log.put(new JSONArray().put(now).put(steps));
+            if (log.length() > MAX_LOG) {
+                JSONArray trimmed = new JSONArray();
+                for (int i = log.length() - MAX_LOG; i < log.length(); i++) trimmed.put(log.get(i));
+                log = trimmed;
+            }
+            p.edit().putString(key, log.toString()).apply();
+        } catch (JSONException ignored) {
+            // a damaged log is simply started again by the next sample
+            prefs(c).edit().remove(key).apply();
+        }
+    }
+
+    /** The saved samples as [[epoch ms, steps so far that day], ...], oldest first. */
+    static synchronized JSONArray log(Context c, String key) {
+        try {
+            return new JSONArray(prefs(c).getString(key, "[]"));
+        } catch (JSONException e) {
+            return new JSONArray();
+        }
     }
 
     static synchronized int phoneToday(Context c) {
@@ -58,6 +98,7 @@ final class StepStore {
 
     static synchronized void setWatch(Context c, String day, int steps) {
         prefs(c).edit().putString("watchDay", day).putInt("watchSteps", steps).apply();
+        if (today().equals(day)) appendLog(c, "wlog", steps);
     }
 
     static synchronized int watchToday(Context c) {

@@ -87,6 +87,8 @@ interface TodayScreenProps {
   onEditSteps: (n: number) => void;
   /** Returns today's steps to the automatic count. */
   onResetSteps: () => void;
+  /** The "remove steps from a period" editor, shown inside the steps dialog. */
+  stepPeriods?: React.ReactNode;
   food: FoodEntry[];
   water: WaterEntry[];
   activePlan: ActivePlan | null;
@@ -131,6 +133,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   stepsAdjusted,
   onEditSteps,
   onResetSteps,
+  stepPeriods,
   food,
   water,
   activePlan,
@@ -155,6 +158,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   const [tempGoal, setTempGoal] = useState<number>(dailyStepGoal);
   const [tempSteps, setTempSteps] = useState<string>(String(currentSteps));
   const [justCompletedTitle, setJustCompletedTitle] = useState<string | null>(null);
+  const [showPeriods, setShowPeriods] = useState(false);
 
   const stepsProgress = Math.min(100, Math.round((currentSteps / dailyStepGoal) * 100));
 
@@ -636,7 +640,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
           aria-label="Steps and step goal"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
         >
-          <div className="w-full max-w-sm bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl">
+          <div className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26]">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Footprints className="w-4 h-4 text-emerald-400" />
@@ -686,6 +690,18 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                     </button>
                   )}
                 </div>
+                {stepPeriods && (
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setShowPeriods((v) => !v)}
+                      aria-expanded={showPeriods}
+                      className="text-[11px] font-semibold text-neutral-300 hover:text-white"
+                    >
+                      {showPeriods ? 'Hide' : 'Remove steps from a period, like a drive'}
+                    </button>
+                    {showPeriods && <div className="mt-3 pt-3 border-t border-[#1A1E26]">{stepPeriods}</div>}
+                  </div>
+                )}
               </div>
               <div className="text-center">
                 <span className="text-4xl font-bold font-mono text-white tabular-nums">

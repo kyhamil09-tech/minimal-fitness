@@ -17,6 +17,8 @@ export const Steps = registerPlugin<{
   start(): Promise<StepsTotals>;
   /** `sensor: false` returns what is stored (the watch's total) without reading the phone's step counter. */
   getToday(options?: { sensor?: boolean }): Promise<StepsTotals>;
+  /** Timed samples for the phone and the watch: [epoch ms, steps so far that day], oldest first. */
+  history(): Promise<{ phone: [number, number][]; watch: [number, number][] }>;
   /** Stops the background step counting. Today's saved total stays; start() turns it back on. */
   stop(): Promise<void>;
 }>('Steps');
@@ -122,6 +124,8 @@ export const HealthConnect = registerPlugin<{
   /** Overnight heart rate, HRV, breathing, blood oxygen and skin temperature for the given nights (slow: ask for a few at a time). */
   readSleepVitals(options: { nights: { id: string; start: number; end: number }[] }): Promise<{ nights: HcSleepVitals[] }>;
   readSteps(options: { days: number }): Promise<{ days: { date: string; steps: number }[] }>;
+  /** Steps in one-hour pieces: [start ms, end ms, steps]. */
+  readStepBuckets(options: { days: number }): Promise<{ buckets: [number, number, number][] }>;
   /** Daily heart-rate range, resting heart rate, floors, exercise minutes and HRV, plus the VO2 max history [ms, value]. */
   readFitness(options: { days: number }): Promise<{ days: HcFitnessDay[]; vo2: [number, number][] }>;
   readDaily(options: { days: number }): Promise<{

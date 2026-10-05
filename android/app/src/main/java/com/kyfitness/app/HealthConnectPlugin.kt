@@ -30,6 +30,7 @@ import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.request.AggregateGroupByDurationRequest
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -47,6 +48,7 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -425,6 +427,43 @@ class HealthConnectPlugin : Plugin() {
                 call.resolve(out)
             } catch (e: Exception) {
                 call.reject("Could not read steps: ${e.message}")
+            }
+        }
+    }
+
+    /** Steps in one-hour pieces for the last `days` days, as [start ms, end ms, steps]: lets a period such as a drive be taken out. */
+    @PluginMethod
+    fun readStepBuckets(call: PluginCall) {
+        val days = call.getInt("days", 3) ?: 3
+        scope.launch {
+            try {
+                if (!available()) {
+                    call.reject("Health Connect is not available.")
+                    return@launch
+                }
+                val from = LocalDate.now().minusDays((days - 1).toLong()).atStartOfDay(ZoneId.systemDefault()).toInstant()
+                val buckets = client().aggregateGroupByDuration(
+                    AggregateGroupByDurationRequest(
+                        metrics = setOf(StepsRecord.COUNT_TOTAL),
+                        timeRangeFilter = TimeRangeFilter.between(from, Instant.now()),
+                        timeRangeSlicer = Duration.ofHours(1),
+                    )
+                )
+                val arr = JSArray()
+                for (b in buckets) {
+                    val n = b.result[StepsRecord.COUNT_TOTAL] ?: 0L
+                    if (n <= 0L) continue
+                    val row = JSArray()
+                    row.put(b.startTime.toEpochMilli())
+                    row.put(b.endTime.toEpochMilli())
+                    row.put(n)
+                    arr.put(row)
+                }
+                val out = JSObject()
+                out.put("buckets", arr)
+                call.resolve(out)
+            } catch (e: Exception) {
+                call.reject("Could not read steps by hour: ${e.message}")
             }
         }
     }

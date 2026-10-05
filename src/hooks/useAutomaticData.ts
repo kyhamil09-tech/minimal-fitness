@@ -1,5 +1,20 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StepSource, StepsBySource, migrateOldSteps, recordSource, resolveSteps, usesHealthConnect, usesPhone } from '../lib/steps';
+import {
+  NO_SAMPLES,
+  StepSample,
+  StepSamples,
+  StepSource,
+  StepWindow,
+  StepsBySource,
+  bucketsToSamples,
+  migrateOldSteps,
+  recordSource,
+  resolveSteps,
+  stepsInWindow,
+  trimSamples,
+  usesHealthConnect,
+  usesPhone,
+} from '../lib/steps';
 import { todayKey } from '../lib/dates';
 import { HealthConnect, HcFitnessDay, HcStatus, HcWorkout, Steps, StepsTotals, isAndroidApp } from '../lib/native';
 import { applyVitalsToLogs, mergeImportedSleep, nightsNeedingVitals, sessionToLog } from '../lib/healthConnect';
@@ -52,6 +67,13 @@ export interface AutomaticData {
   stepOverrides: Record<string, number>;
   /** What each source counted for each day, before any correction. */
   stepsBySource: StepsBySource;
+  /** Timed step counts (steps so far that day at a moment) the app has kept, for taking a period out. */
+  stepSamples: StepSamples;
+  /** Periods whose steps were taken out (a drive, say). */
+  stepWindows: StepWindow[];
+  /** Takes the steps counted between two times of a day out of every source. */
+  addStepWindow: (date: string, fromMs: number, toMs: number) => void;
+  removeStepWindow: (id: string) => void;
   steps: StepsTotals | null;
   hc: HcStatus | null;
   /** Heart rate, calories, distance and body measurements from Health Connect, or null before the first read. */
@@ -89,7 +111,47 @@ export function useAutomaticData(
     migrateOldSteps(readStored<Record<string, number>>('auto_steps', {}), {}, todayKey())
   );
   const [stepOverrides, setStepOverrides] = usePersistentState<Record<string, number>>('steps_override', {});
-  const autoSteps = useMemo(() => resolveSteps(stepsBySource, stepSource, stepOverrides), [stepsBySource, stepSource, stepOverrides]);
+  const [stepSamples, setStepSamples] = usePersistentState<StepSamples>('steps_samples', NO_SAMPLES);
+  const [stepWindows, setStepWindows] = usePersistentState<StepWindow[]>('steps_windows', []);
+  const autoSteps = useMemo(
+    () => resolveSteps(stepsBySource, stepSource, stepOverrides, stepWindows),
+    [stepsBySource, stepSource, stepOverrides, stepWindows]
+  );
+  const addStepWindow = useCallback(
+    (date: string, fromMs: number, toMs: number) =>
+      setStepWindows((prev) => [
+        ...prev,
+        {
+          id: `sw-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+          date,
+          fromMs: Math.min(fromMs, toMs),
+          toMs: Math.max(fromMs, toMs),
+          removed: stepsInWindow(stepSamples, date, fromMs, toMs),
+        },
+      ]),
+    [setStepWindows, stepSamples]
+  );
+  const removeStepWindow = useCallback((id: string) => setStepWindows((prev) => prev.filter((w) => w.id !== id)), [setStepWindows]);
+  // Samples that arrive after a period was added (the drive was still in progress) refine what it took out, for the last two days.
+  useEffect(() => {
+    const recent = Date.now() - 2 * 86_400_000;
+    setStepWindows((prev) => {
+      let changed = false;
+      const next = prev.map((w) => {
+        if (w.toMs < recent) return w;
+        // Only ever grows: a counter does not go backwards, and an empty history must not undo what was taken out.
+        const fresh = stepsInWindow(stepSamples, w.date, w.fromMs, w.toMs);
+        const removed = { ...w.removed };
+        for (const k of ['phone', 'watch', 'hc'] as const) {
+          if (fresh[k] !== undefined) removed[k] = Math.max(removed[k] ?? 0, fresh[k] ?? 0);
+        }
+        if (JSON.stringify(removed) === JSON.stringify(w.removed)) return w;
+        changed = true;
+        return { ...w, removed };
+      });
+      return changed ? next : prev;
+    });
+  }, [stepSamples, setStepWindows]);
   const setDaySteps = useCallback(
     (date: string, n: number | null) =>
       setStepOverrides((prev) => {
@@ -128,6 +190,13 @@ export function useAutomaticData(
         setSteps(totals);
         if (phoneOn) record(totals.day, 'phone', totals.phone);
         record(totals.day, 'watch', totals.watch);
+        // The timed samples kept on the phone (also while the app was closed) let a period such as a drive be taken out later.
+        try {
+          const h = await Steps.history();
+          setStepSamples((prev) => trimSamples({ ...prev, phone: h.phone ?? prev.phone, watch: h.watch ?? prev.watch }, Date.now()));
+        } catch {
+          // older builds have no history: removing a period then is not available
+        }
 
         // Sleep the phone itself detected (bedtime and wake time). Health Connect nights below replace these.
         if (sleepDetectEnabled()) {
@@ -183,6 +252,14 @@ export function useAutomaticData(
           try {
             const { days } = await HealthConnect.readSteps({ days: 30 });
             days.forEach((d) => record(d.date, 'hc', d.steps));
+            // Hour by hour, so a period can be taken out of Health Connect's count too.
+            try {
+              const { buckets } = await HealthConnect.readStepBuckets({ days: 7 });
+              const hcSamples: StepSample[] = bucketsToSamples(buckets);
+              setStepSamples((prev) => trimSamples({ ...prev, hc: hcSamples.length ? hcSamples : prev.hc }, Date.now()));
+            } catch {
+              // hourly steps are optional
+            }
           } catch {
             // steps from Health Connect are optional
           }
@@ -285,7 +362,7 @@ export function useAutomaticData(
         busy.current = false;
       }
     },
-    [record, setOwn, setSleepLogs, setVitals, stepSource]
+    [record, setOwn, setSleepLogs, setVitals, setStepSamples, stepSource]
   );
 
   // Choosing a source that leaves out the phone cancels its background counting; choosing it again turns that back on.
@@ -341,6 +418,10 @@ export function useAutomaticData(
     setDaySteps,
     stepOverrides,
     stepsBySource,
+    stepSamples,
+    stepWindows,
+    addStepWindow,
+    removeStepWindow,
     steps,
     hc,
     vitals,

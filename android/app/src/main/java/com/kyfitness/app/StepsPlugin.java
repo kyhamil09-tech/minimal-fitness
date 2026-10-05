@@ -12,6 +12,7 @@ import android.os.Looper;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -72,6 +73,20 @@ public class StepsPlugin extends Plugin {
     private void schedule() {
         PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(StepSampleWorker.class, 15, TimeUnit.MINUTES).build();
         WorkManager.getInstance(getContext()).enqueueUniquePeriodicWork("ky_steps", ExistingPeriodicWorkPolicy.KEEP, req);
+    }
+
+    /** The saved timed samples for the phone and the watch: [[epoch ms, steps so far that day], ...]. */
+    @PluginMethod
+    public void history(PluginCall call) {
+        JSObject o = new JSObject();
+        try {
+            o.put("phone", new JSArray(StepStore.log(getContext(), "log").toString()));
+            o.put("watch", new JSArray(StepStore.log(getContext(), "wlog").toString()));
+        } catch (org.json.JSONException e) {
+            call.reject("Could not read the step history.");
+            return;
+        }
+        call.resolve(o);
     }
 
     /** Cancels the 15-minute sampling, so the phone's own step counter is no longer read in the background. */

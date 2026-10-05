@@ -62,6 +62,7 @@ import { buildWatchLook } from './lib/appearance';
 import { AmoledTopBar } from './components/AmoledTopBar';
 import { BottomNavBar } from './components/BottomNavBar';
 import { TodayScreen } from './components/TodayScreen';
+import { StepPeriods } from './components/StepPeriods';
 import { FitnessScreen } from './components/FitnessScreen';
 import { SleepScreen } from './components/SleepScreen';
 import { FastingScreen } from './components/FastingScreen';
@@ -723,6 +724,7 @@ export default function App() {
             stepsAdjusted={todayKey() in automation.stepOverrides}
             onEditSteps={(n) => handleSetDaySteps(todayKey(), n)}
             onResetSteps={() => handleSetDaySteps(todayKey(), null)}
+            stepPeriods={<StepPeriods theme={theme} automation={automation} />}
             food={food}
             water={water}
             activePlan={activePlan}

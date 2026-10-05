@@ -6,6 +6,7 @@ import { usePrefs } from '../lib/prefs';
 import { STEP_SOURCES, STEP_SOURCE_HELP, STEP_SOURCE_LABEL, StepSource, resolveDay } from '../lib/steps';
 import { addDays, todayKey } from '../lib/dates';
 import { Choice, ChoiceRow, Row } from './ui/SettingsParts';
+import { StepPeriods } from './StepPeriods';
 
 interface StepsSettingsProps {
   theme: ColorPalette;
@@ -71,6 +72,9 @@ export const StepsSettings: React.FC<StepsSettingsProps> = ({ theme, automation,
           onChange={(stepSource) => setPrefs({ stepSource })}
         />
       </ChoiceRow>
+      <div className="px-4 py-4">
+        <StepPeriods theme={theme} automation={automation} />
+      </div>
       <div className="px-4 py-3">
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="text-xs font-semibold text-neutral-300 hover:text-white">
           {open ? 'Hide step history' : 'Edit or delete step history'}
