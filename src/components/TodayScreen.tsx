@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { MetricDetailSheet } from './MetricDetailSheet';
+import type { MetricId, SeriesInput } from '../lib/metricSeries';
 import { adaptWeek } from '../lib/planWeek';
 import { trainingLoadStatus } from '../lib/trainingLoad';
 import {
@@ -89,6 +91,8 @@ interface TodayScreenProps {
   onResetSteps: () => void;
   /** The "remove steps from a period" editor, shown inside the steps dialog. */
   stepPeriods?: React.ReactNode;
+  /** Daily numbers behind the history sheets that the health tiles open. */
+  metricInput: SeriesInput;
   food: FoodEntry[];
   water: WaterEntry[];
   activePlan: ActivePlan | null;
@@ -134,6 +138,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   onEditSteps,
   onResetSteps,
   stepPeriods,
+  metricInput,
   food,
   water,
   activePlan,
@@ -159,6 +164,42 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   const [tempSteps, setTempSteps] = useState<string>(String(currentSteps));
   const [justCompletedTitle, setJustCompletedTitle] = useState<string | null>(null);
   const [showPeriods, setShowPeriods] = useState(false);
+  // The health tile that was tapped: it opens a sheet with history, trend and averages.
+  const [metric, setMetric] = useState<MetricId | null>(null);
+  // Makes a non-button element behave like one for touch, mouse and keyboard.
+  const tap = (run: () => void) => ({
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: run,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        run();
+      }
+    },
+  });
+  // Where each tile used to lead, kept as a button inside its sheet.
+  const sheetAction = (id: MetricId): { label: string; onClick: () => void } | undefined => {
+    switch (id) {
+      case 'steps':
+        return {
+          label: "Edit today's steps or the goal",
+          onClick: () => {
+            setMetric(null);
+            setTempGoal(dailyStepGoal);
+            setTempSteps(String(currentSteps));
+            setShowGoalModal(true);
+          },
+        };
+      case 'water':
+      case 'eaten':
+        return { label: id === 'water' ? 'Log water in Nutrition' : 'Open Nutrition', onClick: () => { setMetric(null); onNavigateToTab('nutrition'); } };
+      case 'heart':
+        return { label: 'Live heart rate and sensors', onClick: () => { setMetric(null); onNavigateToTab('health'); } };
+      default:
+        return undefined;
+    }
+  };
 
   const stepsProgress = Math.min(100, Math.round((currentSteps / dailyStepGoal) * 100));
 
@@ -489,11 +530,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
       {/* STEPS + WATER */}
       <section className="grid grid-cols-2 gap-3">
         <button
-          onClick={() => {
-            setTempGoal(dailyStepGoal);
-            setTempSteps(String(currentSteps));
-            setShowGoalModal(true);
-          }}
+          onClick={() => setMetric('steps')}
           className="rounded-[28px] border p-4 text-left glass-tile"
           style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
         >
@@ -509,7 +546,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         </button>
 
         <button
-          onClick={() => onNavigateToTab('nutrition')}
+          onClick={() => setMetric('water')}
           className="rounded-[28px] border p-4 text-left glass-tile"
           style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
         >
@@ -533,7 +570,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         </button>
 
         <div
-          onClick={() => onNavigateToTab('health')}
+          {...tap(() => setMetric('heart'))}
           className="rounded-[28px] border p-4 cursor-pointer glass-tile"
           style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
         >
@@ -572,7 +609,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         </div>
 
         <div
-          onClick={() => onNavigateToTab('nutrition')}
+          {...tap(() => setMetric('eaten'))}
           className="rounded-[28px] border p-4 cursor-pointer glass-tile col-span-2"
           style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
         >
@@ -605,32 +642,44 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             <span className="text-[11px] font-semibold text-neutral-500">today</span>
           </div>
           <div className="grid grid-cols-3 gap-3 mt-3">
-            <div>
+            <button className="text-left rounded-xl -m-1 p-1 hover:bg-white/5" onClick={() => setMetric('kcal')} aria-label="Total calories burned, see history">
               <div className="gh-value !text-[1.8rem]">{hcToday ? hcToday.totalKcal.toLocaleString() : '-'}</div>
               <div className="stat-label mt-1">Total kcal</div>
-            </div>
-            <div>
+            </button>
+            <button className="text-left rounded-xl -m-1 p-1 hover:bg-white/5" onClick={() => setMetric('active')} aria-label="Active calories, see history">
               <div className="gh-value !text-[1.8rem]">{hcToday ? hcToday.activeKcal.toLocaleString() : '-'}</div>
               <div className="stat-label mt-1">Active kcal</div>
-            </div>
-            <div>
+            </button>
+            <button className="text-left rounded-xl -m-1 p-1 hover:bg-white/5" onClick={() => setMetric('distance')} aria-label="Distance, see history">
               <div className="gh-value !text-[1.8rem]">{hcToday && hcToday.distanceKm > 0 ? kmToDisplay(hcToday.distanceKm, profile.units, 1) : '-'}</div>
               <div className="stat-label mt-1">{distanceUnit(profile.units)}</div>
-            </div>
-            <div>
+            </button>
+            <button className="text-left rounded-xl -m-1 p-1 hover:bg-white/5" onClick={() => setMetric('resting')} aria-label="Resting heart rate, see history">
               <div className="gh-value !text-[1.8rem]">{vitals.restingBpm || '-'}</div>
               <div className="stat-label mt-1">Resting bpm</div>
-            </div>
-            <div>
+            </button>
+            <button className="text-left rounded-xl -m-1 p-1 hover:bg-white/5" onClick={() => setMetric('heart')} aria-label="Average heart rate, see history">
               <div className="gh-value !text-[1.8rem]">{vitals.avgBpm24h || '-'}</div>
               <div className="stat-label mt-1">Avg bpm 24h</div>
-            </div>
-            <div>
+            </button>
+            <button className="text-left rounded-xl -m-1 p-1 hover:bg-white/5" onClick={() => setMetric('weight')} aria-label="Weight, see history">
               <div className="gh-value !text-[1.8rem]">{hcWeight ? kgToDisplay(hcWeight.kg, profile.units, 1) : '-'}</div>
               <div className="stat-label mt-1">Weight {weightUnit(profile.units)}</div>
-            </div>
+            </button>
           </div>
         </section>
+      )}
+
+      {metric && (
+        <MetricDetailSheet
+          metric={metric}
+          theme={theme}
+          units={profile.units}
+          goals={goals}
+          input={metricInput}
+          onClose={() => setMetric(null)}
+          action={sheetAction(metric)}
+        />
       )}
 
       {/* STEP GOAL CONFIGURATOR MODAL */}      {showGoalModal && (

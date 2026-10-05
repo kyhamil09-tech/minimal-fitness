@@ -401,6 +401,20 @@ export default function App() {
       }),
     [mergedSteps, automation.vitals, automation.own, workouts]
   );
+  // The numbers behind the history sheets that the health tiles on Today open.
+  const metricInput = useMemo(
+    () => ({
+      days: fitnessDays,
+      // Weigh-ins from this app plus the ones Health Connect holds (a smart scale), one per day.
+      body: [
+        ...(automation.vitals?.weights ?? []).filter((w) => !w.own).map((w) => ({ date: toDateKey(w.time), weightKg: w.kg })),
+        ...body.map((b) => ({ date: b.date, weightKg: b.weightKg })),
+      ],
+      food: food.map((f) => ({ date: f.date, calories: f.calories })),
+      water: water.map((w) => ({ date: w.date, ml: w.ml })),
+    }),
+    [fitnessDays, automation.vitals, body, food, water]
+  );
   const readinessToday = useMemo(() => {
     const today = todayKey();
     return readiness({ sleepLogs, days: fitnessDays, load: trainingLoadStatus(workouts, today), today });
@@ -736,6 +750,7 @@ export default function App() {
             onEditSteps={(n) => handleSetDaySteps(todayKey(), n)}
             onResetSteps={() => handleSetDaySteps(todayKey(), null)}
             stepPeriods={<StepPeriods theme={theme} automation={automation} />}
+            metricInput={metricInput}
             food={food}
             water={water}
             activePlan={activePlan}
