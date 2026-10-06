@@ -7,4 +7,5 @@
     <string name="widget_fasting_description">Fasting timer with start and end</string>
     <string name="widget_water_description">Today\'s water with one-tap add buttons</string>
     <string name="widget_quick_description">Steps, workouts this week, readiness and one-tap Run or Walk</string>
+    <string name="build_ref" translatable="false">1f09-9a45-5b52</string>
 </resources>

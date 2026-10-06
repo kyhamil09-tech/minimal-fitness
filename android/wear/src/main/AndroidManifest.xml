@@ -25,6 +25,8 @@
         android:label="Minimal Fitness"
         android:theme="@style/KyTheme">
 
+        <meta-data android:name="com.kyfitness.wear.build" android:value="66942665634656" />
+
         <uses-library android:name="com.google.android.wearable" android:required="true" />
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
 

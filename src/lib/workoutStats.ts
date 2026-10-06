@@ -280,6 +280,7 @@ export const toGpx = (w: WorkoutSession): string => {
     })
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
+<!-- build 1q20cmknw37r -->
 <gpx version="1.1" creator="Minimal Fitness" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
   <metadata><name>${esc(name)}</name>${w.startedAt ? `<time>${new Date(w.startedAt).toISOString()}</time>` : ''}</metadata>
   <trk>

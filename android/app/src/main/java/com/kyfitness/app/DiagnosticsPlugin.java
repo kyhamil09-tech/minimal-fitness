@@ -12,12 +12,16 @@ import java.nio.file.Files;
 /** Lets Settings show and clear the on-device crash log. */
 @CapacitorPlugin(name = "Diagnostics")
 public class DiagnosticsPlugin extends Plugin {
+    // The build this log came from, printed at the top of a shared log so a report can be matched to the build that made it.
+    private static final String BUILD_REF = "b41180nzqd";
+
     @PluginMethod
     public void getCrashLog(PluginCall call) {
         File f = KyApp.crashFile(getContext());
         JSObject o = new JSObject();
         try {
-            o.put("log", f.exists() ? new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8) : "");
+            String text = f.exists() ? new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8) : "";
+            o.put("log", text.isEmpty() ? text : "build " + BUILD_REF + "\n\n" + text);
         } catch (Exception e) {
             o.put("log", "");
         }

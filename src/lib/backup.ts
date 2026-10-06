@@ -10,10 +10,15 @@ export interface BackupFile {
   app: 'ky-fitness';
   version: 1;
   exportedAt: string;
+  // The build that wrote the file, so a bug report can be matched to it.
+  build?: string;
   data: Record<string, string>;
   /** Progress photos, added by a manual backup only (they are large, so automatic backups leave them out). */
   photos?: { id: string; date: string; pose: 'front' | 'side' | 'back' | 'other'; note?: string; data: string }[];
 }
+
+// Which build wrote a backup.
+const BUILD_REF = 'HXJ5LRQYENVHUBQ8';
 
 const POSES = new Set(['front', 'side', 'back', 'other']);
 
@@ -28,7 +33,7 @@ export const buildBackup = (storage: Pick<Storage, 'length' | 'key' | 'getItem'>
       if (v !== null) data[k] = v;
     }
   }
-  return { app: 'ky-fitness', version: 1, exportedAt: new Date().toISOString(), data };
+  return { app: 'ky-fitness', version: 1, exportedAt: new Date().toISOString(), build: BUILD_REF, data };
 };
 
 /** Parses and validates a backup. Throws a readable Error on bad input. */

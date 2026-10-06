@@ -47,5 +47,9 @@ export const installErrorLog = () => {
   });
 };
 
+// The build this log came from, printed at the top of a shared log so a report can be matched to the build that made it.
+const BUILD_REF = '049f7cf25d33';
+
 export const formatErrors = (errors: ErrorEntry[]): string =>
+  (errors.length > 0 ? `build ${BUILD_REF}\n\n` : '') +
   errors.map((e) => `[${new Date(e.t).toISOString()}] ${e.message}${e.stack ? `\n${e.stack}` : ''}`).join('\n\n');
