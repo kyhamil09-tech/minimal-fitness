@@ -1,22 +1,19 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TabId, MetricKey, WorkoutSession, WorkoutType, SleepLogEntry, FastingSession } from './types/health';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { MetricKey, WorkoutSession, WorkoutType, SleepLogEntry, FastingSession } from './types/health';
 import { ThemeId } from './types/theme';
 import { MODERN_THEMES } from './data/themes';
 import { METRIC_CONFIGS } from './data/catalog';
 import {
   ActivePlan,
   BodyEntry,
-  FoodEntry,
   Goals,
   DEFAULT_RUN_OPTIONS,
   ReminderSettings,
   Routine,
   HealthLogEntry,
-  SavedMeal,
   WorkoutPlan,
   RunOptions,
   UserProfile,
-  WaterEntry,
 } from './types/tracking';
 import { DEFAULT_GOALS, DEFAULT_PROFILE, DEFAULT_REMINDERS } from './data/defaults';
 import { usePersistentState } from './hooks/usePersistentState';
@@ -24,14 +21,16 @@ import { useBleHeartRate } from './hooks/useBleHeartRate';
 import { useWatchHeartRate } from './hooks/useWatchHeartRate';
 import { useAutomaticData } from './hooks/useAutomaticData';
 import { useAutoBackup } from './hooks/useAutoBackup';
-import { Fasting, Glance, Launch, Water, isAndroidApp } from './lib/native';
-import { sanitizePendingWater, waterButtonAmounts } from './lib/waterPending';
+import { isAndroidApp } from './lib/native';
 import { workoutsCodec } from './lib/storageCodec';
 import { StorageNotice } from './components/StorageNotice';
 import { AppMapScreen } from './components/AppMapScreen';
-import { MapTarget, ProgressSection, RunSection, progressSectionFor } from './lib/appMap';
-import { endFast, lastProtocol, startFast } from './lib/fasting';
-import { KIND_LABEL, goalSummary, monthProgress, sanitizeMonthlyGoal } from './lib/monthlyGoal';
+import { useAppNavigation } from './hooks/useAppNavigation';
+import { useNativeSync } from './hooks/useNativeSync';
+import { useNutritionLog } from './hooks/useNutritionLog';
+import { makeId } from './lib/ids';
+import { useWatchWorkoutImport, useWidgetLaunchActions } from './hooks/useWatchAndWidgetInput';
+import { progressSectionFor } from './lib/appMap';
 import { App as CapApp } from '@capacitor/app';
 import { AuroraGlow } from './components/AuroraGlow';
 import { RewardsHost } from './components/RewardsHost';
@@ -39,8 +38,7 @@ import { wipePhotos } from './lib/photoStore';
 import { afterWorkout } from './lib/rewards';
 import { announce } from './lib/rewardsBus';
 import { watchSystemInsets } from './lib/systemInsets';
-import { currentStreak, pickRestingHr, setZoneConfig, workoutDateKeys, workoutsInWeek } from './lib/calc';
-import { WatchWorkoutPayload, fillTrackFromWatch, mergeWatchWorkouts, watchWorkoutToSession } from './lib/watchImport';
+import { pickRestingHr, setZoneConfig } from './lib/calc';
 import { clearAppData, clearSecrets } from './lib/backup';
 import { useReminders } from './hooks/useReminders';
 import { setWeekStartsOnSunday, toDateKey, todayKey } from './lib/dates';
@@ -93,10 +91,8 @@ import {
   deleteWorkoutFromHc,
   writeBodyToHc,
   deleteHealthLogFromHc,
-  writeFoodToHc,
   writeHealthLogToHc,
   writeSleepToHc,
-  writeWaterToHc,
   writeWorkoutToHc,
   setHealthWriteEnabled,
 } from './lib/healthWrite';
@@ -124,70 +120,27 @@ export default function App() {
 
   useEffect(() => watchSystemInsets(), []);
 
-  const [currentTab, setCurrentTab] = useState<TabId>(() => readPrefs().defaultTab);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  // Which way the last swipe went, so the next screen slides in from that side (null for a tap on a tab).
-  const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
-  const swipeStart = useRef<{ x: number; y: number; at: number } | null>(null);
-  // Swipe left or right anywhere on a screen to move to the next or previous main tab. Swipes that start on
-  // something that scrolls sideways (chips, sliders, maps), during a live workout, or inside a dialog are ignored.
-  const MAIN_TABS: TabId[] = ['today', 'exercise', 'nutrition', 'progress', 'settings'];
-  const mainTabOf = (tab: TabId): TabId =>
-    tab === 'fasting' || tab === 'sleep' || tab === 'healthlog' ? 'nutrition' : tab === 'health' ? 'progress' : tab;
-  const handleSwipeStart = (e: React.TouchEvent) => {
-    const el = e.target as HTMLElement;
-    const blocked =
-      !prefs.swipeTabs ||
-      e.touches.length !== 1 ||
-      !!el.closest('.overflow-x-auto, input, select, textarea, [data-no-swipe], [role="dialog"], .leaflet-container') ||
-      !!document.querySelector('[aria-label="Workout in progress"]');
-    const t = e.touches[0];
-    swipeStart.current = blocked ? null : { x: t.clientX, y: t.clientY, at: Date.now() };
-  };
-  const handleSwipeEnd = (e: React.TouchEvent) => {
-    const s = swipeStart.current;
-    swipeStart.current = null;
-    if (!s) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - s.x;
-    const dy = t.clientY - s.y;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6 || Date.now() - s.at > 700) return;
-    const next = MAIN_TABS[MAIN_TABS.indexOf(mainTabOf(currentTab)) + (dx < 0 ? 1 : -1)];
-    if (!next) return;
-    setSlideDir(dx < 0 ? 'left' : 'right');
-    setCurrentTab(next);
-  };
-
-  // Back button: a sub-screen or another tab goes back to Today, and Today asks before the app closes.
-  const [confirmExit, setConfirmExit] = useState(false);
-  const tabRef = useRef(currentTab);
-  tabRef.current = currentTab;
-  const exitOpenRef = useRef(false);
-  exitOpenRef.current = confirmExit;
-  useEffect(() => {
-    if (!isAndroidApp()) return;
-    const sub = CapApp.addListener('backButton', () => {
-      if (exitOpenRef.current) { setConfirmExit(false); return; }
-      const dialog = document.querySelector('[role="dialog"]');
-      if (dialog) {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        return;
-      }
-      if (tabRef.current !== 'today') { setSlideDir(null); setCurrentTab('today'); return; }
-      setConfirmExit(true);
-    });
-    return () => { void sub.then((s) => s.remove()); };
-  }, []);
-  // Each tab opens at the top rather than inheriting the previous tab's scroll position.
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
-  }, [currentTab]);
-
-  // Every tab change (and the first screen) lights the background glow for a few seconds.
-  const [glowKey, setGlowKey] = useState(0);
-  useEffect(() => {
-    setGlowKey((k) => k + 1);
-  }, [currentTab]);
+  // Where you are and how you move (tabs, swipes, the back button, the map). See hooks/useAppNavigation.
+  const {
+    currentTab,
+    setCurrentTab,
+    scrollRef,
+    slideDir,
+    setSlideDir,
+    handleSwipeStart,
+    handleSwipeEnd,
+    confirmExit,
+    setConfirmExit,
+    glowKey,
+    progressStart,
+    setProgressStart,
+    mapOpen,
+    setMapOpen,
+    runOpen,
+    mealPlanToken,
+    setMealPlanToken,
+    navigateTo,
+  } = useAppNavigation(prefs.swipeTabs);
 
   // Modern & Custom Theme State
   const [customThemes, setCustomThemes] = useState<Record<string, import('./types/theme').ColorPalette>>(() => {
@@ -302,8 +255,9 @@ export default function App() {
   workoutsRef.current = workouts;
   const [sleepLogs, setSleepLogs] = usePersistentState<SleepLogEntry[]>('sleep_logs', []);
   const [fastingSessions, setFastingSessions] = usePersistentState<FastingSession[]>('fasting_sessions', []);
-  const [food, setFood] = usePersistentState<FoodEntry[]>('food', []);
-  const [water, setWater] = usePersistentState<WaterEntry[]>('water', []);
+  // Food, water and saved meals, with adding and deleting. See hooks/useNutritionLog.
+  const { food, water, savedMeals, addFood: handleAddFood, deleteFood: handleDeleteFood, addWater: handleAddWater, deleteWater: handleDeleteWater, saveMeal: handleSaveMeal, deleteMeal: handleDeleteMeal } =
+    useNutritionLog();
   const [body, setBody] = usePersistentState<BodyEntry[]>('body', []);
   const [stepsLog, setStepsLog] = usePersistentState<Record<string, number>>('steps', {});
   const [routines, setRoutines] = usePersistentState<Routine[]>('routines', []);
@@ -312,7 +266,6 @@ export default function App() {
   const [cycleStarts, setCycleStarts] = usePersistentState<string[]>('cycle_starts', []);
   const [savedRoutes, setSavedRoutes] = usePersistentState<SavedRoute[]>('saved_routes', []);
   const [healthLog, setHealthLog] = usePersistentState<HealthLogEntry[]>('health_log', []);
-  const [savedMeals, setSavedMeals] = usePersistentState<SavedMeal[]>('saved_meals', []);
   const [activePlan, setActivePlan] = usePersistentState<ActivePlan | null>('active_plan', null);
   const [reminders, setReminders] = usePersistentState<ReminderSettings>('reminders', DEFAULT_REMINDERS);
 
@@ -436,27 +389,6 @@ export default function App() {
   const insightInput = useMemo(() => ({ today: todayKey(), workouts, sleepLogs, days: fitnessDays, fasts: fastingSessions }), [workouts, sleepLogs, fitnessDays, fastingSessions]);
   const insights = useMemo(() => buildInsights(insightInput), [insightInput]);
   const insightData = useMemo(() => insightReadiness(insightInput), [insightInput]);
-  const [progressStart, setProgressStart] = useState<ProgressSection>('trends');
-  // Something that points at a section (the map, "All insights") opens Progress there once; any later visit starts on Trends again.
-  useEffect(() => {
-    if (currentTab !== 'progress' && currentTab !== 'health') setProgressStart('trends');
-  }, [currentTab]);
-
-  // The map of the app, and the one way to jump to any place in it.
-  const [mapOpen, setMapOpen] = useState(false);
-  const [runOpen, setRunOpen] = useState<{ view: RunSection; nonce: number } | null>(null);
-  const [mealPlanToken, setMealPlanToken] = useState(0);
-  const navigateTo = (t: MapTarget) => {
-    setMapOpen(false);
-    setSlideDir(null);
-    if (t.progress) setProgressStart(t.progress);
-    setCurrentTab(t.tab);
-    if (t.run) setRunOpen({ view: t.run, nonce: Date.now() });
-    if (t.mealPlan) setMealPlanToken(Date.now());
-    // Settings has to be on screen before one of its groups can be asked to open.
-    if (t.settings) window.setTimeout(() => window.dispatchEvent(new CustomEvent('kyfit-open-settings-group', { detail: t.settings })), 250);
-  };
-
   const handleSetMonthlyGoal = (monthly: MonthlyGoal | null) => setGoals((g) => ({ ...g, monthly }));
 
   // Dynamic Dashboard Metric Visibility (The Tab Editor State)
@@ -525,32 +457,10 @@ export default function App() {
     void deleteWorkoutFromHc(id);
   };
 
-  const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-
   const handleSaveProfile = (p: UserProfile, g: Goals) => {
     setProfile(p);
     setGoals(g);
     setIsProfileOpen(false);
-  };
-
-  const handleAddFood = (date: string, f: Omit<FoodEntry, 'id' | 'date'>) => {
-    const entry: FoodEntry = { ...f, id: makeId('f'), date };
-    setFood((prev) => [...prev, entry]);
-    void writeFoodToHc(entry);
-    return entry.id;
-  };
-  const handleDeleteFood = (id: string) => {
-    setFood((prev) => prev.filter((f) => f.id !== id));
-    void deleteFromHc('nutrition', [id]);
-  };
-  const handleAddWater = (date: string, ml: number) => {
-    const entry: WaterEntry = { id: makeId('wt'), date, ml };
-    setWater((prev) => [...prev, entry]);
-    void writeWaterToHc(entry);
-  };
-  const handleDeleteWater = (id: string) => {
-    setWater((prev) => prev.filter((w) => w.id !== id));
-    void deleteFromHc('hydration', [id]);
   };
 
   /** Sleep log changes made on the Sleep screen are mirrored into Health Connect (imported nights are skipped). */
@@ -615,182 +525,22 @@ export default function App() {
 
   const isExerciseTab = currentTab === 'exercise';
 
-  // A home-screen widget button can open the app straight into a workout.
-  useEffect(() => {
-    if (!isAndroidApp()) return;
-    const collect = async () => {
-      try {
-        const { action } = await Launch.getPendingAction();
-        const type = action?.startsWith('start:') ? (action.slice(6) as WorkoutType) : null;
-        if (type) {
-          setCurrentTab('exercise');
-          setLaunchRequest({ type, nonce: Date.now() });
-        } else if (action === 'open:water') {
-          // The water widget: open Food & water.
-          setCurrentTab('nutrition');
-        } else if (action === 'open:fasting' || action === 'fast:start' || action === 'fast:end') {
-          // The fasting widget and notification: open the tab, and start or end the fast when a button asked for it.
-          setCurrentTab('fasting');
-          if (action === 'fast:start') {
-            setFastingSessions((prev) => {
-              if (prev.some((s) => !s.isCompleted)) return prev;
-              const next = lastProtocol(prev);
-              return startFast(prev, { targetHours: next.hours, protocolName: next.name });
-            });
-          } else if (action === 'fast:end') {
-            setFastingSessions((prev) => endFast(prev));
-          }
-        }
-      } catch {
-        // widget bridge unavailable
-      }
-    };
-    collect();
-    const onVisible = () => document.visibilityState === 'visible' && collect();
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
+  // What widgets and notifications ask for, and workouts that arrive from the watch. See hooks/useWatchAndWidgetInput.
+  useWidgetLaunchActions({ setCurrentTab, setLaunchRequest, setFastingSessions });
+  useWatchWorkoutImport({ profile, workoutsRef, setWorkouts, sendToHcRef: sendWorkoutsToHcRef });
 
-  // Workouts the watch recorded on its own (phone left behind) arrive over Bluetooth; add them to the log.
-  useEffect(() => {
-    if (!isAndroidApp() || !profile.onboarded) return;
-    const importNow = async () => {
-      try {
-        const { items } = await Launch.getWatchWorkouts();
-        if (items.length === 0) return;
-        const sessions: WorkoutSession[] = [];
-        const done: string[] = [];
-        for (const raw of items) {
-          try {
-            const payload = JSON.parse(raw) as WatchWorkoutPayload;
-            if (payload.shared) {
-              // The watch's route for a workout the phone recorded too: fill gaps in the phone's route with it.
-              const fill = fillTrackFromWatch(workoutsRef.current, payload);
-              if (fill.filled > 0) setWorkouts(fill.workouts);
-              // The phone may not have saved its copy yet: try again on the next check, for up to half an hour.
-              if (fill.matched || Date.now() - (payload.startedAt + payload.durationSec * 1000) > 30 * 60_000) done.push(String(payload.id));
-              continue;
-            }
-            const session = watchWorkoutToSession(payload, profile);
-            if (session) sessions.push(session);
-            done.push(String(payload.id));
-          } catch {
-            // a corrupt file is skipped
-          }
-        }
-        if (sessions.length > 0) {
-          setWorkouts((prev) => mergeWatchWorkouts(prev, sessions));
-          // Workouts the watch recorded on its own are not in Health Connect yet.
-          void sendWorkoutsToHcRef.current(sessions);
-        }
-        if (done.length > 0) await Launch.ackWatchWorkouts({ ids: done });
-      } catch {
-        // bridge unavailable
-      }
-    };
-    importNow();
-    const timer = setInterval(importNow, 120_000);
-    const onVisible = () => document.visibilityState === 'visible' && importNow();
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.onboarded]);
-
-  // Keep the widget's numbers current.
-  const weekCount = workoutsInWeek(workouts).length;
-  const streakDays = currentStreak(workoutDateKeys(workouts), todayKey());
-  const monthly = sanitizeMonthlyGoal(goals.monthly);
-  const monthNow = monthly ? monthProgress(workouts, monthly) : null;
-  const monthPct = monthNow ? monthNow.pct : -1;
-  const monthText = monthNow ? goalSummary(monthNow, profile.units) : '';
-  const readinessScore = readinessToday ? readinessToday.score : -1;
-  const readinessLabel = readinessToday ? readinessToday.label : '';
-  useEffect(() => {
-    if (!isAndroidApp()) return;
-    Launch.updateWidget({
-      steps: todaySteps,
-      stepGoal: goals.dailySteps,
-      week: weekCount,
-      weekGoal: goals.weeklyWorkouts,
-      streak: streakDays,
-      readiness: readinessScore,
-      readinessLabel,
-      monthPct,
-      monthLabel: monthly ? KIND_LABEL[monthly.kind] : '',
-    }).catch(() => {});
-  }, [todaySteps, goals.dailySteps, goals.weeklyWorkouts, weekCount, streakDays, readinessScore, readinessLabel, monthPct, monthly?.kind]);
-
-  // The fasting notification and widget: hand the running fast (and the settings) to Android.
-  const activeFast = fastingSessions.find((s) => !s.isCompleted);
-  const fastStart = activeFast?.startTimestamp ?? 0;
-  const fastGoal = activeFast?.targetDurationHours ?? 0;
-  const fastName = activeFast?.fastProtocolName ?? '';
-  const nextFast = lastProtocol(fastingSessions);
-  useEffect(() => {
-    if (!isAndroidApp()) return;
-    Fasting.sync({
-      active: !!activeFast,
-      startMs: fastStart,
-      goalHours: fastGoal || nextFast.hours,
-      protocol: fastName || nextFast.name,
-      live: reminders.fastingLive !== false,
-      stages: reminders.fastingStages !== false,
-      lastHours: nextFast.hours,
-      lastProtocol: nextFast.name,
-    }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fastStart, fastGoal, fastName, reminders.fastingLive, reminders.fastingStages, nextFast.hours, nextFast.name]);
-
-  // The home-screen water widget and the watch's Fuel tile show today's water, and add to it with one tap.
-  const imperialUnits = profile.units === 'imperial';
-  const waterToday = useMemo(() => water.filter((w) => w.date === todayKey()).reduce((s, w) => s + w.ml, 0), [water]);
-  useEffect(() => {
-    if (!isAndroidApp()) return;
-    const [step1Ml, step2Ml] = waterButtonAmounts(imperialUnits);
-    Water.sync({ totalMl: waterToday, goalMl: goals.dailyWaterMl, imperial: imperialUnits, step1Ml, step2Ml }).catch(() => {});
-  }, [waterToday, goals.dailyWaterMl, imperialUnits]);
-  // Water added from the widget or the watch while the app was closed goes into the log, on the day it was drunk.
-  const addWaterRef = useRef(handleAddWater);
-  addWaterRef.current = handleAddWater;
-  useEffect(() => {
-    if (!isAndroidApp() || !profile.onboarded) return;
-    const collect = async () => {
-      try {
-        const { items } = await Water.takePending();
-        for (const w of sanitizePendingWater(items, Date.now())) addWaterRef.current(w.date, w.ml);
-      } catch {
-        // water bridge unavailable
-      }
-    };
-    void collect();
-    const timer = setInterval(collect, 60_000);
-    const onVisible = () => document.visibilityState === 'visible' && void collect();
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [profile.onboarded]);
-
-  // The watch's complications: readiness, the month's goal, the running fast and the step goal.
-  useEffect(() => {
-    if (!isAndroidApp()) return;
-    Glance.send({
-      readiness: readinessScore,
-      readinessLabel,
-      stepGoal: goals.dailySteps,
-      monthPct,
-      monthText,
-      monthKind: monthly ? KIND_LABEL[monthly.kind] : '',
-      fastActive: !!activeFast,
-      fastStartMs: fastStart,
-      fastGoalHours: fastGoal,
-    }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readinessScore, readinessLabel, goals.dailySteps, monthPct, monthText, monthly?.kind, fastStart, fastGoal]);
+  // Widgets, the fasting notification, the watch's tile and complications, and water added there. See hooks/useNativeSync.
+  useNativeSync({
+    workouts,
+    goals,
+    profile,
+    todaySteps,
+    readiness: readinessToday,
+    fastingSessions,
+    reminders,
+    water,
+    onAddWater: handleAddWater,
+  });
 
   // Render the phone's active screen
   const renderScreen = () => {
@@ -884,8 +634,8 @@ export default function App() {
                 openPlanToken={mealPlanToken}
                 onPlanOpened={() => setMealPlanToken(0)}
                 savedMeals={savedMeals}
-                onSaveMeal={(name, items) => setSavedMeals((prev) => [...prev, { id: makeId('meal'), name, items }])}
-                onDeleteMeal={(id) => setSavedMeals((prev) => prev.filter((m) => m.id !== id))}
+                onSaveMeal={handleSaveMeal}
+                onDeleteMeal={handleDeleteMeal}
                 theme={theme}
                 profile={profile}
                 goals={goals}
