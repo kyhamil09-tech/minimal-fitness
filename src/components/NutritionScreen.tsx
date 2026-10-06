@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Droplets, Plus, Timer, Trash2, Undo2, Utensils } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Droplets, Plus, ShoppingBasket, Timer, Trash2, Undo2, Utensils } from 'lucide-react';
+import { MealPlanSheet } from './MealPlanSheet';
 import { WorkoutSession } from '../types/health';
 import { FoodEntry, Goals, MealType, SavedMeal, UserProfile, WaterEntry } from '../types/tracking';
 import { ColorPalette } from '../types/theme';
@@ -63,6 +64,7 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = ({
   const [date, setDate] = useState(today);
   const [addMeal, setAddMeal] = useState<MealType | null>(null);
   const [customWater, setCustomWater] = useState('');
+  const [planOpen, setPlanOpen] = useState(false);
 
   const dayFood = food.filter((f) => f.date === date);
   const dayWater = water.filter((w) => w.date === date);
@@ -113,6 +115,22 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = ({
       ) : (
         <>
           <VoiceLogCard theme={theme} date={date} onAddFood={onAddFood} onAddWater={onAddWater} />
+
+          <button
+            onClick={() => setPlanOpen(true)}
+            className="flex w-full items-center justify-between rounded-2xl border border-[#1A1E26] bg-[#0B0D11] px-4 py-3 text-left"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-800 bg-neutral-900">
+                <ShoppingBasket className="h-4 w-4" style={{ color: theme.primary }} />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-white">Meal plan and groceries</span>
+                <span className="block text-[11px] text-[#7E889B]">Plan the week from your saved meals</span>
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 text-neutral-500" />
+          </button>
 
           {/* Day picker */}
           <div className="flex items-center justify-between">
@@ -315,6 +333,18 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = ({
             onSaveMeal={onSaveMeal}
             onDeleteMeal={onDeleteMeal}
           />
+
+          {planOpen && (
+            <MealPlanSheet
+              theme={theme}
+              goals={goals}
+              savedMeals={savedMeals}
+              onClose={() => setPlanOpen(false)}
+              onLogMeal={(planDate, meal, saved) => {
+                for (const i of saved.items) onAddFood(planDate, { meal, name: i.name, calories: i.calories, proteinG: i.proteinG, carbsG: i.carbsG, fatG: i.fatG });
+              }}
+            />
+          )}
         </>
       )}
     </div>
