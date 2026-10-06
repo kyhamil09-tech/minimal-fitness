@@ -26,8 +26,6 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ currentTab, onSelect
           const Icon = tab.icon;
           const isActive =
             currentTab === tab.id ||
-            (tab.id === 'today' && currentTab === 'dashboard') ||
-            (tab.id === 'exercise' && currentTab === 'fitness') ||
             (tab.id === 'nutrition' && (currentTab === 'fasting' || currentTab === 'sleep' || currentTab === 'healthlog')) ||
             (tab.id === 'progress' && currentTab === 'health');
 

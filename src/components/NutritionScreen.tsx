@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Droplets, Plus, ShoppingBasket, Timer, Trash2, Undo2, Utensils } from 'lucide-react';
 import { MealPlanSheet } from './MealPlanSheet';
 import { WorkoutSession } from '../types/health';
@@ -36,6 +36,9 @@ interface NutritionScreenProps {
   savedMeals?: SavedMeal[];
   onSaveMeal?: (name: string, items: SavedMeal['items']) => void;
   onDeleteMeal?: (id: string) => void;
+  /** Something asked for the meal plan to open (the map). Once it has, onPlanOpened clears the request so it does not open again. */
+  openPlanToken?: number;
+  onPlanOpened?: () => void;
 }
 
 const MEALS: MealType[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
@@ -58,6 +61,8 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = ({
   savedMeals = [],
   onSaveMeal,
   onDeleteMeal,
+  openPlanToken = 0,
+  onPlanOpened,
 }) => {
   const units = profile.units;
   const today = todayKey();
@@ -65,6 +70,13 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = ({
   const [addMeal, setAddMeal] = useState<MealType | null>(null);
   const [customWater, setCustomWater] = useState('');
   const [planOpen, setPlanOpen] = useState(false);
+  useEffect(() => {
+    if (openPlanToken > 0) {
+      setPlanOpen(true);
+      onPlanOpened?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPlanToken]);
 
   const dayFood = food.filter((f) => f.date === date);
   const dayWater = water.filter((w) => w.date === date);

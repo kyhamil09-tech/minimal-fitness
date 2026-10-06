@@ -13,9 +13,8 @@ import {
   Bluetooth,
   Watch,
   Navigation,
-  Link2,
   FileUp,
-  MessageSquare,
+  LayoutGrid,
 } from 'lucide-react';
 import { LiveSharePanel } from './LiveSharePanel';
 import { LogoSettings } from './LogoSettings';
@@ -27,7 +26,8 @@ import { AutomationSettings } from './AutomationSettings';
 import { StravaSettings } from './StravaSettings';
 import { PrivacyPanel } from './PrivacyPanel';
 import { LookPrefs, RunPrefs } from './PrefsSettings';
-import { SettingsGroup } from './ui/SettingsParts';
+import { SettingsGroup, SubHeading } from './ui/SettingsParts';
+import { StorageRow } from './StorageRow';
 import { AutomaticData } from '../hooks/useAutomaticData';
 import { AutoBackup } from '../hooks/useAutoBackup';
 import { RunOptions, UnitSystem } from '../types/tracking';
@@ -38,6 +38,8 @@ interface SettingsScreenProps {
   ble: BleHeartRate;
   watch: WatchHeartRateState;
   automation: AutomaticData;
+  /** Opens the map of the whole app. */
+  onOpenMap: () => void;
   /** Workouts that were never saved to Health Connect, and a way to send them now (resolves with how many went). */
   hcWaiting?: number;
   onSendUnsynced?: () => Promise<number>;
@@ -69,6 +71,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   ble,
   watch,
   automation,
+  onOpenMap,
   hcWaiting,
   onSendUnsynced,
   backup,
@@ -128,10 +131,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
       </section>
 
+      {/* The way to anything in the app, for someone who cannot find it */}
+      <button
+        onClick={onOpenMap}
+        className="w-full rounded-2xl border p-4 flex items-center justify-between text-left glass-tile"
+        style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+      >
+        <span className="flex items-center gap-3.5">
+          <span className="w-10 h-10 rounded-xl flex items-center justify-center border" style={{ backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}33` }}>
+            <LayoutGrid className="w-5 h-5" style={{ color: theme.primary }} />
+          </span>
+          <span>
+            <span className="block text-sm font-semibold text-white">Map of the app</span>
+            <span className="block text-xs text-[#7E889B] mt-0.5">Everything in one place, with search</span>
+          </span>
+        </span>
+        <ChevronRight className="w-4 h-4 text-neutral-400" />
+      </button>
+
       <div className="flex items-center justify-between border-b border-[#1A1E26] pb-3">
         <div>
           <h2 className="gh-title">Settings</h2>
-          <p className="text-xs text-[#7E889B] mt-1">Profile, sensors, data and appearance</p>
+          <p className="text-xs text-[#7E889B] mt-1">Profile, devices, data and appearance</p>
         </div>
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('kyfit-open-settings-group', { detail: 'privacy' }))}
@@ -187,25 +208,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       </SettingsGroup>
 
-      {/* PRIVACY */}
-      <SettingsGroup id="privacy" title="Privacy & data" summary="Proof that everything stays on this phone" icon={<ShieldCheck className="w-5 h-5" style={{ color: theme.primary }} />}>
-        <PrivacyPanel theme={theme} />
-      </SettingsGroup>
-
-      {/* RUN */}
-      <SettingsGroup id="run" title="Run" summary="Auto-pause, spoken updates, countdown, GPS, buzz and beat" icon={<Navigation className="w-5 h-5" style={{ color: theme.primary }} />}>
-        <AutomationSettings part="run" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
-        <RunPrefs theme={theme} units={units} voiceCues={runOptions.voiceCues} />
-      </SettingsGroup>
-
-      {/* SAFETY */}
-      <SettingsGroup id="safety" title="Safety live share" summary="Text a map link to people you choose while you run or ride" icon={<MessageSquare className="w-5 h-5" style={{ color: theme.primary }} />}>
-        <LiveSharePanel theme={theme} />
-      </SettingsGroup>
-
-      {/* HEALTH DATA */}
-      <SettingsGroup id="health" title="Health data" summary="Watch, heart-rate sensors, steps, sleep and Health Connect" icon={<Watch className="w-5 h-5" style={{ color: theme.primary }} />}>
-      {/* SENSORS */}
+      {/* WATCH, STEPS AND DATA SOURCES: where your numbers come from */}
+      <SettingsGroup id="devices" title="Watch, steps & data sources" summary="Watch, sensors, steps, sleep, Health Connect and Strava" icon={<Watch className="w-5 h-5" style={{ color: theme.primary }} />}>
+      <SubHeading>Watch and sensors</SubHeading>
       <div className="space-y-2.5">
                 <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] divide-y divide-[#1A1E26] overflow-hidden">
           <WatchLinkCard watch={watch} theme={theme} />
@@ -280,12 +285,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
 
+        <SubHeading>Steps, sleep and Health Connect</SubHeading>
         <AutomationSettings part="data" hideTitles theme={theme} automation={automation} hcWaiting={hcWaiting} onSendUnsynced={onSendUnsynced} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
+        <SubHeading>Strava</SubHeading>
+        <StravaSettings theme={theme} hideTitle />
       </SettingsGroup>
 
-      {/* CONNECTIONS */}
-      <SettingsGroup id="connections" title="Connections" summary="Strava" icon={<Link2 className="w-5 h-5" style={{ color: theme.primary }} />}>
-        <StravaSettings theme={theme} hideTitle />
+      {/* WORKOUT OPTIONS: how a workout behaves while you do it */}
+      <SettingsGroup id="workouts" title="Workout options" summary="Auto-pause, spoken updates, GPS, buzz, beat and safety sharing" icon={<Navigation className="w-5 h-5" style={{ color: theme.primary }} />}>
+        <AutomationSettings part="run" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
+        <RunPrefs theme={theme} units={units} voiceCues={runOptions.voiceCues} />
+        <SubHeading>Safety live share</SubHeading>
+        <p className="px-1 text-[11px] leading-relaxed text-[#7E889B]">Text a map link to people you choose while you run or ride.</p>
+        <LiveSharePanel theme={theme} />
       </SettingsGroup>
 
       {/* LOOK AND FEEL */}
@@ -388,8 +400,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <LookPrefs showCycle={showCycle} />
       </SettingsGroup>
 
-      {/* DATA */}
-      <SettingsGroup id="data" title="Data & backup" summary="Backup, restore, export and the error log" icon={<DatabaseBackup className="w-5 h-5" style={{ color: theme.primary }} />}>
+      {/* BACKUP AND DATA */}
+      <SettingsGroup id="data" title="Backup & data" summary="Back up, restore, export, import and storage" icon={<DatabaseBackup className="w-5 h-5" style={{ color: theme.primary }} />}>
+        <StorageRow />
         <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] overflow-hidden">
           <button onClick={onOpenBackup} className="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-900/60 transition-colors group">
             <div className="flex items-center gap-3.5">
@@ -420,6 +433,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
         <AutomationSettings part="backup" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
         <AutomationSettings part="diagnostics" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
+      </SettingsGroup>
+
+      {/* PRIVACY */}
+      <SettingsGroup id="privacy" title="Privacy" summary="Proof that everything stays on this phone" icon={<ShieldCheck className="w-5 h-5" style={{ color: theme.primary }} />}>
+        <PrivacyPanel theme={theme} />
       </SettingsGroup>
 
       {/* ERASE */}

@@ -27,6 +27,7 @@ import {
   Sliders,
   Droplets,
   Utensils,
+  LayoutGrid,
 } from 'lucide-react';
 import { MetricKey, TabId, WorkoutSession, QuickWorkoutTemplate } from '../types/health';
 import { ColorPalette } from '../types/theme';
@@ -71,6 +72,8 @@ interface TodayScreenProps {
   enabledMetrics: Set<MetricKey>;
   onOpenTabEditor: () => void;
   onNavigateToTab: (tab: TabId) => void;
+  /** Opens the map of the whole app. */
+  onOpenMap: () => void;
   /** 0 when no sensor is connected. */
   liveBpm: number;
   hrFromSensor: boolean;
@@ -123,6 +126,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   enabledMetrics,
   onOpenTabEditor,
   onNavigateToTab,
+  onOpenMap,
   liveBpm,
   hrFromSensor,
   hrSource,
@@ -167,6 +171,8 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   const [tempSteps, setTempSteps] = useState<string>(String(currentSteps));
   const [justCompletedTitle, setJustCompletedTitle] = useState<string | null>(null);
   const [showPeriods, setShowPeriods] = useState(false);
+  // The extra watch numbers start folded away: each tile above already opens its own history.
+  const [showHc, setShowHc] = useState(false);
   // The health tile that was tapped: it opens a sheet with history, trend and averages.
   const [metric, setMetric] = useState<MetricId | null>(null);
   // Makes a non-button element behave like one for touch, mouse and keyboard.
@@ -205,6 +211,11 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   };
 
   const stepsProgress = Math.min(100, Math.round((currentSteps / dailyStepGoal) * 100));
+
+  // Only one reminder or prompt shows at a time, the most useful first, so Today does not fill up with cards asking for something.
+  const weatherPrompt = !!weather && (!weather.enabled || !weather.weather);
+  const notice: 'checklist' | 'backup' | 'insight' | 'weather' | null =
+    workouts.length === 0 ? 'checklist' : backupNudge ? 'backup' : topInsight ? 'insight' : weatherPrompt ? 'weather' : null;
 
   // Real weekly totals from the workout log
   const weekWorkouts = workoutsInWeek(workouts);
@@ -315,6 +326,14 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             </div>
           )}
           <button
+            onClick={onOpenMap}
+            aria-label="Open the map of the app"
+            title="Map: find anything"
+            className="w-10 h-10 rounded-full flex items-center justify-center glass-chip text-neutral-200 hover:text-white"
+          >
+            <LayoutGrid className="w-[18px] h-[18px]" />
+          </button>
+          <button
             onClick={() => onNavigateToTab('settings')}
             aria-label="Profile and settings"
             className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-extrabold text-black"
@@ -350,7 +369,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         </div>
       </section>
 
-      {backupNudge && workouts.length > 0 && (
+      {notice === 'backup' && backupNudge && (
         <section className="rounded-[28px] border p-4 flex items-center justify-between gap-3" style={{ backgroundColor: theme.surface, borderColor: theme.secondary }}>
           <div className="min-w-0">
             <div className="text-sm font-bold text-white">{backupNudge.kind === 'none' ? 'Protect your history' : 'Backup is out of date'}</div>
@@ -366,14 +385,9 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         </section>
       )}
 
-      <ReadinessCard theme={theme} readiness={readiness} />
-      {cycleOn && <CycleCard theme={theme} status={cycleStatus(cycleStarts, today)} starts={cycleStarts} onLogStart={onLogPeriod} onRemove={onRemovePeriod} onTurnOff={onTurnOffCycle} />}
-      {topInsight && <TopInsightCard theme={theme} insight={topInsight} onOpen={onOpenInsights} />}
-
-      {weather && <WeatherCard state={weather} theme={theme} units={profile.units} />}
-
+      {/* ONE NOTICE AT A TIME: the most useful thing to look at now, so the screen does not fill with reminders */}
       {/* FIRST-RUN CHECKLIST: shown until you have logged a workout */}
-      {workouts.length === 0 && (
+      {notice === 'checklist' && (
         <section className="rounded-[28px] border p-5" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
           <div className="eyebrow-accent">Get started</div>
           <ul className="mt-3 space-y-2">
@@ -401,6 +415,122 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
           </ul>
         </section>
       )}
+
+      {notice === 'insight' && topInsight && <TopInsightCard theme={theme} insight={topInsight} onOpen={onOpenInsights} />}
+      {notice === 'weather' && weather && <WeatherCard state={weather} theme={theme} units={profile.units} />}
+
+      {/* STEPS + WATER */}
+      <section className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => setMetric('steps')}
+          className="rounded-[28px] border p-4 text-left glass-tile"
+          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+        >
+          <div className="gh-chip" style={{ background: `${theme.primary}22`, color: theme.primary }}>
+            <Footprints className="w-4 h-4" />
+          </div>
+          <div className="gh-label">Steps</div>
+          <div className="gh-value">{currentSteps.toLocaleString()}</div>
+          <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: `${stepsProgress}%`, backgroundColor: theme.primary }} />
+          </div>
+          <div className="gh-sub">of {dailyStepGoal.toLocaleString()}</div>
+        </button>
+
+        <button
+          onClick={() => setMetric('water')}
+          className="rounded-[28px] border p-4 text-left glass-tile"
+          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+        >
+          <div className="gh-chip" style={{ background: '#7dd3fc22', color: '#7dd3fc' }}>
+            <Droplets className="w-4 h-4" />
+          </div>
+          <div className="gh-label">Water</div>
+          <div className="gh-value">
+            {mlToDisplay(waterMl, profile.units)}
+            <span className="gh-unit"> {volumeUnit(profile.units)}</span>
+          </div>
+          <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${Math.round(clamp01(waterMl / Math.max(1, goals.dailyWaterMl)) * 100)}%`, backgroundColor: '#7dd3fc' }}
+            />
+          </div>
+          <div className="gh-sub">
+            of {mlToDisplay(goals.dailyWaterMl, profile.units)} {volumeUnit(profile.units)}
+          </div>
+        </button>
+
+        <div
+          {...tap(() => setMetric('heart'))}
+          className="rounded-[28px] border p-4 cursor-pointer glass-tile"
+          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+        >
+          <div className="gh-chip" style={{ background: '#ff4d4d22', color: '#ff4d4d' }}>
+            <HeartPulse className={`w-4 h-4 ${hrFromSensor ? 'animate-pulse' : ''}`} />
+          </div>
+          <div className="gh-label">Heart rate</div>
+          <div className="gh-value">
+            {hrFromSensor ? liveBpm : hcRecentBpm || vitals?.restingBpm || '—'}
+            <span className="gh-unit"> bpm</span>
+          </div>
+          <div className="gh-sub" style={{ color: hrFromSensor ? '#ff4d4d' : undefined }}>
+            {hrSource === 'watch'
+              ? 'Pixel Watch · live'
+              : hrSource === 'ble'
+                ? 'Bluetooth sensor · live'
+                : hcRecentBpm
+                  ? 'Latest from Health Connect'
+                  : vitals?.restingBpm
+                    ? 'Resting · Health Connect'
+                    : 'No sensor connected'}
+          </div>
+        </div>
+
+        <div
+          onClick={() => onNavigateToTab('sleep')}
+          className="rounded-[28px] border p-4 cursor-pointer glass-tile"
+          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+        >
+          <div className="gh-chip" style={{ background: `${theme.secondary}22`, color: theme.secondary }}>
+            <Moon className="w-4 h-4" />
+          </div>
+          <div className="gh-label">Sleep</div>
+          <div className="gh-value">{latestSleep ? `${sleepH}h ${sleepM}m` : '—'}</div>
+          <div className="gh-sub">{sleepInsight ? sleepInsight.deltaLabel : 'No sleep logged'}</div>
+        </div>
+
+        <div
+          {...tap(() => setMetric('eaten'))}
+          className="rounded-[28px] border p-4 cursor-pointer glass-tile col-span-2"
+          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="gh-label">Calories eaten</div>
+              <div className="gh-value">
+                {eaten.toLocaleString()}
+                <span className="gh-unit"> / {goals.dailyCalories.toLocaleString()} kcal</span>
+              </div>
+            </div>
+            <div className="gh-chip !mb-0" style={{ background: '#ffd23f22', color: '#ffd23f' }}>
+              <Utensils className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${Math.round(clamp01(eaten / Math.max(1, goals.dailyCalories)) * 100)}%`, backgroundColor: '#ffd23f' }}
+            />
+          </div>
+        </div>
+      </section>
+
+      <ReadinessCard theme={theme} readiness={readiness} />
+      {cycleOn && <CycleCard theme={theme} status={cycleStatus(cycleStarts, today)} starts={cycleStarts} onLogStart={onLogPeriod} onRemove={onRemovePeriod} onTurnOff={onTurnOffCycle} />}
+      {/* The weather itself is content; only the "turn it on" prompt is a notice. */}
+      {weather && !weatherPrompt && <WeatherCard state={weather} theme={theme} units={profile.units} />}
+
 
       {/* THIS WEEK */}
       <section className="rounded-[28px] border p-5 glass-hero" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
@@ -530,121 +660,21 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         </section>
       )}
 
-      {/* STEPS + WATER */}
-      <section className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setMetric('steps')}
-          className="rounded-[28px] border p-4 text-left glass-tile"
-          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
-        >
-          <div className="gh-chip" style={{ background: `${theme.primary}22`, color: theme.primary }}>
-            <Footprints className="w-4 h-4" />
-          </div>
-          <div className="gh-label">Steps</div>
-          <div className="gh-value">{currentSteps.toLocaleString()}</div>
-          <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${stepsProgress}%`, backgroundColor: theme.primary }} />
-          </div>
-          <div className="gh-sub">of {dailyStepGoal.toLocaleString()}</div>
-        </button>
-
-        <button
-          onClick={() => setMetric('water')}
-          className="rounded-[28px] border p-4 text-left glass-tile"
-          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
-        >
-          <div className="gh-chip" style={{ background: '#7dd3fc22', color: '#7dd3fc' }}>
-            <Droplets className="w-4 h-4" />
-          </div>
-          <div className="gh-label">Water</div>
-          <div className="gh-value">
-            {mlToDisplay(waterMl, profile.units)}
-            <span className="gh-unit"> {volumeUnit(profile.units)}</span>
-          </div>
-          <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${Math.round(clamp01(waterMl / Math.max(1, goals.dailyWaterMl)) * 100)}%`, backgroundColor: '#7dd3fc' }}
-            />
-          </div>
-          <div className="gh-sub">
-            of {mlToDisplay(goals.dailyWaterMl, profile.units)} {volumeUnit(profile.units)}
-          </div>
-        </button>
-
-        <div
-          {...tap(() => setMetric('heart'))}
-          className="rounded-[28px] border p-4 cursor-pointer glass-tile"
-          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
-        >
-          <div className="gh-chip" style={{ background: '#ff4d4d22', color: '#ff4d4d' }}>
-            <HeartPulse className={`w-4 h-4 ${hrFromSensor ? 'animate-pulse' : ''}`} />
-          </div>
-          <div className="gh-label">Heart rate</div>
-          <div className="gh-value">
-            {hrFromSensor ? liveBpm : hcRecentBpm || vitals?.restingBpm || '—'}
-            <span className="gh-unit"> bpm</span>
-          </div>
-          <div className="gh-sub" style={{ color: hrFromSensor ? '#ff4d4d' : undefined }}>
-            {hrSource === 'watch'
-              ? 'Pixel Watch · live'
-              : hrSource === 'ble'
-                ? 'Bluetooth sensor · live'
-                : hcRecentBpm
-                  ? 'Latest from Health Connect'
-                  : vitals?.restingBpm
-                    ? 'Resting · Health Connect'
-                    : 'No sensor connected'}
-          </div>
-        </div>
-
-        <div
-          onClick={() => onNavigateToTab('sleep')}
-          className="rounded-[28px] border p-4 cursor-pointer glass-tile"
-          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
-        >
-          <div className="gh-chip" style={{ background: `${theme.secondary}22`, color: theme.secondary }}>
-            <Moon className="w-4 h-4" />
-          </div>
-          <div className="gh-label">Sleep</div>
-          <div className="gh-value">{latestSleep ? `${sleepH}h ${sleepM}m` : '—'}</div>
-          <div className="gh-sub">{sleepInsight ? sleepInsight.deltaLabel : 'No sleep logged'}</div>
-        </div>
-
-        <div
-          {...tap(() => setMetric('eaten'))}
-          className="rounded-[28px] border p-4 cursor-pointer glass-tile col-span-2"
-          style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="gh-label">Calories eaten</div>
-              <div className="gh-value">
-                {eaten.toLocaleString()}
-                <span className="gh-unit"> / {goals.dailyCalories.toLocaleString()} kcal</span>
-              </div>
-            </div>
-            <div className="gh-chip !mb-0" style={{ background: '#ffd23f22', color: '#ffd23f' }}>
-              <Utensils className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${Math.round(clamp01(eaten / Math.max(1, goals.dailyCalories)) * 100)}%`, backgroundColor: '#ffd23f' }}
-            />
-          </div>
-        </div>
-      </section>
-
       {/* FROM HEALTH CONNECT: what the watch and other apps recorded today */}
       {hasHc && vitals && (
         <section className="rounded-[28px] border p-5" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-          <div className="flex items-center justify-between">
-            <span className="stat-label">From Health Connect</span>
-            <span className="text-[11px] font-semibold text-neutral-500">today</span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 mt-3">
+          <button
+            onClick={() => setShowHc((v) => !v)}
+            aria-expanded={showHc}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <span className="stat-label">More from your watch and Health Connect</span>
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500">
+              today
+              <ChevronRight className={`w-4 h-4 transition-transform ${showHc ? 'rotate-90' : ''}`} />
+            </span>
+          </button>
+          {showHc && <div className="grid grid-cols-3 gap-3 mt-3">
             <button className="text-left rounded-xl -m-1 p-1 hover:bg-white/5" onClick={() => setMetric('kcal')} aria-label="Total calories burned, see history">
               <div className="gh-value !text-[1.8rem]">{hcToday ? hcToday.totalKcal.toLocaleString() : '-'}</div>
               <div className="stat-label mt-1">Total kcal</div>
@@ -669,7 +699,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
               <div className="gh-value !text-[1.8rem]">{hcWeight ? kgToDisplay(hcWeight.kg, profile.units, 1) : '-'}</div>
               <div className="stat-label mt-1">Weight {weightUnit(profile.units)}</div>
             </button>
-          </div>
+          </div>}
         </section>
       )}
 

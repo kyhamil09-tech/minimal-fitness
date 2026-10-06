@@ -72,15 +72,15 @@ export const StepsSettings: React.FC<StepsSettingsProps> = ({ theme, automation,
           onChange={(stepSource) => setPrefs({ stepSource })}
         />
       </ChoiceRow>
-      <div className="px-4 py-4">
-        <StepPeriods theme={theme} automation={automation} />
-      </div>
       <div className="px-4 py-3">
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="text-xs font-semibold text-neutral-300 hover:text-white">
-          {open ? 'Hide step history' : 'Edit or delete step history'}
+          {open ? 'Hide step corrections' : 'Correct your steps: edit a day or remove a drive'}
         </button>
         {open && (
-          <ul className="mt-3 divide-y divide-[#1A1E26]">
+          <div className="mt-4 space-y-5">
+            <StepPeriods theme={theme} automation={automation} />
+            <h4 className="pt-1 text-sm font-semibold text-white">Recent days</h4>
+          <ul className="-mt-3 divide-y divide-[#1A1E26]">
             {days.map((date) => {
               const adjusted = date in stepOverrides;
               const auto = resolveDay(stepsBySource[date], source);
@@ -138,6 +138,7 @@ export const StepsSettings: React.FC<StepsSettingsProps> = ({ theme, automation,
               );
             })}
           </ul>
+          </div>
         )}
       </div>
     </>

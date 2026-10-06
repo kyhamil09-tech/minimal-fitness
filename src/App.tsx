@@ -28,6 +28,8 @@ import { Fasting, Glance, Launch, Water, isAndroidApp } from './lib/native';
 import { sanitizePendingWater, waterButtonAmounts } from './lib/waterPending';
 import { workoutsCodec } from './lib/storageCodec';
 import { StorageNotice } from './components/StorageNotice';
+import { AppMapScreen } from './components/AppMapScreen';
+import { MapTarget, ProgressSection, RunSection, progressSectionFor } from './lib/appMap';
 import { endFast, lastProtocol, startFast } from './lib/fasting';
 import { KIND_LABEL, goalSummary, monthProgress, sanitizeMonthlyGoal } from './lib/monthlyGoal';
 import { App as CapApp } from '@capacitor/app';
@@ -131,11 +133,7 @@ export default function App() {
   // something that scrolls sideways (chips, sliders, maps), during a live workout, or inside a dialog are ignored.
   const MAIN_TABS: TabId[] = ['today', 'exercise', 'nutrition', 'progress', 'settings'];
   const mainTabOf = (tab: TabId): TabId =>
-    tab === 'dashboard' ? 'today'
-      : tab === 'fitness' ? 'exercise'
-        : tab === 'fasting' || tab === 'sleep' || tab === 'healthlog' ? 'nutrition'
-          : tab === 'health' ? 'progress'
-            : tab;
+    tab === 'fasting' || tab === 'sleep' || tab === 'healthlog' ? 'nutrition' : tab === 'health' ? 'progress' : tab;
   const handleSwipeStart = (e: React.TouchEvent) => {
     const el = e.target as HTMLElement;
     const blocked =
@@ -438,11 +436,26 @@ export default function App() {
   const insightInput = useMemo(() => ({ today: todayKey(), workouts, sleepLogs, days: fitnessDays, fasts: fastingSessions }), [workouts, sleepLogs, fitnessDays, fastingSessions]);
   const insights = useMemo(() => buildInsights(insightInput), [insightInput]);
   const insightData = useMemo(() => insightReadiness(insightInput), [insightInput]);
-  const [progressStart, setProgressStart] = useState<'trends' | 'insights'>('trends');
-  // "All insights" opens Progress on that tab once; any later visit starts on Trends again.
+  const [progressStart, setProgressStart] = useState<ProgressSection>('trends');
+  // Something that points at a section (the map, "All insights") opens Progress there once; any later visit starts on Trends again.
   useEffect(() => {
-    if (currentTab !== 'progress') setProgressStart('trends');
+    if (currentTab !== 'progress' && currentTab !== 'health') setProgressStart('trends');
   }, [currentTab]);
+
+  // The map of the app, and the one way to jump to any place in it.
+  const [mapOpen, setMapOpen] = useState(false);
+  const [runOpen, setRunOpen] = useState<{ view: RunSection; nonce: number } | null>(null);
+  const [mealPlanToken, setMealPlanToken] = useState(0);
+  const navigateTo = (t: MapTarget) => {
+    setMapOpen(false);
+    setSlideDir(null);
+    if (t.progress) setProgressStart(t.progress);
+    setCurrentTab(t.tab);
+    if (t.run) setRunOpen({ view: t.run, nonce: Date.now() });
+    if (t.mealPlan) setMealPlanToken(Date.now());
+    // Settings has to be on screen before one of its groups can be asked to open.
+    if (t.settings) window.setTimeout(() => window.dispatchEvent(new CustomEvent('kyfit-open-settings-group', { detail: t.settings })), 250);
+  };
 
   const handleSetMonthlyGoal = (monthly: MonthlyGoal | null) => setGoals((g) => ({ ...g, monthly }));
 
@@ -600,7 +613,7 @@ export default function App() {
     void wipePhotos().then(() => window.location.reload());
   };
 
-  const isExerciseTab = currentTab === 'exercise' || currentTab === 'fitness';
+  const isExerciseTab = currentTab === 'exercise';
 
   // A home-screen widget button can open the app straight into a workout.
   useEffect(() => {
@@ -783,12 +796,12 @@ export default function App() {
   const renderScreen = () => {
     switch (currentTab) {
       case 'today':
-      case 'dashboard':
         return (
           <TodayScreen
             enabledMetrics={enabledMetrics}
             onOpenTabEditor={() => setIsTabEditorOpen(true)}
             onNavigateToTab={setCurrentTab}
+            onOpenMap={() => setMapOpen(true)}
             liveBpm={liveBpm}
             hrFromSensor={hrFromSensor}
             hrSource={hrSource}
@@ -868,6 +881,8 @@ export default function App() {
             ) : (
               <NutritionScreen
                 hideHeader
+                openPlanToken={mealPlanToken}
+                onPlanOpened={() => setMealPlanToken(0)}
                 savedMeals={savedMeals}
                 onSaveMeal={(name, items) => setSavedMeals((prev) => [...prev, { id: makeId('meal'), name, items }])}
                 onDeleteMeal={(id) => setSavedMeals((prev) => prev.filter((m) => m.id !== id))}
@@ -896,7 +911,7 @@ export default function App() {
             key={currentTab + progressStart}
             fasts={fastingSessions}
             activePlan={activePlan}
-            initialSegment={currentTab === 'health' ? 'health' : progressStart}
+            initialSegment={progressSectionFor(currentTab, progressStart)}
             insightsSlot={<InsightsPanel theme={theme} insights={insights} data={insightData} />}
             theme={theme}
             profile={profile}
@@ -942,6 +957,7 @@ export default function App() {
             ble={ble}
             watch={watch}
             automation={stepsAutomation}
+            onOpenMap={() => setMapOpen(true)}
             hcWaiting={waitingForHc}
             onSendUnsynced={handleSendUnsynced}
             backup={backup}
@@ -1051,6 +1067,7 @@ export default function App() {
                 onAddSteps={(n) => handleSetSteps(todaySteps + n)}
                 shoes={shoes}
                 onShoesChange={setShoes}
+                openRunView={runOpen}
                 weather={weather}
                 savedRoutes={savedRoutes}
                 onSaveRoute={(r) => setSavedRoutes((prev) => upsertRoute(prev, r))}
@@ -1071,6 +1088,8 @@ export default function App() {
         }}
         theme={theme}
       />
+
+      {mapOpen && <AppMapScreen theme={theme} onGo={navigateTo} onClose={() => setMapOpen(false)} />}
 
       {/* Modals & Bottom Sheets */}
       <ThemeSelectorModal

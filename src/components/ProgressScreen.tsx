@@ -10,6 +10,7 @@ import { Achievement, ActivePlan, BodyEntry, FoodEntry, Goals, UserProfile, Wate
 import { WorkoutCalendar } from './WorkoutCalendar';
 import { NutritionTrendsCard } from './NutritionTrendsCard';
 import { WeeklyCoachCard } from './WeeklyCoachCard';
+import { PROGRESS_SECTIONS, ProgressSection } from '../lib/appMap';
 import { ColorPalette } from '../types/theme';
 import { BarChart, EmptyState, LineChart } from './ui/charts';
 import { Segmented } from './ui/Segmented';
@@ -43,7 +44,16 @@ import {
   weightUnit,
 } from '../lib/units';
 
-type Segment = 'trends' | 'calendar' | 'insights' | 'fitness' | 'body' | 'awards' | 'health';
+type Segment = ProgressSection;
+
+const SECTION_LABEL: Record<ProgressSection, string> = {
+  trends: 'Trends',
+  calendar: 'Calendar',
+  vitals: 'Vitals',
+  insights: 'Insights',
+  body: 'Body',
+  awards: 'Awards',
+};
 
 interface ProgressScreenProps {
   initialSegment?: Segment;
@@ -253,15 +263,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
         theme={theme}
         value={segment}
         onChange={setSegment}
-        options={[
-          { id: 'trends', label: 'Trends' },
-          { id: 'calendar', label: 'Calendar' },
-          { id: 'insights', label: 'Insights' },
-          { id: 'fitness', label: 'Fitness' },
-          { id: 'body', label: 'Body' },
-          { id: 'awards', label: 'Awards' },
-          { id: 'health', label: 'Health' },
-        ]}
+        options={PROGRESS_SECTIONS.map((id) => ({ id, label: SECTION_LABEL[id] }))}
       />
 
       {segment === 'trends' && (
@@ -518,8 +520,12 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
       {story && <StoryShareModal data={story.data} name={story.name} onClose={() => setStory(null)} />}
       {segment === 'calendar' && <WorkoutCalendar theme={theme} units={units} workouts={workouts} activePlan={activePlan} />}
       {segment === 'insights' && insightsSlot}
-      {segment === 'fitness' && fitnessSlot}
-      {segment === 'health' && healthSlot}
+      {segment === 'vitals' && (
+        <div className="space-y-6">
+          {healthSlot}
+          {fitnessSlot}
+        </div>
+      )}
     </div>
   );
 };

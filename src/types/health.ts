@@ -9,10 +9,9 @@ export type TabId =
   | 'fasting'
   | 'healthlog'
   | 'progress'
+  /** Stands for Progress opened on its Vitals section (live heart rate and the daily fitness numbers). */
   | 'health'
-  | 'settings'
-  | 'dashboard'
-  | 'fitness';
+  | 'settings';
 
 export type MetricKey =
   | 'steps'

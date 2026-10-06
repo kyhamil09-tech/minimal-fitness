@@ -43,6 +43,7 @@ import { currentRestingHr, estimateCalories, estimateWorkoutCalories, getMaxHr, 
 import { summarizeStrokes } from '../lib/strokeRate';
 import { formatTimestamp, toDateKey, todayKey } from '../lib/dates';
 import { KM_PER_MI, distanceUnit, formatDistance, formatPace, formatWeight, kmToDisplay } from '../lib/units';
+import type { RunSection } from '../lib/appMap';
 import { LatLng, TrackPoint, haversineKm, routeToSvgPoints } from '../lib/geo';
 import { FollowState, RouteFollower, bearingDeg, headingFrom, relativeTurn, turnAdvice, turnText } from '../lib/routeFollow';
 import type { SavedRoute } from '../lib/savedRoutes';
@@ -106,6 +107,8 @@ once changes for every request. */
   shoes: Shoe[];
   onShoesChange: (shoes: Shoe[]) => void;
   weather?: WeatherState;
+  /** Asks for one of the Run sections to be shown (from the map). A new object each time, so asking twice for the same one still works. */
+  openRunView?: { view: RunView; nonce: number } | null;
   /** Routes saved on this phone (from a GPX file or a past run) that a workout can follow. */
   savedRoutes: SavedRoute[];
   onSaveRoute: (route: SavedRoute) => void;
@@ -121,7 +124,7 @@ interface ActiveGoal {
   type: NumericGoal;
   value: number;
 }
-type RunView = 'start' | 'plans' | 'activities' | 'routes' | 'gear';
+type RunView = RunSection;
 
 /** The run in progress, saved every few seconds so a crash or a killed app does not lose it. */
 interface LiveRun {
@@ -247,6 +250,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   onShoesChange,
   weather,
   savedRoutes,
+  openRunView,
   onSaveRoute,
   onDeleteRoute,
 }) => {
@@ -257,6 +261,9 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
 
   // Which part of the Run tab is showing
   const [runView, setRunView] = useState<RunView>('start');
+  useEffect(() => {
+    if (openRunView) setRunView(openRunView.view);
+  }, [openRunView]);
 
   // A saved route to follow on the next GPS workout, and the live guidance while it runs
   const [followId, setFollowId] = useState<string | null>(null);

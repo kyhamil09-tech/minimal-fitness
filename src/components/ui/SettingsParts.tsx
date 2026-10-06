@@ -79,6 +79,11 @@ export const ChoiceRow: React.FC<{ title: string; sub?: string; children: React.
   </div>
 );
 
+/** A small heading that splits a long settings group into parts you can scan. */
+export const SubHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <h3 className="px-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-[#7E889B]">{children}</h3>
+);
+
 const OPEN_KEY = 'kyfit_settings_open';
 
 const readOpen = (): Record<string, boolean> => {
