@@ -801,13 +801,13 @@ export default function App() {
             <div
               key={currentTab}
               hidden={isExerciseTab}
-              className={`flex-1 px-4 pt-5 pb-4 ${slideDir ? `animate-slide-${slideDir}` : 'animate-rise'}`}
+              className={`flex-1 px-4 screen-top pb-4 ${slideDir ? `animate-slide-${slideDir}` : 'animate-rise'}`}
             >
               {renderScreen()}
             </div>
 
             {/* Stays mounted so a live workout (timer, GPS, watch sync) survives switching tabs. */}
-            <div hidden={!isExerciseTab} className="flex-1 px-4 pt-5 pb-4">
+            <div hidden={!isExerciseTab} className="flex-1 px-4 screen-top pb-4">
               <FitnessScreen
                 workouts={workouts}
                 onAddWorkout={handleAddWorkout}

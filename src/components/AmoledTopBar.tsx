@@ -24,7 +24,7 @@ export const AmoledTopBar: React.FC<AmoledTopBarProps> = ({
   const isLive = watch.state === 'live';
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-black/95 backdrop-blur-md border-b border-[#1A1E26] px-4 py-2.5 flex items-center justify-between">
+    <header className="sticky top-0 z-40 w-full bg-black/95 backdrop-blur-md border-b border-[#1A1E26] px-4 pb-2.5 bar-inset-top flex items-center justify-between">
       <div>
         <div className="flex items-center gap-2">
           <span className="text-base font-bold tracking-wider text-white">MINIMAL FITNESS</span>

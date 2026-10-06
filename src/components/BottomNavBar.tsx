@@ -83,7 +83,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ currentTab, onSelect
   if (typing) return null;
 
   return (
-    <nav aria-label="Main" className="relative shrink-0 z-0 w-full px-4 pt-1" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
+    <nav aria-label="Main" className="relative shrink-0 z-0 w-full px-4 pt-1" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), var(--sys-gesture-bottom, 0px), 12px)' }}>
       <div className="pill-nav relative mx-auto grid w-full max-w-md grid-cols-5 items-stretch rounded-full p-1.5">
         {/* The highlight behind the chosen tab */}
         {activeIndex >= 0 && (
