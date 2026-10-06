@@ -9,6 +9,7 @@ import { ProgressPhotos } from './ProgressPhotos';
 import { Achievement, ActivePlan, BodyEntry, FoodEntry, Goals, UserProfile, WaterEntry } from '../types/tracking';
 import { WorkoutCalendar } from './WorkoutCalendar';
 import { NutritionTrendsCard } from './NutritionTrendsCard';
+import { WeeklyCoachCard } from './WeeklyCoachCard';
 import { ColorPalette } from '../types/theme';
 import { BarChart, EmptyState, LineChart } from './ui/charts';
 import { Segmented } from './ui/Segmented';
@@ -265,6 +266,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
 
       {segment === 'trends' && (
         <>
+          <WeeklyCoachCard theme={theme} workouts={workouts} sleepLogs={sleepLogs} food={food} stepsLog={stepsLog} goals={goals} activePlan={activePlan} />
           <WeeklyRecapCard theme={theme} workouts={workouts} sleepLogs={sleepLogs} units={units} goals={goals} />
           <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 rounded-xl border border-[#1A1E26]" role="group" aria-label="Time range">
             {(['7d', '30d', '1y'] as TrendRange[]).map((r) => (
