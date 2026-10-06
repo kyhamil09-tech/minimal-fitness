@@ -38,7 +38,8 @@ import { wipePhotos } from './lib/photoStore';
 import { afterWorkout } from './lib/rewards';
 import { announce } from './lib/rewardsBus';
 import { watchSystemInsets } from './lib/systemInsets';
-import { pickRestingHr, setZoneConfig } from './lib/calc';
+import { pickRestingHr, setZoneConfig, workoutsOnDay } from './lib/calc';
+import { dayProgress } from './lib/dayProgress';
 import { clearAppData, clearSecrets } from './lib/backup';
 import { useReminders } from './hooks/useReminders';
 import { setWeekStartsOnSunday, toDateKey, todayKey } from './lib/dates';
@@ -529,6 +530,16 @@ export default function App() {
   useWidgetLaunchActions({ setCurrentTab, setLaunchRequest, setFastingSessions });
   useWatchWorkoutImport({ profile, workoutsRef, setWorkouts, sendToHcRef: sendWorkoutsToHcRef });
 
+  // Today's three quests (steps goal, water goal, a workout), drawn as a ring on the Home tab.
+  const waterTodayMl = water.filter((w) => w.date === todayKey()).reduce((sum, w) => sum + w.ml, 0);
+  const quests = dayProgress({
+    steps: todaySteps,
+    stepGoal: goals.dailySteps,
+    waterMl: waterTodayMl,
+    waterGoalMl: goals.dailyWaterMl,
+    workoutDone: workoutsOnDay(workouts, todayKey()).length > 0,
+  });
+
   // Widgets, the fasting notification, the watch's tile and complications, and water added there. See hooks/useNativeSync.
   useNativeSync({
     workouts,
@@ -837,6 +848,7 @@ export default function App() {
           setCurrentTab(tab);
         }}
         theme={theme}
+        progress={quests}
       />
 
       {mapOpen && <AppMapScreen theme={theme} onGo={navigateTo} onClose={() => setMapOpen(false)} />}

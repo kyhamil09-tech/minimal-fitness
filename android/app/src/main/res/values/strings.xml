@@ -5,6 +5,6 @@
     <string name="package_name">com.kyfitness.app</string>
     <string name="custom_url_scheme">com.kyfitness.app</string>
     <string name="widget_fasting_description">Fasting timer with start and end</string>
-    <string name="widget_water_description">Today's water with one-tap add buttons</string>
+    <string name="widget_water_description">Today\'s water with one-tap add buttons</string>
     <string name="widget_quick_description">Steps, workouts this week, readiness and one-tap Run or Walk</string>
 </resources>
