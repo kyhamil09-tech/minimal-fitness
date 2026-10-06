@@ -1,4 +1,4 @@
-# Minimal Fitness
+﻿# Minimal Fitness
 
 A privacy-first fitness tracker that runs entirely in the browser (installable as a PWA). There is no account,
 no server and no analytics: everything you log is stored in your own browser's `localStorage`.
@@ -25,9 +25,9 @@ Being honest about what is and isn't measured:
 * **Estimated:** calories burned (MET x weight x time), average HR when no sensor is connected (from effort), max HR
   (Tanaka), BMR/TDEE.
 * **No demo data:** a new install starts completely empty (no workouts, sleep, fasts or health numbers). Screens show
-  "—" until you log something or connect a sensor. Earlier builds seeded sample history; that is removed automatically
+  "â€”" until you log something or connect a sensor. Earlier builds seeded sample history; that is removed automatically
   on launch (anything you logged yourself is kept).
-* Without a connected sensor there is no live heart-rate number (it shows "—"), never a made-up one.
+* Without a connected sensor there is no live heart-rate number (it shows "â€”"), never a made-up one.
 
 Out of scope: cloud accounts, cross-device sync, friends/leaderboards, reading Health Connect. Use
 **Settings > Backup, Restore & Export** to move data between devices.
@@ -251,13 +251,21 @@ policy that forbids every network connection, so the file cannot leave your comp
 
 ```
 src/
-  lib/          pure logic (calc, units, dates, trends, backup, geo, barcode, achievements) - unit tested
-  hooks/        usePersistentState, useGeoTracker, useBleHeartRate, useReminders
-  components/   screens and modals
-  data/         exercise library, plans, foods, defaults, sample data
+  lib/          pure logic (calc, units, dates, trends, backup, geo, steps, nutrition, coach, calendar...), unit tested.
+                appMap.ts is the map of the whole app: the Map screen, the Progress sections and the Settings groups all come from it.
+  hooks/        usePersistentState (storage, with a codec for squeezing GPS data), useAppNavigation (tabs, swipes, back button, the map),
+                useNativeSync (widgets, fasting notification, watch tile, water), useWatchAndWidgetInput (widget buttons, watch workouts),
+                useNutritionLog (food, water, saved meals), useAutomaticData (steps, sleep, Health Connect)
+  components/   screens and sheets (Today, Run/FitnessScreen, Activities panel, Health hub, Progress, Settings, Map)
+  data/         exercise library, plans, foods, defaults
   __tests__/    node:test suites
 public/         manifest, service worker, icon
+android/        phone app (Java/Kotlin plugins and widgets), watch app, watch face
 ```
+
+**Finding your way around.** The bottom bar has five tabs: Home, Run, Health, Progress and You. The grid button on Home (and the Map card at the top of You) opens a map of everything the app does, with search, and jumps straight to the right place.
+
+**Storage.** Everything is kept in the browser's storage, which holds about 5 MB. Workouts' GPS and heart-rate data are compressed before they are saved, a bar in Settings > Backup & data shows how full it is, and a notice appears when it is nearly full or a save was refused.
 
 
 ## Added in this round
@@ -272,3 +280,4 @@ public/         manifest, service worker, icon
 * **Water:** a home-screen Water widget (one-tap add without opening the app) and a watch **Fuel** tile (water and the running fast). Water added there is logged the next time the app runs.
 
 The Android changes (steps by time, Health Connect hourly steps, watch fallback location, the water widget and tile) were written without a build toolchain on the development PC, so build and try them on a device before relying on them.
+

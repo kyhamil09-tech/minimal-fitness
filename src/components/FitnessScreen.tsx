@@ -8,21 +8,13 @@ import {
   Bike,
   Plus,
   Dumbbell,
-  ChevronDown,
-  ChevronUp,
-  X,
   MapPin,
-  Share2,
-  Trash2,
   Mountain,
-  Trophy,
   Flag,
   Target,
   Check,
   CheckCircle2,
   Minus,
-  ChevronLeft,
-  ChevronRight,
   Zap,
   Route as RouteIcon,
   MessageSquare,
@@ -39,12 +31,32 @@ import { ColorPalette } from '../types/theme';
 import { useGeoTracker } from '../hooks/useGeoTracker';
 import { markWatchWorkoutDiscarded, useWatchCommands, useWatchWorkoutSync } from '../hooks/useWatchWorkoutSync';
 import { CalorieSample, WatchCommand, WatchWorkoutState } from '../lib/watch';
-import { currentRestingHr, estimateCalories, estimateWorkoutCalories, getMaxHr, heartRateZone, ZONE_NAMES, trimp, workoutDateKeys, workoutsOnDay, workoutVolumeKg } from '../lib/calc';
+import { currentRestingHr, estimateCalories, estimateWorkoutCalories, getMaxHr, heartRateZone, ZONE_NAMES, trimp, workoutsOnDay } from '../lib/calc';
 import { summarizeStrokes } from '../lib/strokeRate';
-import { formatTimestamp, toDateKey, todayKey } from '../lib/dates';
-import { KM_PER_MI, distanceUnit, formatDistance, formatPace, formatWeight, kmToDisplay } from '../lib/units';
+import {  todayKey } from '../lib/dates';
+import { KM_PER_MI, distanceUnit, formatDistance, formatPace, kmToDisplay } from '../lib/units';
 import type { RunSection } from '../lib/appMap';
-import { LatLng, TrackPoint, haversineKm, routeToSvgPoints } from '../lib/geo';
+import {
+  GPS_TYPES,
+  GoalType,
+  ActiveGoal,
+  LiveRun,
+  SETUP_KEY,
+  DEFAULT_CUSTOM,
+  RunSetup,
+  readSetup,
+  readLiveRun,
+  writeLiveRun,
+  clearLiveRun,
+  GOAL_LABELS,
+  GOAL_DEFAULTS,
+  GOAL_PRESETS,
+  goalKey,
+  readSavedGoal,
+  goalUnitLabel,
+  goalSummary,
+} from '../lib/runSetup';
+import { LatLng, haversineKm } from '../lib/geo';
 import { FollowState, RouteFollower, bearingDeg, headingFrom, relativeTurn, turnAdvice, turnText } from '../lib/routeFollow';
 import type { SavedRoute } from '../lib/savedRoutes';
 import { FollowBanner } from './FollowBanner';
@@ -52,8 +64,9 @@ import { StrengthLoggerModal } from './StrengthLoggerModal';
 import { WorkoutDetailModal } from './WorkoutDetailModal';
 import { ErrorBoundary } from './ErrorBoundary';
 import { LiveMap } from './LiveMap';
-import { RecordsCard } from './RecordsCard';
 import { RoutesView } from './RoutesView';
+import { ManualWorkoutModal } from './ManualWorkoutModal';
+import { ActivitiesPanel } from './ActivitiesPanel';
 import { SegmentsPanel } from './SegmentTools';
 import { hasNativeTracker, readNativeSamples, speakNative, startNativeSession, stopNativeSession } from '../lib/tracker';
 import { Glance, Launch, isAndroidApp } from '../lib/native';
@@ -77,7 +90,6 @@ import { bestAverage, estimateFtp, powerLoad, powerZoneSeconds, summarizePower }
 import { MAX_BPM, MIN_BPM, clampBpm, setBeatBpm, startBeat, stopBeat } from '../lib/metronome';
 import { buzz, usePrefs, voiceStepKm } from '../lib/prefs';
 import { keepScreenOn } from '../lib/keepAwake';
-import { weekStartsOnSunday } from '../lib/dates';
 import { formatDuration } from '../lib/workoutStats';
 import { downsampleHr } from '../lib/workoutStats';
 import { PlansPanel } from './PlansPanel';
@@ -115,118 +127,8 @@ once changes for every request. */
   onDeleteRoute: (id: string) => void;
 }
 
-const GPS_TYPES: WorkoutType[] = ['Running', 'Walking', 'Cycling', 'Hiking'];
-
-type NumericGoal = 'distance' | 'time' | 'calories';
-type GoalType = 'open' | NumericGoal | 'intervals';
-/** The target a workout was started with, in metric units: km, minutes or kcal. */
-interface ActiveGoal {
-  type: NumericGoal;
-  value: number;
-}
 type RunView = RunSection;
 
-/** The run in progress, saved every few seconds so a crash or a killed app does not lose it. */
-interface LiveRun {
-  v: 1;
-  sport: WorkoutType;
-  sessionStart: number;
-  pausedTotal: number;
-  pausedAt: number | null;
-  laps: Lap[];
-  goal: ActiveGoal | null;
-  goalHit: boolean;
-  hr: [number, number][];
-  geo: { points: TrackPoint[]; distanceKm: number; elevationGainM: number; elevationLossM: number; hr: [number, number][] };
-  iv?: { steps: IntervalStep[]; idx: number; sec: number; km: number; done: boolean } | null;
-  targets?: { pace?: number; zone?: number } | null;
-  savedAt: number;
-}
-const SETUP_KEY = 'kyfit_run_setup';
-const DEFAULT_CUSTOM: CustomIntervalInput = { reps: 6, work: 2, workByDistance: false, recoverMin: 1, warmupMin: 5, cooldownMin: 5 };
-interface RunSetup {
-  ivChoice?: string;
-  custom?: CustomIntervalInput;
-  paceOn?: boolean;
-  /** Seconds per kilometre. */
-  pace?: number;
-  zone?: number;
-  /** Cadence beat: on, steps per minute, and different tones for left and right foot. */
-  beatOn?: boolean;
-  bpm?: number;
-  alternate?: boolean;
-}
-const readSetup = (): RunSetup => {
-  try {
-    return JSON.parse(localStorage.getItem(SETUP_KEY) || '{}') as RunSetup;
-  } catch {
-    return {};
-  }
-};
-const LIVE_RUN_KEY = 'kyfit_live_run';
-const readLiveRun = (): LiveRun | null => {
-  try {
-    const r = JSON.parse(localStorage.getItem(LIVE_RUN_KEY) || 'null') as LiveRun | null;
-    // Only offer runs from the last 12 hours that actually recorded something.
-    if (r && r.v === 1 && Date.now() - r.savedAt < 12 * 3600_000 && r.savedAt - r.sessionStart > 60_000) return r;
-  } catch {
-    // unreadable: ignore
-  }
-  return null;
-};
-const writeLiveRun = (r: LiveRun) => {
-  try {
-    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify(r));
-  } catch {
-    // storage full or unavailable
-  }
-};
-const clearLiveRun = () => {
-  try {
-    localStorage.removeItem(LIVE_RUN_KEY);
-  } catch {
-    // ignore
-  }
-};
-
-const GOAL_LABELS: Record<GoalType, string> = { open: 'Open', distance: 'Distance', time: 'Time', calories: 'Calories', intervals: 'Intervals' };
-const GOAL_DEFAULTS = { distance: { metric: 5, imperial: 3 }, time: 30, calories: 300 };
-const GOAL_PRESETS = {
-  distance: { metric: [1, 3, 5, 10, 21.1], imperial: [1, 2, 3, 5, 10] },
-  time: [15, 30, 45, 60],
-  calories: [200, 300, 500, 700],
-};
-const goalKey = (sport: WorkoutType) => `kyfit_goal_${sport}`;
-
-const readSavedGoal = (sport: WorkoutType): { type: GoalType; value?: number } => {
-  try {
-    const raw = localStorage.getItem(goalKey(sport));
-    if (raw) return JSON.parse(raw);
-  } catch {
-    // storage unavailable
-  }
-  return { type: 'open' };
-};
-
-const goalUnitLabel = (type: GoalType, imperial: boolean) =>
-  type === 'distance' ? (imperial ? 'mi' : 'km') : type === 'time' ? 'min' : type === 'calories' ? 'kcal' : '';
-
-const goalSummary = (g: ActiveGoal, imperial: boolean) =>
-  g.type === 'distance'
-    ? `${kmToDisplay(g.value, imperial ? 'imperial' : 'metric', 2)} ${imperial ? 'mi' : 'km'}`
-    : g.type === 'time'
-      ? `${g.value} min`
-      : `${g.value} kcal`;
-
-const RouteMini: React.FC<{ route: [number, number][]; color: string }> = ({ route, color }) => {
-  const pts = routeToSvgPoints(route, 280, 110);
-  if (!pts) return null;
-  return (
-    <svg viewBox="0 0 280 110" className="w-full h-24 rounded-xl bg-black/60 border border-neutral-900" role="img" aria-label="Route map">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-};
 
 export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   workouts,
@@ -284,8 +186,6 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   const [goalToast, setGoalToast] = useState(false);
 
   // Activities: calendar + day filter, and the micro-workout confirmation
-  const [monthOffset, setMonthOffset] = useState(0);
-  const [dayFilter, setDayFilter] = useState<string | null>(null);
   const [justCompletedTitle, setJustCompletedTitle] = useState<string | null>(null);
   // A run that was cut short (crash, killed app, dead battery) and can be picked up again
   const [recoverable, setRecoverable] = useState<LiveRun | null>(() => readLiveRun());
@@ -411,10 +311,6 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   });
 
   // Filter chips + history
-  const [activeFilter, setActiveFilter] = useState<'All' | 'Runs' | 'Walks' | 'Cycles' | 'Strength/HIIT' | 'Manual'>('All');
-  const [expandedWorkoutId, setExpandedWorkoutId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [shareNote, setShareNote] = useState('');
 
   // Safety live share: texts a map link to your chosen contacts while a GPS workout runs (Settings > Live share).
   const [liveShare] = useLiveShare();
@@ -425,11 +321,8 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
 
   // Manual Workout Logger Modal state
   const [showManualModal, setShowManualModal] = useState(false);
+  // The activity the Log workout dialog starts on (a planned day that cannot be recorded with GPS opens it on that activity).
   const [manualType, setManualType] = useState<WorkoutType>('Strength');
-  const [manualDuration, setManualDuration] = useState('45');
-  const [manualCalories, setManualCalories] = useState('');
-  const [manualRpe, setManualRpe] = useState(7);
-  const [manualNotes, setManualNotes] = useState('');
 
   const elapsedSeconds = isSessionActive
     ? Math.max(0, Math.floor(((pausedAt ?? nowMs) - sessionStart - pausedTotal) / 1000))
@@ -950,50 +843,6 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     setPausedAt(null);
   };
 
-  const handleSaveManualWorkout = (e: React.FormEvent) => {
-    e.preventDefault();
-    const duration = Math.max(1, parseInt(manualDuration, 10) || 30);
-    const calories = parseInt(manualCalories, 10) || estimateCalories(manualType, duration, profile.weightKg);
-    const avgHr = Math.round(profile.restingHr + (maxHr - profile.restingHr) * (0.3 + manualRpe * 0.05));
-
-    const newSession: WorkoutSession = {
-      id: `w-manual-${Date.now()}`,
-      type: manualType,
-      timestamp: '',
-      startedAt: Date.now(),
-      durationMinutes: duration,
-      avgHeartRate: avgHr,
-      caloriesBurned: calories,
-      isManualEntry: true,
-      perceivedExertion: manualRpe,
-      notes: manualNotes.trim() || undefined,
-      cardioLoadPoints: trimp(duration, avgHr, maxHr, currentRestingHr()),
-    };
-
-    onAddWorkout(newSession);
-    setShowManualModal(false);
-    setManualNotes('');
-    setManualCalories('');
-  };
-
-  const handleShare = async (w: WorkoutSession) => {
-    const text =
-      `${w.type} · ${w.durationMinutes} min` +
-      (w.distanceKm ? ` · ${formatDistance(w.distanceKm, units)}` : '') +
-      ` · ${w.caloriesBurned} kcal — logged with Minimal Fitness`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'My workout', text });
-      } else {
-        await navigator.clipboard.writeText(text);
-        setShareNote('Workout summary copied to clipboard');
-        setTimeout(() => setShareNote(''), 2500);
-      }
-    } catch {
-      // user cancelled the share sheet
-    }
-  };
-
   const formatTimer = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -1001,18 +850,6 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     const mm = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     return h > 0 ? `${h}:${mm}` : mm;
   };
-
-  const filteredWorkouts = workouts.filter((w) => {
-    if (dayFilter && workoutsOnDay([w], dayFilter).length === 0) return false;
-    if (activeFilter === 'All') return true;
-    if (activeFilter === 'Runs') return w.type === 'Running' || w.type === 'Treadmill';
-    if (activeFilter === 'Walks') return w.type === 'Walking' || w.type === 'Hiking';
-    if (activeFilter === 'Cycles') return w.type === 'Cycling' || w.type === 'IndoorCycling';
-    if (activeFilter === 'Strength/HIIT')
-      return w.type === 'Strength' || w.type === 'HIIT' || w.type === 'Calisthenics' || w.type === 'Core';
-    if (activeFilter === 'Manual') return !!w.isManualEntry;
-    return true;
-  });
 
   const liveZone = heartRateZone(liveBpm, maxHr);
   const liveCalories = measuredKcal ?? estimateCalories(selectedSport, elapsedSeconds / 60, profile.weightKg);
@@ -1234,22 +1071,8 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       cardioLoadPoints: trimp(template.durationMinutes, avgHr, maxHr, currentRestingHr()),
     });
   };
-  const doneKeys = workoutDateKeys(workouts);
   const todayDone = workoutsOnDay(workouts, todayKey());
   const isTemplateDone = (t: QuickWorkoutTemplate) => todayDone.some((w) => w.notes === `Quick workout: ${t.title}`);
-
-  // Month calendar for the Activities view
-  const monthBase = new Date();
-  monthBase.setDate(1);
-  monthBase.setMonth(monthBase.getMonth() + monthOffset);
-  const calYear = monthBase.getFullYear();
-  const calMonth = monthBase.getMonth();
-  const calLeading = weekStartsOnSunday() ? monthBase.getDay() : (monthBase.getDay() + 6) % 7;
-  const calDays = new Date(calYear, calMonth + 1, 0).getDate();
-  const calCells: (string | null)[] = [
-    ...Array<null>(calLeading).fill(null),
-    ...Array.from({ length: calDays }, (_, i) => toDateKey(new Date(calYear, calMonth, i + 1))),
-  ];
 
   // The current interval step, sent to the watch so it can show it and buzz at each change.
   const watchStepInfo = (): Partial<WatchWorkoutState> => {
@@ -2272,264 +2095,13 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       {/* ACTIVITIES: records, month calendar and the history feed */}
       {!isSessionActive && runView === 'activities' && (
         <>
-      <RecordsCard workouts={workouts} units={units} theme={theme} onOpen={(w) => setDetail({ workout: w, justFinished: false })} />
-
-      <section className="rounded-[28px] border p-4" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-        <div className="flex items-center justify-between mb-3">
-          <button onClick={() => setMonthOffset((m) => m - 1)} aria-label="Previous month" className="w-9 h-9 rounded-full glass-chip flex items-center justify-center">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="gh-title">{monthBase.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
-          <button
-            onClick={() => setMonthOffset((m) => Math.min(0, m + 1))}
-            disabled={monthOffset >= 0}
-            aria-label="Next month"
-            className="w-9 h-9 rounded-full glass-chip flex items-center justify-center disabled:opacity-30"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {(weekStartsOnSunday() ? ['S', 'M', 'T', 'W', 'T', 'F', 'S'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S']).map((d, i) => (
-            <div key={i} className="text-center stat-label pb-1">
-              {d}
-            </div>
-          ))}
-          {calCells.map((key, i) =>
-            key === null ? (
-              <div key={`b${i}`} />
-            ) : (
-              <button
-                key={key}
-                onClick={() => setDayFilter((cur) => (cur === key ? null : key))}
-                aria-pressed={dayFilter === key}
-                aria-label={key}
-                className="week-dot !text-[11px]"
-                data-done={doneKeys.has(key)}
-                data-today={key === todayKey()}
-                style={dayFilter === key ? { outline: `2px solid ${theme.primary}`, outlineOffset: 2 } : undefined}
-              >
-                {Number(key.slice(8))}
-              </button>
-            )
-          )}
-        </div>
-        {dayFilter && (
-          <button onClick={() => setDayFilter(null)} className="mt-3 text-[11px] font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
-            Showing {dayFilter} · clear
-          </button>
-        )}
-      </section>
-
-      {/* WORKOUT HISTORY FEED WITH FILTER CHIPS */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-semibold text-[#7E889B] tracking-wider uppercase">
-            Activities · {filteredWorkouts.length}
-          </span>
-          <span className="text-[11px] font-semibold text-[#7E889B]">Saved on this device</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          {(['All', 'Runs', 'Walks', 'Cycles', 'Strength/HIIT', 'Manual'] as const).map((chip) => (
-            <button
-              key={chip}
-              onClick={() => setActiveFilter(chip)}
-              aria-pressed={activeFilter === chip}
-              className="sport-pill !py-2 !text-xs"
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-
-        {shareNote && (
-          <p role="status" className="text-[11px] text-emerald-400 px-1">
-            {shareNote}
-          </p>
-        )}
-
-        {filteredWorkouts.length === 0 && (
-          <p className="text-center text-xs text-[#7E889B] py-6">
-            {workouts.length === 0 ? 'No activities yet. Open the Start tab and press GO.' : 'Nothing matches this filter.'}
-          </p>
-        )}
-
-        <div className="space-y-2.5">
-          {filteredWorkouts.map((workout) => {
-            const isExpanded = expandedWorkoutId === workout.id;
-            const volume = workoutVolumeKg(workout);
-
-            return (
-              <article
-                key={workout.id}
-                className="rounded-3xl border p-4 space-y-3 transition-colors hover:border-neutral-700"
-                style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
-              >
-                <button
-                  onClick={() => setExpandedWorkoutId(isExpanded ? null : workout.id)}
-                  aria-expanded={isExpanded}
-                  className="w-full flex items-center justify-between text-left"
-                >
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-white">{workout.type}</span>
-                      {workout.planDayTitle && (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
-                          {workout.planDayTitle}
-                        </span>
-                      )}
-                      {workout.isManualEntry ? (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400">
-                          Manual Log
-                        </span>
-                      ) : workout.gpsTracked ? (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-900">
-                          GPS Tracked
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400">
-                          Timed
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-[#7E889B] block font-mono">
-                      {workout.startedAt ? formatTimestamp(workout.startedAt) : workout.timestamp}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      {workout.distanceKm ? (
-                        <span className="hero-num text-[2.4rem] block">
-                          {kmToDisplay(workout.distanceKm, units)}
-                          <span className="hero-unit text-base"> {distanceUnit(units)}</span>
-                        </span>
-                      ) : (
-                        <span className="hero-num text-[2.4rem] block">
-                          {workout.durationMinutes}
-                          <span className="hero-unit text-base"> min</span>
-                        </span>
-                      )}
-                      <span className="text-[11px] font-semibold text-[#7E889B]">
-                        {workout.distanceKm ? `${workout.durationMinutes} min · ` : ''}
-                        {workout.caloriesBurned} kcal
-                      </span>
-                    </div>
-                    {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-neutral-500" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-neutral-500" />
-                    )}
-                  </div>
-                </button>
-
-                <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-2 border-t border-[#1A1E26]">
-                  <div className="bg-black/50 p-2 rounded-xl border border-neutral-900">
-                    <span className="text-[10px] text-neutral-400 block">
-                      Avg HR{workout.hrFromSensor ? '' : ' (est.)'}
-                    </span>
-                    <span className="text-white font-bold block mt-0.5">{workout.avgHeartRate} bpm</span>
-                  </div>
-
-                  <div className="bg-black/50 p-2 rounded-xl border border-neutral-900">
-                    <span className="text-[10px] text-neutral-400 block">{volume > 0 ? 'Volume' : 'Distance'}</span>
-                    <span className="text-white font-bold block mt-0.5">
-                      {volume > 0
-                        ? formatWeight(volume, units, 0)
-                        : workout.distanceKm
-                          ? formatDistance(workout.distanceKm, units)
-                          : 'N/A'}
-                    </span>
-                  </div>
-
-                  <div className="bg-black/50 p-2 rounded-xl border border-neutral-900">
-                    <span className="text-[10px] text-neutral-400 block">Exertion (RPE)</span>
-                    <span className="font-bold block mt-0.5" style={{ color: theme.primary }}>
-                      {workout.perceivedExertion ? `${workout.perceivedExertion}/10` : '—'}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setDetail({ workout, justFinished: false })}
-                  className="w-full py-2.5 rounded-2xl glass-inset text-xs font-semibold text-white flex items-center justify-center gap-2"
-                >
-                  <MapPin className="w-4 h-4" style={{ color: theme.primary }} />
-                  {workout.track || (workout.route && workout.route.length > 1) ? 'Route map and full breakdown' : 'Full breakdown'}
-                </button>
-
-                {isExpanded && (
-                  <div className="space-y-2 pt-1 text-xs">
-                    {workout.route && workout.route.length > 1 && <RouteMini route={workout.route} color={theme.primary} />}
-                    {workout.distanceKm && workout.durationMinutes > 0 && (
-                      <p className="text-[11px] font-mono text-neutral-300 px-1">
-                        Pace {formatPace(workout.durationMinutes, workout.distanceKm, units)} /{distanceUnit(units)}
-                        {workout.elevationGainM ? ` · +${workout.elevationGainM} m climbed` : ''}
-                      </p>
-                    )}
-                    {workout.exercises && workout.exercises.length > 0 && (
-                      <ul className="space-y-1.5">
-                        {workout.exercises.map((ex) => (
-                          <li key={ex.exerciseId} className="bg-black/50 border border-neutral-900 rounded-xl p-2.5">
-                            <div className="text-[11px] font-semibold text-white flex items-center gap-1.5">
-                              <Trophy className="w-3 h-3 text-neutral-600" />
-                              {ex.name}
-                            </div>
-                            <div className="text-[10px] font-mono text-[#7E889B] mt-0.5">
-                              {ex.sets.map((s) => `${formatWeight(s.weightKg, units, 1)}×${s.reps}`).join(' · ')}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {workout.notes && (
-                      <p className="text-[11px] text-neutral-300 bg-neutral-950 p-2.5 rounded-xl border border-neutral-900">
-                        “{workout.notes}”
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between text-[11px] text-[#7E889B] font-mono px-1">
-                      <span>Cardio Load: {workout.cardioLoadPoints ?? Math.round(workout.durationMinutes * 1.3)} TRIMP</span>
-                    </div>
-                    <div className="flex items-center justify-end gap-3 pt-1">
-                      <button
-                        onClick={() => handleShare(workout)}
-                        className="text-[11px] flex items-center gap-1 text-neutral-300 hover:text-white"
-                      >
-                        <Share2 className="w-3.5 h-3.5" /> Share
-                      </button>
-                      {confirmDeleteId === workout.id ? (
-                        <span className="flex items-center gap-2 text-[11px]">
-                          <span className="text-neutral-400">Delete?</span>
-                          <button
-                            onClick={() => {
-                              onDeleteWorkout(workout.id);
-                              setConfirmDeleteId(null);
-                            }}
-                            className="text-rose-400 font-bold"
-                          >
-                            Yes
-                          </button>
-                          <button onClick={() => setConfirmDeleteId(null)} className="text-neutral-400">
-                            No
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmDeleteId(workout.id)}
-                          className="text-[11px] flex items-center gap-1 text-neutral-500 hover:text-rose-400"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      </section>
+      <ActivitiesPanel
+        workouts={workouts}
+        units={units}
+        theme={theme}
+        onOpenDetail={(w) => setDetail({ workout: w, justFinished: false })}
+        onDeleteWorkout={onDeleteWorkout}
+      />
         </>
       )}
 
@@ -2580,121 +2152,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
         onSaveRoutine={onSaveRoutine}
       />
 
-      {/* MANUAL WORKOUT LOGGER MODAL */}
-      {showManualModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Log custom workout"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
-        >
-          <div className="w-full max-w-sm bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26]">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Dumbbell className="w-4 h-4 text-emerald-400" />
-                Log Custom Workout
-              </h3>
-              <button onClick={() => setShowManualModal(false)} aria-label="Close" className="text-neutral-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveManualWorkout} className="space-y-3 mt-3">
-              <div className="space-y-1">
-                <label htmlFor="mw-type" className="text-[11px] text-neutral-400">
-                  Activity Type
-                </label>
-                <select
-                  id="mw-type"
-                  value={manualType}
-                  onChange={(e) => setManualType(e.target.value as WorkoutType)}
-                  className="w-full bg-black border border-[#1A1E26] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-400"
-                >
-                  <option value="Strength">Strength Training</option>
-                  <option value="Calisthenics">Calisthenics / Bodyweight</option>
-                  <option value="HIIT">HIIT / Circuit</option>
-                  <option value="Running">Running / Jogging</option>
-                  <option value="Walking">Walking / Rucking</option>
-                  <option value="Hiking">Hiking</option>
-                  <option value="Cycling">Cycling</option>
-                  <option value="Core">Core</option>
-                  <option value="Mobility">Mobility & Stretching</option>
-                  <option value="Rowing">Rowing</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label htmlFor="mw-dur" className="text-[11px] text-neutral-400">
-                    Duration (mins)
-                  </label>
-                  <input
-                    id="mw-dur"
-                    type="number"
-                    min={1}
-                    value={manualDuration}
-                    onChange={(e) => setManualDuration(e.target.value)}
-                    className="w-full bg-black border border-[#1A1E26] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-400 font-mono"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="mw-cal" className="text-[11px] text-neutral-400">
-                    Calories (blank = auto)
-                  </label>
-                  <input
-                    id="mw-cal"
-                    type="number"
-                    min={0}
-                    value={manualCalories}
-                    onChange={(e) => setManualCalories(e.target.value)}
-                    className="w-full bg-black border border-[#1A1E26] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-400 font-mono"
-                    placeholder={String(estimateCalories(manualType, parseInt(manualDuration, 10) || 30, profile.weightKg))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[11px] text-neutral-400">
-                  <label htmlFor="mw-rpe">Perceived Exertion (RPE)</label>
-                  <span className="font-mono text-emerald-400 font-bold">{manualRpe} / 10</span>
-                </div>
-                <input
-                  id="mw-rpe"
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={manualRpe}
-                  onChange={(e) => setManualRpe(parseInt(e.target.value, 10))}
-                  className="w-full accent-emerald-400"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="mw-notes" className="text-[11px] text-neutral-400">
-                  Notes (optional)
-                </label>
-                <input
-                  id="mw-notes"
-                  type="text"
-                  value={manualNotes}
-                  onChange={(e) => setManualNotes(e.target.value)}
-                  className="w-full bg-black border border-[#1A1E26] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-400"
-                  placeholder="e.g. Yoga flow, 30 min"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl font-bold text-xs bg-emerald-500 text-black hover:bg-emerald-400 transition-colors shadow-lg mt-2"
-              >
-                Save Workout
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {showManualModal && <ManualWorkoutModal initialType={manualType} profile={profile} onSave={onAddWorkout} onClose={() => setShowManualModal(false)} />}
     </div>
   );
 };
