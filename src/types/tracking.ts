@@ -57,6 +57,8 @@ export interface ExerciseLog {
   exerciseId: string;
   name: string;
   sets: SetLog[];
+  /** Exercises side by side with the same group were done as a superset or circuit (see lib/supersets). */
+  group?: string;
 }
 
 export interface PlanDay {

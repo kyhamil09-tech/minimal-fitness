@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Dumbbell, Info, Plus, Search, Timer, Trash2, TrendingUp, Trophy } from 'lucide-react';
+import { Check, Dumbbell, Info, Link2, Plus, Search, Timer, Trash2, TrendingUp, Trophy, Unlink } from 'lucide-react';
+import { afterGroupedSetDone, groupKind, groupLabel, linkWithNext, removeAt, unlinkFromNext } from '../lib/supersets';
 import { ExerciseGuide } from './ExerciseDemo';
 import { RecoveryNote } from './RecoveryNote';
 import { BAR_KG, BAR_LB, PLATES_KG, PLATES_LB, Suggestion, liftHistory, plateBreakdown, suggestNext } from '../lib/strengthProgress';
@@ -34,6 +35,8 @@ interface LoggedExercise {
   exerciseId: string;
   name: string;
   rows: Row[];
+  /** Shared by exercises done as a superset or circuit: one set of each in turn, rest after the last (lib/supersets). */
+  group?: string;
 }
 
 interface StrengthLoggerModalProps {
@@ -195,8 +198,13 @@ export const StrengthLoggerModal: React.FC<StrengthLoggerModalProps> = ({
   const toggleDone = (ei: number, ri: number) => {
     const row = items[ei].rows[ri];
     const nowDone = !row.done;
-    updateRow(ei, ri, { done: nowDone });
-    if (nowDone) {
+    const next = items.map((it, i) => (i !== ei ? it : { ...it, rows: it.rows.map((r, j) => (j === ri ? { ...r, done: nowDone } : r)) }));
+    setItems(next);
+    if (!nowDone) return;
+    // In a superset or circuit the next exercise of the round is up with no rest; the rest comes after the last one.
+    const grouped = afterGroupedSetDone(next, ei, ri);
+    if (grouped) setCursor(grouped.cursor);
+    if (!grouped || grouped.rest) {
       setRestLeft(restLen);
       setRestEnds(Date.now() + restLen * 1000);
     }
@@ -252,6 +260,7 @@ export const StrengthLoggerModal: React.FC<StrengthLoggerModalProps> = ({
       .map((it) => ({
         exerciseId: it.exerciseId,
         name: it.name,
+        ...(it.group ? { group: it.group } : {}),
         sets: it.rows
           .map((r) => ({
             reps: Math.max(0, Math.round(parseFloat(r.reps) || 0)),
@@ -513,10 +522,22 @@ export const StrengthLoggerModal: React.FC<StrengthLoggerModalProps> = ({
           {/* Exercises */}
           {items.map((it, ei) => {
             const pr = prs[it.exerciseId];
+            const kind = groupKind(items, ei);
+            const tag = groupLabel(items, ei);
+            const linkedToNext = !!it.group && items[ei + 1]?.group === it.group;
             return (
-              <section key={it.exerciseId} className="rounded-2xl border border-[#1A1E26] bg-black/40 p-3 space-y-2">
+              <React.Fragment key={it.exerciseId}>
+              <section
+                className="rounded-2xl border border-[#1A1E26] bg-black/40 p-3 space-y-2"
+                style={kind !== 'single' ? { borderLeft: `3px solid ${theme.primary}` } : undefined}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
+                    {kind !== 'single' && (
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: theme.primary }}>
+                        {kind === 'circuit' ? 'Circuit' : 'Superset'} {tag}
+                      </p>
+                    )}
                     <h3 className="text-sm font-semibold text-white">{it.name}</h3>
                     {pr && (
                       <p className="text-[10px] font-mono text-amber-300 flex items-center gap-1 mt-0.5">
@@ -530,7 +551,7 @@ export const StrengthLoggerModal: React.FC<StrengthLoggerModalProps> = ({
                       <Info className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => setItems((prev) => prev.filter((_, i) => i !== ei))}
+                      onClick={() => setItems((prev) => removeAt(prev, ei))}
                       aria-label={`Remove ${it.name}`}
                       className="text-neutral-500 hover:text-rose-400"
                     >
@@ -621,6 +642,25 @@ export const StrengthLoggerModal: React.FC<StrengthLoggerModalProps> = ({
                   <Plus className="w-3 h-3" /> Add set
                 </button>
               </section>
+              {ei < items.length - 1 && (
+                <div className="flex justify-center -my-1.5">
+                  <button
+                    onClick={() => setItems((prev) => (linkedToNext ? unlinkFromNext(prev, ei) : linkWithNext(prev, ei)))}
+                    aria-pressed={linkedToNext}
+                    aria-label={linkedToNext ? `Unlink ${it.name} from ${items[ei + 1].name}` : `Do ${it.name} and ${items[ei + 1].name} as a superset`}
+                    className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold"
+                    style={
+                      linkedToNext
+                        ? { borderColor: theme.primary, color: theme.primary, background: `${theme.primary}14` }
+                        : { borderColor: '#1A1E26', color: '#7E889B' }
+                    }
+                  >
+                    {linkedToNext ? <Unlink className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
+                    {linkedToNext ? 'Unlink' : 'Superset with next'}
+                  </button>
+                </div>
+              )}
+              </React.Fragment>
             );
           })}
 

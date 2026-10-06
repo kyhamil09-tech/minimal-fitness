@@ -6,6 +6,7 @@ import { planDaysForWeek } from './planBuilder';
 import { startOfMondayWeek, weekdayIndex } from './dates';
 import { incrementKg } from './strengthProgress';
 import { kgToDisplay } from './units';
+import { afterGroupedSetDone } from './supersets';
 
 /**
  * The strength session as the watch shows it: one exercise and one set at a time, with weight and reps you can change, a Done
@@ -23,6 +24,8 @@ export interface StrengthItem {
   exerciseId: string;
   name: string;
   rows: StrengthRow[];
+  /** Shared by exercises done as a superset or circuit (see lib/supersets). */
+  group?: string;
 }
 
 export interface WatchStrength {
@@ -110,6 +113,9 @@ export const applyStrengthCommand = (state: StrengthState, cmd: StrengthCommand,
       if (item.rows.length === 0) return { state, rest: null };
       const nowDone = !item.rows[setIdx].done;
       const next = edit((r) => ({ ...r, done: nowDone }));
+      // In a superset or circuit the next exercise of the round comes up with no rest; rest comes after the last one.
+      const grouped = nowDone ? afterGroupedSetDone(next, ex, setIdx) : null;
+      if (grouped) return { state: { items: next, cursor: grouped.cursor }, rest: grouped.rest ? { kind: 'start' } : { kind: 'skip' } };
       let cursor = ex;
       if (nowDone && next[ex].rows.every((r) => r.done)) cursor = nextWithSets(next, ex);
       return { state: { items: next, cursor }, rest: nowDone ? { kind: 'start' } : { kind: 'skip' } };
