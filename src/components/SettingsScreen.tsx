@@ -38,6 +38,9 @@ interface SettingsScreenProps {
   ble: BleHeartRate;
   watch: WatchHeartRateState;
   automation: AutomaticData;
+  /** Workouts that were never saved to Health Connect, and a way to send them now (resolves with how many went). */
+  hcWaiting?: number;
+  onSendUnsynced?: () => Promise<number>;
   backup: AutoBackup;
   runOptions: RunOptions;
   onRunOptionsChange: (o: RunOptions) => void;
@@ -66,6 +69,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   ble,
   watch,
   automation,
+  hcWaiting,
+  onSendUnsynced,
   backup,
   runOptions,
   onRunOptionsChange,
@@ -275,7 +280,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
 
-        <AutomationSettings part="data" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
+        <AutomationSettings part="data" hideTitles theme={theme} automation={automation} hcWaiting={hcWaiting} onSendUnsynced={onSendUnsynced} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
       </SettingsGroup>
 
       {/* CONNECTIONS */}

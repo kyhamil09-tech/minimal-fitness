@@ -70,6 +70,8 @@ export interface AppPrefs {
   wheelMm: number;
   /** Which source counts your steps: the best of all, only the phone, only the watch, or only Health Connect. */
   stepSource: StepSource;
+  /** Master switch for Health Connect: when off the app neither reads from it nor writes to it, and never asks for permission. */
+  useHealthConnect: boolean;
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -109,6 +111,7 @@ export const DEFAULT_PREFS: AppPrefs = {
   detectWalks: false,
   wheelMm: 2105,
   stepSource: 'auto',
+  useHealthConnect: true,
 };
 
 const KEY = 'kyfit_prefs';
@@ -177,6 +180,7 @@ export const sanitizePrefs = (raw: Partial<AppPrefs>): AppPrefs => {
     detectWalks: bool(raw.detectWalks, d.detectWalks),
     wheelMm: num(raw.wheelMm, 1200, 2400, d.wheelMm),
     stepSource: pick(raw.stepSource, STEP_SOURCES, d.stepSource),
+    useHealthConnect: bool(raw.useHealthConnect, d.useHealthConnect),
   };
 };
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, BedDouble, Bug, CloudUpload, Footprints, FolderOpen, History, Map as MapIcon, PauseCircle, RefreshCw, Volume2, Watch } from 'lucide-react';
+import { Activity, BedDouble, Bug, CloudUpload, FolderOpen, HeartHandshake, History, Map as MapIcon, PauseCircle, RefreshCw, UploadCloud, Volume2, Watch } from 'lucide-react';
 import { RunOptions } from '../types/tracking';
 import { ColorPalette } from '../types/theme';
 import { AutomaticData } from '../hooks/useAutomaticData';
@@ -22,6 +22,9 @@ interface AutomationSettingsProps {
   onRunOptionsChange: (o: RunOptions) => void;
   /** Which part to show: the automatic data sources, run options, folder backup, or diagnostics. */
   part: 'data' | 'run' | 'backup' | 'diagnostics';
+  /** Workouts never saved to Health Connect, and a way to send them now (resolves with how many went). */
+  hcWaiting?: number;
+  onSendUnsynced?: () => Promise<number>;
   /** Inside a settings group the group already has a title. */
   hideTitles?: boolean;
 }
@@ -36,7 +39,7 @@ const ago = (ms: number) => {
   return `${Math.round(h / 24)} days ago`;
 };
 
-export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, automation, backup, runOptions, onRunOptionsChange, part, hideTitles = false }) => {
+export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, automation, backup, runOptions, onRunOptionsChange, part, hideTitles = false, hcWaiting = 0, onSendUnsynced }) => {
   const android = isAndroidApp();
   const { prefs, setPrefs } = usePrefs();
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -45,6 +48,8 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
   const [tiles, setTiles] = useState<number | null>(null);
   const [sleepOn, setSleepOn] = useState<boolean>(sleepDetectEnabled);
   const [ownOn, setOwnOn] = useState<boolean>(ownSensorsEnabled);
+  const [sending, setSending] = useState(false);
+  const [sendNote, setSendNote] = useState('');
   React.useEffect(() => {
     void tileCacheCount().then(setTiles);
   }, []);
@@ -128,6 +133,26 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
             }
           />
           <Row
+            icon={<HeartHandshake className="w-5 h-5 text-violet-300" />}
+            title="Use Health Connect"
+            sub={
+              prefs.useHealthConnect
+                ? 'On. Your watch’s sleep stages, HRV and other apps’ data come in, and what you log can be saved back.'
+                : 'Off. The app does not read from or write to Health Connect and never asks for its permissions. Steps, heart rate and sleep still come from your watch and phone. Data already imported stays.'
+            }
+            action={
+              <Toggle
+                on={prefs.useHealthConnect}
+                onChange={(v) => {
+                  setPrefs({ useHealthConnect: v });
+                  setSendNote('');
+                }}
+                label="Use Health Connect"
+              />
+            }
+          />
+          {prefs.useHealthConnect && (<>
+          <Row
             icon={<BedDouble className="w-5 h-5 text-violet-300" />}
             title="Health Connect (read and write)"
             sub={
@@ -180,11 +205,35 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
                 </button>
               }
             />
-          )}          {automation.hcError && (
+          )}
+          {android && hc?.available && hc.canWrite && hcWaiting > 0 && onSendUnsynced && (
+            <Row
+              icon={<UploadCloud className="w-5 h-5 text-emerald-300" />}
+              title={`${hcWaiting} workout${hcWaiting === 1 ? '' : 's'} not saved to Health Connect`}
+              sub={sendNote || 'From the last 90 days: recorded while Health Connect was off or before it was set up. Imported workouts are not included.'}
+              action={
+                <button
+                  disabled={sending}
+                  onClick={async () => {
+                    setSending(true);
+                    const n = await onSendUnsynced();
+                    setSending(false);
+                    setSendNote(n > 0 ? `Saved ${n} to Health Connect.` : 'Nothing could be saved. Check the permissions above.');
+                  }}
+                  className={primary}
+                  style={{ backgroundColor: theme.primary }}
+                >
+                  {sending ? 'Sending…' : 'Send'}
+                </button>
+              }
+            />
+          )}
+          {automation.hcError && (
             <p role="alert" className="px-4 py-2 text-[11px] text-rose-400">
               {automation.hcError}
             </p>
           )}
+          </>)}
         </div>
       </div>
       )}

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { usePrefs } from '../lib/prefs';
 import { MetricDetailSheet } from './MetricDetailSheet';
 import type { MetricId, SeriesInput } from '../lib/metricSeries';
 import { adaptWeek } from '../lib/planWeek';
@@ -158,6 +159,8 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
 }) => {
   const dailyStepGoal = goals.dailySteps;
   const today = todayKey();
+  // With Health Connect switched off its card is hidden (what was imported earlier still feeds the charts).
+  const hcEnabled = usePrefs().prefs.useHealthConnect;
 
   const [showGoalModal, setShowGoalModal] = useState<boolean>(false);
   const [tempGoal, setTempGoal] = useState<number>(dailyStepGoal);
@@ -288,7 +291,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   const hcToday = vitals?.daily[today];
   const hcRecentBpm = vitals && vitals.latestBpm > 0 && Date.now() - vitals.latestAt < 6 * 3600_000 ? vitals.latestBpm : 0;
   const hcWeight = vitals && vitals.weights.length ? [...vitals.weights].sort((a, b) => b.time - a.time)[0] : null;
-  const hasHc = !!vitals && (!!hcToday || vitals.restingBpm > 0 || !!hcWeight);
+  const hasHc = hcEnabled && !!vitals && (!!hcToday || vitals.restingBpm > 0 || !!hcWeight);
 
   return (
     <div className="space-y-4 pb-8 max-w-lg mx-auto">

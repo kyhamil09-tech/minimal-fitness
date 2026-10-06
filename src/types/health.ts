@@ -99,6 +99,8 @@ export interface WorkoutSession {
   shoeId?: string;
   /** Set when the workout came from a file or another app's export rather than being recorded here ("Strava archive", "GPX file"). */
   importedFrom?: string;
+  /** Saved to Health Connect. Missing when it was never sent (Health Connect off, no permission, or recorded before it was on). */
+  syncedToHc?: boolean;
 }
 
 export interface Lap {

@@ -93,7 +93,9 @@ import {
   writeSleepToHc,
   writeWaterToHc,
   writeWorkoutToHc,
+  setHealthWriteEnabled,
 } from './lib/healthWrite';
+import { markSynced, unsyncedWorkouts } from './lib/hcSync';
 
 export default function App() {
   // Navigation & View Mode State
@@ -320,7 +322,9 @@ export default function App() {
   const automation = useAutomaticData(profile.onboarded, setSleepLogs, (sessions) => {
     const converted = sessions.map((s) => hcWorkoutToSession(s, profile)).filter((w): w is WorkoutSession => w !== null);
     if (converted.length > 0) setWorkouts((prev) => mergeImportedWorkouts(prev, converted).merged);
-  }, prefs.stepSource);
+  }, prefs.stepSource, prefs.useHealthConnect);
+  // The Health Connect master switch also guards every write and delete (see healthWrite).
+  setHealthWriteEnabled(prefs.useHealthConnect);
 
   // "Looks like you started a run": the phone's own activity recognition offers to record (needs the physical-activity permission the step counter asks for).
   const stepsReady = automation.steps !== null;
@@ -474,10 +478,23 @@ export default function App() {
     setEnabledMetricList(METRIC_CONFIGS.filter((m) => m.defaultVisible).map((m) => m.id));
   };
 
+  // Saves workouts to Health Connect and remembers the ones that really went through, so only the rest are offered later.
+  const sendWorkoutsToHc = async (list: WorkoutSession[]): Promise<number> => {
+    const sent = new Set<string>();
+    for (const w of list) if (await writeWorkoutToHc(w)) sent.add(w.id);
+    if (sent.size > 0) setWorkouts((prev) => markSynced(prev, sent));
+    return sent.size;
+  };
+  // Timer callbacks (the watch import) need the newest version of the function above.
+  const sendWorkoutsToHcRef = useRef(sendWorkoutsToHc);
+  sendWorkoutsToHcRef.current = sendWorkoutsToHc;
+  const waitingForHc = useMemo(() => unsyncedWorkouts(workouts, Date.now()).length, [workouts]);
+  const handleSendUnsynced = () => sendWorkoutsToHc(unsyncedWorkouts(workoutsRef.current, Date.now()));
+
   const handleAddWorkout = (workout: WorkoutSession) => {
     setWorkouts((prev) => [workout, ...prev]);
     announce(afterWorkout(workout, workouts, goals, todayKey()));
-    void writeWorkoutToHc(workout);
+    void sendWorkoutsToHc([workout]);
     // Strava, when connected and set to send every workout automatically.
     if (getAutoUpload() && isStravaConnected() && !workout.isManualEntry) void uploadWorkout(workout);
   };
@@ -644,7 +661,7 @@ export default function App() {
         if (sessions.length > 0) {
           setWorkouts((prev) => mergeWatchWorkouts(prev, sessions));
           // Workouts the watch recorded on its own are not in Health Connect yet.
-          sessions.forEach((s) => void writeWorkoutToHc(s));
+          void sendWorkoutsToHcRef.current(sessions);
         }
         if (done.length > 0) await Launch.ackWatchWorkouts({ ids: done });
       } catch {
@@ -886,6 +903,8 @@ export default function App() {
             ble={ble}
             watch={watch}
             automation={stepsAutomation}
+            hcWaiting={waitingForHc}
+            onSendUnsynced={handleSendUnsynced}
             backup={backup}
             runOptions={runOptions}
             onRunOptionsChange={setRunOptions}

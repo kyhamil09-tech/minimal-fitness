@@ -102,7 +102,9 @@ export function useAutomaticData(
   /** Called with workouts other apps saved to Health Connect that have not been seen before (Google Health and others). */
   onHcWorkouts?: (sessions: HcWorkout[]) => void,
   /** Which source counts steps (Settings > Steps). The phone's counter and Health Connect are only read when chosen. */
-  stepSource: StepSource = 'auto'
+  stepSource: StepSource = 'auto',
+  /** The Health Connect master switch (Settings). Off: it is not read, and nothing asks for its permissions. */
+  useHealthConnect = true
 ): AutomaticData {
   const workoutsCb = useRef(onHcWorkouts);
   workoutsCb.current = onHcWorkouts;
@@ -217,6 +219,11 @@ export function useAutomaticData(
           // own sensors are optional: a problem here must not stop the Health Connect sync
         }
 
+        // Health Connect switched off: nothing below is read, so nothing from it is touched or asked for.
+        if (!useHealthConnect) {
+          setHc(null);
+          return;
+        }
         const status = await HealthConnect.status();
         setHc(status);
         resetHealthWriteCache();
@@ -362,7 +369,7 @@ export function useAutomaticData(
         busy.current = false;
       }
     },
-    [record, setOwn, setSleepLogs, setVitals, setStepSamples, stepSource]
+    [record, setOwn, setSleepLogs, setVitals, setStepSamples, stepSource, useHealthConnect]
   );
 
   // Choosing a source that leaves out the phone cancels its background counting; choosing it again turns that back on.
@@ -399,6 +406,7 @@ export function useAutomaticData(
   const enableSteps = useCallback(() => sync(true), [sync]);
 
   const connectHealthConnect = useCallback(async () => {
+    if (!useHealthConnect) return;
     setHcError('');
     try {
       const status = await HealthConnect.requestAccess();
@@ -411,7 +419,7 @@ export function useAutomaticData(
     } catch (err: any) {
       setHcError(err?.message || 'Could not open Health Connect.');
     }
-  }, [sync]);
+  }, [sync, useHealthConnect]);
 
   return {
     autoSteps,

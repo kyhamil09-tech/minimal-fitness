@@ -12,8 +12,17 @@ import { parseDateKey, todayKey } from './dates';
 
 let canWriteCache: { at: number; value: boolean } | null = null;
 
+/** The master switch (Settings > Health Connect). When off, nothing is written to or deleted from Health Connect. */
+let enabled = true;
+
+export const setHealthWriteEnabled = (on: boolean) => {
+  if (enabled === on) return;
+  enabled = on;
+  canWriteCache = null;
+};
+
 const canWrite = async (): Promise<boolean> => {
-  if (!isAndroidApp()) return false;
+  if (!enabled || !isAndroidApp()) return false;
   const now = Date.now();
   if (canWriteCache && now - canWriteCache.at < 30_000) return canWriteCache.value;
   let value = false;
@@ -42,13 +51,14 @@ const atHour = (date: string, hour: number): number => {
   return date === todayKey() ? Math.min(ms, Date.now() - 60_000) : ms;
 };
 
-export const writeWorkoutToHc = async (w: WorkoutSession): Promise<void> => {
-  if (!w.startedAt || !(await canWrite())) return;
+/** Saves a workout to Health Connect. Resolves true only when it really was written, so callers can remember that. */
+export const writeWorkoutToHc = async (w: WorkoutSession): Promise<boolean> => {
+  if (!w.startedAt || !(await canWrite())) return false;
   const seconds = w.durationSec ?? w.durationMinutes * 60;
-  if (seconds < 30) return;
+  if (seconds < 30) return false;
   const route = (w.track ?? []).map((p) => [p.t, p.lat, p.lng, p.alt ?? null] as [number, number, number, number | null]);
-  await quiet(
-    HealthConnect.writeWorkout({
+  try {
+    await HealthConnect.writeWorkout({
       id: w.id,
       type: w.type,
       start: w.startedAt,
@@ -60,8 +70,12 @@ export const writeWorkoutToHc = async (w: WorkoutSession): Promise<void> => {
       kcal: w.caloriesBurned > 0 ? w.caloriesBurned : undefined,
       hr: w.hrFromSensor ? w.hrSeries : undefined,
       route: route.length >= 2 ? decimate(route, 2000) : undefined,
-    })
-  );
+    });
+    return true;
+  } catch {
+    // permission revoked or Health Connect busy: the workout stays unsynced and can be sent later
+    return false;
+  }
 };
 
 export const writeBodyToHc = async (b: BodyEntry): Promise<void> => {
