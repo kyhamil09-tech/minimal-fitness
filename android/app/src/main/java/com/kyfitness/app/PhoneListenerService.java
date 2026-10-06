@@ -38,6 +38,18 @@ public class PhoneListenerService extends WearableListenerService {
             ActivityDetect.onPeerNotified(this);
             return;
         }
+        if ("/ky/water/add".equals(event.getPath())) {
+            // The watch's Fuel tile added water: show it on the widget, keep it for the app's log, and send the new total back.
+            try {
+                int ml = Integer.parseInt(new String(event.getData(), StandardCharsets.UTF_8).trim());
+                WaterStore.add(this, ml);
+                WaterWidgetProvider.refreshAll(this);
+                WaterStore.pushToWatch(this);
+            } catch (NumberFormatException ignored) {
+                // malformed message: ignore
+            }
+            return;
+        }
         if (!"/ky/steps".equals(event.getPath())) return;
         String text = new String(event.getData(), StandardCharsets.UTF_8).trim();
         int i = text.lastIndexOf(':');

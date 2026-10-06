@@ -34,6 +34,12 @@ public class GlanceListenerService extends WearableListenerService {
                 }
                 continue;
             }
+            if ("/ky/water".equals(path)) {
+                // Today's water from the phone: stored for the Fuel tile, which is asked to redraw.
+                WaterStore.apply(this, DataMapItem.fromDataItem(event.getDataItem()).getDataMap());
+                androidx.wear.tiles.TileService.getUpdater(this).requestUpdate(KyFuelTileService.class);
+                continue;
+            }
             if (!"/ky/glance".equals(path)) continue;
             GlanceStore.apply(this, DataMapItem.fromDataItem(event.getDataItem()).getDataMap());
             android.util.Log.i("KyGlance", "glance stored: readiness=" + GlanceStore.readiness(this) + " month=" + GlanceStore.monthPct(this) + " fast=" + GlanceStore.fastActive(this));

@@ -32,6 +32,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PrivacyPlugin.class);
         registerPlugin(FastingPlugin.class);
         registerPlugin(GlancePlugin.class);
+        registerPlugin(WaterPlugin.class);
         registerPlugin(MapPackPlugin.class);
         registerPlugin(AppLockPlugin.class);
         registerPlugin(VoiceLogPlugin.class);

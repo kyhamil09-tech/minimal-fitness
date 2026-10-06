@@ -99,6 +99,20 @@
                 android:resource="@drawable/tile_preview" />
         </service>
 
+        <!-- Tile: today's water with add buttons, and the running fast -->
+        <service
+            android:name=".KyFuelTileService"
+            android:exported="true"
+            android:label="Fuel"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
         <!-- Complication for watch faces: running workout timer / quick start. -->
         <service
             android:name=".KyComplicationService"
@@ -200,6 +214,10 @@
                     android:scheme="wear"
                     android:host="*"
                     android:path="/ky/look" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/ky/water" />
             </intent-filter>
         </service>
 

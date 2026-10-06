@@ -279,3 +279,10 @@ export const Glance = registerPlugin<{
     fastGoalHours: number;
   }): Promise<void>;
 }>('Glance');
+
+/** Today's water for the home-screen widget and the watch's Fuel tile, and water added there while the app was closed. */
+export const Water = registerPlugin<{
+  sync(options: { totalMl: number; goalMl: number; imperial: boolean; step1Ml: number; step2Ml: number }): Promise<void>;
+  /** [[epoch ms, ml], ...] added from the widget or the watch since the app last looked. They are removed once handed over. */
+  takePending(): Promise<{ items: unknown[] }>;
+}>('Water');

@@ -24,7 +24,8 @@ import { useBleHeartRate } from './hooks/useBleHeartRate';
 import { useWatchHeartRate } from './hooks/useWatchHeartRate';
 import { useAutomaticData } from './hooks/useAutomaticData';
 import { useAutoBackup } from './hooks/useAutoBackup';
-import { Fasting, Glance, Launch, isAndroidApp } from './lib/native';
+import { Fasting, Glance, Launch, Water, isAndroidApp } from './lib/native';
+import { sanitizePendingWater, waterButtonAmounts } from './lib/waterPending';
 import { endFast, lastProtocol, startFast } from './lib/fasting';
 import { KIND_LABEL, goalSummary, monthProgress, sanitizeMonthlyGoal } from './lib/monthlyGoal';
 import { App as CapApp } from '@capacitor/app';
@@ -608,6 +609,9 @@ export default function App() {
         if (type) {
           setCurrentTab('exercise');
           setLaunchRequest({ type, nonce: Date.now() });
+        } else if (action === 'open:water') {
+          // The water widget: open Food & water.
+          setCurrentTab('nutrition');
         } else if (action === 'open:fasting' || action === 'fast:start' || action === 'fast:end') {
           // The fasting widget and notification: open the tab, and start or end the fast when a button asked for it.
           setCurrentTab('fasting');
@@ -723,6 +727,37 @@ export default function App() {
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fastStart, fastGoal, fastName, reminders.fastingLive, reminders.fastingStages, nextFast.hours, nextFast.name]);
+
+  // The home-screen water widget and the watch's Fuel tile show today's water, and add to it with one tap.
+  const imperialUnits = profile.units === 'imperial';
+  const waterToday = useMemo(() => water.filter((w) => w.date === todayKey()).reduce((s, w) => s + w.ml, 0), [water]);
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    const [step1Ml, step2Ml] = waterButtonAmounts(imperialUnits);
+    Water.sync({ totalMl: waterToday, goalMl: goals.dailyWaterMl, imperial: imperialUnits, step1Ml, step2Ml }).catch(() => {});
+  }, [waterToday, goals.dailyWaterMl, imperialUnits]);
+  // Water added from the widget or the watch while the app was closed goes into the log, on the day it was drunk.
+  const addWaterRef = useRef(handleAddWater);
+  addWaterRef.current = handleAddWater;
+  useEffect(() => {
+    if (!isAndroidApp() || !profile.onboarded) return;
+    const collect = async () => {
+      try {
+        const { items } = await Water.takePending();
+        for (const w of sanitizePendingWater(items, Date.now())) addWaterRef.current(w.date, w.ml);
+      } catch {
+        // water bridge unavailable
+      }
+    };
+    void collect();
+    const timer = setInterval(collect, 60_000);
+    const onVisible = () => document.visibilityState === 'visible' && void collect();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [profile.onboarded]);
 
   // The watch's complications: readiness, the month's goal, the running fast and the step goal.
   useEffect(() => {
