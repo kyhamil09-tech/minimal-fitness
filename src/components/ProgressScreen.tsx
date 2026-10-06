@@ -6,7 +6,8 @@ import { FastingSession, SleepLogEntry, WorkoutSession } from '../types/health';
 import { RewardsPanel } from './RewardsPanel';
 import { BestsPanel } from './BestsPanel';
 import { ProgressPhotos } from './ProgressPhotos';
-import { Achievement, BodyEntry, FoodEntry, Goals, UserProfile, WaterEntry } from '../types/tracking';
+import { Achievement, ActivePlan, BodyEntry, FoodEntry, Goals, UserProfile, WaterEntry } from '../types/tracking';
+import { WorkoutCalendar } from './WorkoutCalendar';
 import { ColorPalette } from '../types/theme';
 import { BarChart, EmptyState, LineChart } from './ui/charts';
 import { Segmented } from './ui/Segmented';
@@ -40,7 +41,7 @@ import {
   weightUnit,
 } from '../lib/units';
 
-type Segment = 'trends' | 'insights' | 'fitness' | 'body' | 'awards' | 'health';
+type Segment = 'trends' | 'calendar' | 'insights' | 'fitness' | 'body' | 'awards' | 'health';
 
 interface ProgressScreenProps {
   initialSegment?: Segment;
@@ -62,6 +63,8 @@ interface ProgressScreenProps {
   insightsSlot: React.ReactNode;
   /** Fasts, for the fasting streak awards. */
   fasts: FastingSession[];
+  /** The training plan you are on, so the calendar can show its planned days. */
+  activePlan: ActivePlan | null;
 }
 
 const RANGE_LABEL: Record<TrendRange, string> = { '7d': '7 days', '30d': '30 days', '1y': '12 months' };
@@ -83,6 +86,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
   fitnessSlot,
   insightsSlot,
   fasts,
+  activePlan,
 }) => {
   const units = profile.units;
   const today = todayKey();
@@ -249,6 +253,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
         onChange={setSegment}
         options={[
           { id: 'trends', label: 'Trends' },
+          { id: 'calendar', label: 'Calendar' },
           { id: 'insights', label: 'Insights' },
           { id: 'fitness', label: 'Fitness' },
           { id: 'body', label: 'Body' },
@@ -508,6 +513,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
       )}
 
       {story && <StoryShareModal data={story.data} name={story.name} onClose={() => setStory(null)} />}
+      {segment === 'calendar' && <WorkoutCalendar theme={theme} units={units} workouts={workouts} activePlan={activePlan} />}
       {segment === 'insights' && insightsSlot}
       {segment === 'fitness' && fitnessSlot}
       {segment === 'health' && healthSlot}

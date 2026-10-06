@@ -857,6 +857,7 @@ export default function App() {
           <ProgressScreen
             key={currentTab + progressStart}
             fasts={fastingSessions}
+            activePlan={activePlan}
             initialSegment={currentTab === 'health' ? 'health' : progressStart}
             insightsSlot={<InsightsPanel theme={theme} insights={insights} data={insightData} />}
             theme={theme}
