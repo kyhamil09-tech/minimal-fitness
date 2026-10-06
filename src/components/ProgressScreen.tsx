@@ -8,6 +8,7 @@ import { BestsPanel } from './BestsPanel';
 import { ProgressPhotos } from './ProgressPhotos';
 import { Achievement, ActivePlan, BodyEntry, FoodEntry, Goals, UserProfile, WaterEntry } from '../types/tracking';
 import { WorkoutCalendar } from './WorkoutCalendar';
+import { NutritionTrendsCard } from './NutritionTrendsCard';
 import { ColorPalette } from '../types/theme';
 import { BarChart, EmptyState, LineChart } from './ui/charts';
 import { Segmented } from './ui/Segmented';
@@ -291,7 +292,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
             format: (v) => String(Math.round(v * 10) / 10),
           })}
           {card('Steps', 'avg per day (manual entry)', trends.steps, { color: '#38BDF8', goal: goals.dailySteps })}
-          {card('Calories eaten', 'avg per day logged', trends.eaten, { color: '#F472B6', goal: goals.dailyCalories })}
+          <NutritionTrendsCard theme={theme} food={food} goals={goals} />
           {card(
             `Water (${volumeUnit(units)})`,
             'avg per day logged',
