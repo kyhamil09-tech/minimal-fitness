@@ -259,3 +259,16 @@ src/
 public/         manifest, service worker, icon
 ```
 
+
+## Added in this round
+
+* **Steps:** Settings > Health data > Steps lets you count with Best of all, Phone, Watch or Health Connect (the phone's counter is switched off when it is not a chosen source). Any day can be edited or deleted, and **Remove steps from a period** takes the steps counted between two times out of a day (a drive, say). It needs timed samples, which the Android app keeps from now on: the phone about every 15 minutes, the watch each time it reports, Health Connect by the hour.
+* **Health Connect is optional:** Settings > Health data > Use Health Connect. Off means nothing is read, written, deleted or asked for. Each workout remembers whether it reached Health Connect, and workouts that never did can be sent later (last 90 days, never imported ones).
+* **Health tiles open history:** tap Steps, Water, Heart rate, Calories eaten or any Health Connect number on Today for a 7, 30 or 90 day chart with averages, best day and trend.
+* **Progress > Calendar:** a month of workouts with the plan's days and the ones that slipped by. **Progress > Trends** now has Nutrition (calories and protein against your targets, macro split, on-target days) and a **Weekly coach** (score, a verdict per area and what to do next week).
+* **Meal plan and groceries:** Food & water > Meal plan and groceries. Plan a week from saved meals, log a meal in one tap, and get a shopping list from the plan.
+* **Supersets and circuits:** in the strength logger, tap "Superset with next" between exercises. No rest between them, rest after the last of the round, on the phone and on the watch.
+* **Best-signal GPS:** the watch also uses Fused Location as a fallback, sends its route at the end of a shared workout, and the phone fills gaps in its own route from it.
+* **Water:** a home-screen Water widget (one-tap add without opening the app) and a watch **Fuel** tile (water and the running fast). Water added there is logged the next time the app runs.
+
+The Android changes (steps by time, Health Connect hourly steps, watch fallback location, the water widget and tile) were written without a build toolchain on the development PC, so build and try them on a device before relying on them.
