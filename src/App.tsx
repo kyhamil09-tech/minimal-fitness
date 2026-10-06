@@ -26,6 +26,8 @@ import { useAutomaticData } from './hooks/useAutomaticData';
 import { useAutoBackup } from './hooks/useAutoBackup';
 import { Fasting, Glance, Launch, Water, isAndroidApp } from './lib/native';
 import { sanitizePendingWater, waterButtonAmounts } from './lib/waterPending';
+import { workoutsCodec } from './lib/storageCodec';
+import { StorageNotice } from './components/StorageNotice';
 import { endFast, lastProtocol, startFast } from './lib/fasting';
 import { KIND_LABEL, goalSummary, monthProgress, sanitizeMonthlyGoal } from './lib/monthlyGoal';
 import { App as CapApp } from '@capacitor/app';
@@ -295,7 +297,8 @@ export default function App() {
     return DEFAULT_GOALS;
   });
   // Every list starts empty: nothing is pre-loaded, each install only ever holds its own user's data.
-  const [workouts, setWorkouts] = usePersistentState<WorkoutSession[]>('workouts', []);
+  // Workouts carry big GPS tracks, so their heavy parts are squeezed when stored and expanded when read (see lib/storageCodec).
+  const [workouts, setWorkouts] = usePersistentState<WorkoutSession[]>('workouts', [], workoutsCodec);
   // The newest list, for callbacks that run on a timer.
   const workoutsRef = useRef(workouts);
   workoutsRef.current = workouts;
@@ -998,6 +1001,14 @@ export default function App() {
           onClose={toggleTopBanner}
         />
       )}
+
+      <StorageNotice
+        onOpenBackup={() => {
+          setCurrentTab('settings');
+          // Settings has to be on screen before the group can be asked to open.
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent('kyfit-open-settings-group', { detail: 'data' })), 200);
+        }}
+      />
 
       {/* Main View Area */}
       <main className="relative z-[1] flex-1 min-h-0 flex overflow-hidden">

@@ -5,6 +5,7 @@ import { FastingSession, SleepLogEntry, WorkoutSession } from '../src/types/heal
 import { addDays, toDateKey } from '../src/lib/dates';
 import { restingFromBuckets, Buckets } from '../src/lib/ownBuckets';
 import { toGpx, trackMovingSeconds } from '../src/lib/workoutStats';
+import { decodeWorkouts } from '../src/lib/storageCodec';
 
 /**
  * Everything the desktop viewer knows, read from a backup file. Nothing here touches the network: the page that uses it has a
@@ -45,7 +46,8 @@ const get = <T>(b: BackupFile, key: string, fallback: T): T => {
 const startMs = (w: WorkoutSession): number | undefined => w.startedAt ?? (Date.parse(w.timestamp) || undefined);
 
 export const buildModel = (b: BackupFile, now: Date = new Date()): Model => {
-  const workouts = get<WorkoutSession[]>(b, 'workouts', [])
+  // Heavy parts of a workout are stored squeezed (see src/lib/storageCodec); older backups have them plain, and decode leaves those alone.
+  const workouts = decodeWorkouts(get<unknown>(b, 'workouts', []))
     .map((w) => ({ ...w, startedAt: startMs(w) }))
     .filter((w) => w.startedAt)
     .sort((a, c) => (a.startedAt as number) - (c.startedAt as number));
