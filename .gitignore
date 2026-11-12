@@ -15,3 +15,7 @@ keystore.properties
 android/local.properties
 android/.gradle/
 android/**/build/
+
+# temporary copies made while testing builds
+*.tmp
+signing.tmp/
