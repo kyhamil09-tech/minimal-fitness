@@ -2,6 +2,9 @@ apply plugin: 'com.android.application'
 
 // Minimal Fitness watch face: a Watch Face Format (declarative XML) bundle with no code.
 // Requires Wear OS 4 or newer (Pixel Watch 2, Pixel Watch 3, or Pixel Watch 1 updated to Wear OS 4).
+// The project's own development key is kept out of the repository. Without it (a fresh clone, or GitHub's build machines) Android's standard debug key is used.
+def kyDebugKeyExists = rootProject.file("../signing/ky-fitness-signing.keystore").exists()
+
 android {
     // One stable key for every build (the key your installed apps already use), so updates install over the top
     // and keep your data. Keep a copy of ../signing/ky-fitness-signing.keystore somewhere safe.
@@ -28,11 +31,11 @@ android {
     buildTypes {
         // Minifying strips the empty R class so the bundle contains no code (as the official samples do).
         debug {
-            signingConfig signingConfigs.ky
+            signingConfig kyDebugKeyExists ? signingConfigs.ky : signingConfigs.debug
             minifyEnabled true
         }
         release {
-            signingConfig signingConfigs.ky
+            signingConfig kyDebugKeyExists ? signingConfigs.ky : signingConfigs.debug
             minifyEnabled true
         }
     }

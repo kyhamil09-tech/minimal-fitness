@@ -5,6 +5,9 @@ apply plugin: 'com.android.application'
 // debug key is shared automatically when both are built on the same machine).
 apply from: '../upload-signing.gradle'
 
+// The project's own development key is kept out of the repository. Without it (a fresh clone, or GitHub's build machines) Android's standard debug key is used.
+def kyDebugKeyExists = rootProject.file("../signing/ky-fitness-signing.keystore").exists()
+
 android {
     // One stable key for every build (the key your installed apps already use), so updates install over the top
     // and keep your data. Keep a copy of ../signing/ky-fitness-signing.keystore somewhere safe.
@@ -31,7 +34,7 @@ android {
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.ky
+            signingConfig kyDebugKeyExists ? signingConfigs.ky : signingConfigs.debug
         }
         release {
             signingConfig hasUploadKey ? signingConfigs.upload : null
