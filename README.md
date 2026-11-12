@@ -19,7 +19,7 @@ see [CONTRIBUTING.md](CONTRIBUTING.md). The name "Minimal Fitness", its logo and
 3. Open **Minimal Fitness**. Nothing is sent anywhere unless you turn a feature on, and everything you log stays on your phone.
 
 Updates: download the newer APK from Releases and install it over the old one. Your data is kept, because every release is signed
-with the same key. Prefer to build it yourself? See "Run locally" and the watch steps below.
+with the same key. Every release is built by GitHub from this source, with checksums and a build attestation: see [VERIFY.md](VERIFY.md). Prefer to build it yourself? See "Run locally" and the watch steps below.
 
 ## What it does
 
