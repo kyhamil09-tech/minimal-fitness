@@ -46,7 +46,7 @@ export const StoryShareModal: React.FC<{ data: StoryData; name: string; onClose:
         {url ? (
           <img src={url} alt="Preview of your story card" className="w-full block pop-in" />
         ) : (
-          <div className="aspect-[9/16] flex items-center justify-center text-xs text-neutral-500">Drawing...</div>
+          <div className="aspect-[9/16] flex items-center justify-center text-xs text-neutral-400">Drawing...</div>
         )}
       </div>
       <button
@@ -58,8 +58,8 @@ export const StoryShareModal: React.FC<{ data: StoryData; name: string; onClose:
       >
         {busy ? 'Opening...' : 'Share to a story'}
       </button>
-      {note && <p className="text-[11px] text-neutral-400 mt-2 text-center">{note}</p>}
-      <p className="text-[10px] text-neutral-500 mt-2 leading-relaxed text-center">
+      {note && <p className="text-xs text-neutral-400 mt-2 text-center">{note}</p>}
+      <p className="text-xs text-neutral-400 mt-2 leading-relaxed text-center">
         Drawn on your phone from your own numbers, in the look you chose. It leaves the phone only if you pick an app in the share sheet.
       </p>
     </Modal>

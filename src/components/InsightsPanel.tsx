@@ -20,7 +20,7 @@ export const InsightCard: React.FC<{ insight: Insight }> = ({ insight }) => {
         <div className="min-w-0">
           <div className="text-sm font-bold text-white leading-snug">{insight.title}</div>
           <p className="text-[12px] text-neutral-400 mt-1 leading-relaxed">{insight.detail}</p>
-          <div className="mt-2 flex items-center gap-2 text-[10px] text-neutral-500">
+          <div className="mt-2 flex items-center gap-2 text-xs text-neutral-400">
             <span className="px-2 py-0.5 rounded-full border border-white/10">{CONF_TEXT[insight.confidence]}</span>
             {insight.kind === 'pattern' && <span>based on {insight.n}+ days</span>}
           </div>
@@ -60,7 +60,7 @@ export const InsightsPanel: React.FC<PanelProps> = ({ theme, insights, data }) =
         ))}
       </div>
     </section>
-    <p className="text-[10px] text-neutral-600 px-2 leading-relaxed">
+    <p className="text-xs text-neutral-400 px-2 leading-relaxed">
       How it works: your days are split into two groups (for example nights under 6.5 hours against longer ones) and a result is compared between them. A pattern shows only when each
       group has at least 4 days and the gap is unlikely to be chance. These are patterns in your numbers, not proof of cause, and not medical advice.
     </p>
@@ -74,19 +74,18 @@ export const TopInsightCard: React.FC<{ theme: ColorPalette; insight: Insight; o
     <button
       type="button"
       onClick={onOpen}
-      className="w-full text-left rounded-[28px] border p-5"
+      className="w-full text-left rounded-2xl border px-4 py-3.5"
       style={{ backgroundColor: theme.surface, borderColor: insight.kind === 'alert' ? `${color}66` : theme.surfaceBorder }}
     >
       <div className="flex items-center justify-between">
         <span className="stat-label flex items-center gap-1.5">
           <KindIcon kind={insight.kind} color={color} /> {insight.kind === 'alert' ? 'Heads up' : 'Insight'}
         </span>
-        <span className="text-[11px] text-neutral-400 flex items-center gap-0.5">
+        <span className="text-xs text-neutral-400 flex items-center gap-0.5">
           All insights <ChevronRight className="w-3.5 h-3.5" />
         </span>
       </div>
       <div className="mt-2 text-[15px] font-bold text-white leading-snug">{insight.title}</div>
-      <p className="mt-1 text-[12px] text-neutral-400 leading-relaxed line-clamp-2">{insight.detail}</p>
     </button>
   );
 };

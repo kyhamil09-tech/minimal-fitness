@@ -133,12 +133,29 @@ export const sportType = (type: string): string => {
       return 'Rowing';
     case 'Elliptical':
       return 'Elliptical';
+    case 'Swimming':
+    case 'OpenWaterSwim':
+      return 'Swim';
+    case 'AlpineSkiing':
+      return 'AlpineSki';
+    case 'CrossCountrySkiing':
+      return 'NordicSki';
+    case 'Snowboarding':
+      return 'Snowboard';
+    case 'Snowshoeing':
+      return 'Snowshoe';
+    case 'IceSkating':
+      return 'IceSkate';
+    case 'Kayaking':
+      return 'Kayaking';
+    case 'Paddleboarding':
+      return 'StandUpPaddling';
     default:
       return 'Workout';
   }
 };
 
-const LABEL: Record<string, string> = { Run: 'Run', Walk: 'Walk', Hike: 'Hike', Ride: 'Ride', WeightTraining: 'Strength', HighIntensityIntervalTraining: 'HIIT', Yoga: 'Yoga', Rowing: 'Row', Elliptical: 'Elliptical', Workout: 'Workout' };
+const LABEL: Record<string, string> = { Run: 'Run', Walk: 'Walk', Hike: 'Hike', Ride: 'Ride', WeightTraining: 'Strength', HighIntensityIntervalTraining: 'HIIT', Yoga: 'Yoga', Rowing: 'Row', Elliptical: 'Elliptical', Swim: 'Swim', AlpineSki: 'Ski', NordicSki: 'Ski', Snowboard: 'Snowboard', Snowshoe: 'Snowshoe', IceSkate: 'Skate', Kayaking: 'Paddle', StandUpPaddling: 'Paddle', Workout: 'Workout' };
 
 /** "Morning Run", "Evening Ride" and so on, from the start time. */
 export const activityName = (type: string, startedAt: number): string => {

@@ -30,7 +30,7 @@ export const AmoledTopBar: React.FC<AmoledTopBarProps> = ({
           <span className="text-base font-bold tracking-wider text-white">MINIMAL FITNESS</span>
           <span
             title="Your data stays on this device"
-            className="text-[11px] px-1.5 py-0.5 rounded font-mono flex items-center gap-1"
+            className="text-xs px-1.5 py-0.5 rounded font-mono flex items-center gap-1"
             style={{
               color: theme.primary,
               backgroundColor: `${theme.primary}18`,
@@ -43,7 +43,7 @@ export const AmoledTopBar: React.FC<AmoledTopBarProps> = ({
           </span>
         </div>
         {watch.supported && (
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#7E889B]">
+          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#9AA3B2]">
             <span
               className={`w-2 h-2 rounded-full ${isLive ? '' : 'bg-neutral-600'}`}
               style={{
@@ -51,7 +51,7 @@ export const AmoledTopBar: React.FC<AmoledTopBarProps> = ({
                 boxShadow: isLive ? `0 0 8px ${theme.primary}` : undefined,
               }}
             />
-            <span className="font-mono text-[11px]">{watchStateLabel(watch)}</span>
+            <span className="font-mono text-xs">{watchStateLabel(watch)}</span>
           </div>
         )}
       </div>

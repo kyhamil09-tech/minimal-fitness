@@ -33,9 +33,9 @@ export const RecordsCard: React.FC<RecordsCardProps> = ({ workouts, units, theme
       disabled={!w}
       className="rounded-2xl glass-inset p-3 text-left"
     >
-      <div className="text-[11px] text-neutral-400">{label}</div>
+      <div className="text-xs text-neutral-400">{label}</div>
       <div className="text-lg font-semibold tabular-nums text-white leading-tight mt-0.5">{value}</div>
-      <div className="text-[10px] text-neutral-500 mt-0.5">{sub}</div>
+      <div className="text-xs text-neutral-400 mt-0.5">{sub}</div>
     </button>
   );
 

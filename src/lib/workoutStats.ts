@@ -5,7 +5,7 @@ import { KM_PER_MI } from './units';
 import { heartRateZone } from './calc';
 import { hampel } from './robust';
 
-/** One lap of a run, ride or walk: a full kilometre or mile, or the shorter final stretch. */
+/** One lap of a run, ride or walk: a full kilometer or mile, or the shorter final stretch. */
 export interface Split {
   index: number;
   distanceKm: number;
@@ -13,7 +13,7 @@ export interface Split {
   seconds: number;
   /** Seconds per display unit (per km or per mile). */
   paceSec: number;
-  /** Net climb over the split, metres (negative when descending). */
+  /** Net climb over the split, meters (negative when descending). */
   elevDeltaM?: number;
   avgHr?: number;
   partial: boolean;
@@ -53,7 +53,7 @@ const avgHrBetween = (hr: [number, number][] | undefined, from: number, to: numb
   return n > 0 ? Math.round(sum / n) : undefined;
 };
 
-/** Per-kilometre (or per-mile) splits with pace, net elevation change and average heart rate. */
+/** Per-kilometer (or per-mile) splits with pace, net elevation change and average heart rate. */
 export const computeSplits = (
   track: TrackPoint[],
   units: UnitSystem,
@@ -132,6 +132,26 @@ export const zoneSeconds = (hr: [number, number][] | undefined, maxHr: number): 
     zones[heartRateZone(bpm, maxHr) - 1] += Math.max(0, dur);
   }
   return zones;
+};
+
+/**
+ * Edwards' summated zone score: every minute counts its zone number (50-60% of max heart rate is 1, 60-70% is 2, up to 90%+ which is 5),
+ * and time under half of max counts nothing. A simple second opinion to the heart-rate-reserve load (TRIMP): it rewards time spent
+ * high rather than average effort. Always uses percentages of max heart rate, as Edwards defined it.
+ */
+export const edwardsLoad = (hr: [number, number][] | undefined, maxHr: number): number => {
+  if (!hr || hr.length === 0 || maxHr <= 0) return 0;
+  let total = 0;
+  for (let i = 0; i < hr.length; i++) {
+    const [ts, bpm] = hr[i];
+    const next = hr[i + 1]?.[0];
+    // The same time rule as zoneSeconds: a reading covers the time to the next one, but a gap in data is not counted as exercise.
+    const dur = Math.max(0, next ? Math.min(15, (next - ts) / 1000) : 5);
+    const pct = bpm / maxHr;
+    const zone = pct < 0.5 ? 0 : pct < 0.6 ? 1 : pct < 0.7 ? 2 : pct < 0.8 ? 3 : pct < 0.9 ? 4 : 5;
+    total += (dur / 60) * zone;
+  }
+  return Math.round(total);
 };
 
 /** Speed along the route (display units per hour) over a short rolling window. */

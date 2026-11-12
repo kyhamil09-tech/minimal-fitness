@@ -217,3 +217,14 @@ test('choosing no gear is remembered and the watch can say which pair a workout 
   assert.equal(watchWorkoutToSession({ id: '2', type: 'Running', startedAt: 1_700_000_000_000, durationSec: 1800, shoeId: 'none' }, DEFAULT_PROFILE)?.shoeId, undefined);
   assert.equal(watchWorkoutToSession({ id: '3', type: 'Running', startedAt: 1_700_000_000_000, durationSec: 1800 }, DEFAULT_PROFILE)?.shoeId, undefined);
 });
+
+test('the next program workout leads the watch list and carries its planned sets', async () => {
+  const { watchRoutinesJson } = await import('../lib/watchStrength');
+  const entry = { id: 'prog:next', name: 'Program: Workout A', sub: 'Linear 5×5, 2 exercises', ids: ['squat', 'bench-press'], sets: { squat: [{ r: 5, w: 60 }, { r: 5, w: 60 }] } };
+  const list = buildWatchRoutines({ routines: [], activePlan: null, program: entry });
+  assert.equal(list[0].id, 'prog:next');
+  const json = JSON.parse(watchRoutinesJson(list, (id) => ({ id, n: id, step: 2.5, sets: [{ r: 8, w: 0 }] }), 'kg'));
+  assert.deepEqual(json[0].ex[0].sets, [{ r: 5, w: 60 }, { r: 5, w: 60 }], 'the planned sets replace the last-used ones');
+  assert.deepEqual(json[0].ex[1].sets, [{ r: 8, w: 0 }], 'exercises without a plan keep the usual ones');
+  assert.equal(buildWatchRoutines({ routines: [], activePlan: null })[0].id.startsWith('t:'), true);
+});

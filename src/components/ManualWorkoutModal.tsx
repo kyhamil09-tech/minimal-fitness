@@ -60,7 +60,7 @@ export const ManualWorkoutModal: React.FC<ManualWorkoutModalProps> = ({ initialT
 
         <form onSubmit={save} className="space-y-3 mt-3">
           <div className="space-y-1">
-            <label htmlFor="mw-type" className="text-[11px] text-neutral-400">
+            <label htmlFor="mw-type" className="text-xs text-neutral-400">
               Activity Type
             </label>
             <select id="mw-type" value={type} onChange={(e) => setType(e.target.value as WorkoutType)} className={field}>
@@ -79,14 +79,14 @@ export const ManualWorkoutModal: React.FC<ManualWorkoutModalProps> = ({ initialT
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label htmlFor="mw-dur" className="text-[11px] text-neutral-400">
+              <label htmlFor="mw-dur" className="text-xs text-neutral-400">
                 Duration (mins)
               </label>
               <input id="mw-dur" type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} className={`${field} font-mono`} required />
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="mw-cal" className="text-[11px] text-neutral-400">
+              <label htmlFor="mw-cal" className="text-xs text-neutral-400">
                 Calories (blank = auto)
               </label>
               <input
@@ -102,7 +102,7 @@ export const ManualWorkoutModal: React.FC<ManualWorkoutModalProps> = ({ initialT
           </div>
 
           <div className="space-y-1">
-            <div className="flex justify-between items-center text-[11px] text-neutral-400">
+            <div className="flex justify-between items-center text-xs text-neutral-400">
               <label htmlFor="mw-rpe">Perceived Exertion (RPE)</label>
               <span className="font-mono text-emerald-400 font-bold">{rpe} / 10</span>
             </div>
@@ -110,7 +110,7 @@ export const ManualWorkoutModal: React.FC<ManualWorkoutModalProps> = ({ initialT
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="mw-notes" className="text-[11px] text-neutral-400">
+            <label htmlFor="mw-notes" className="text-xs text-neutral-400">
               Notes (optional)
             </label>
             <input id="mw-notes" type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className={field} placeholder="e.g. Yoga flow, 30 min" />

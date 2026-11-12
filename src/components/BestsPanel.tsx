@@ -43,10 +43,10 @@ export const BestsPanel: React.FC<Props> = ({ theme, workouts, units, onShare })
   return (
     <section className="rounded-3xl border p-4 space-y-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5">
+        <h3 className="text-sm font-bold text-neutral-200 flex items-center gap-1.5">
           <Trophy className="w-3.5 h-3.5 text-amber-300" /> Best efforts
         </h3>
-        {fresh > 0 && <span className="text-[11px] font-bold" style={{ color: theme.primary }}>{fresh} new in 14 days</span>}
+        {fresh > 0 && <span className="text-xs font-bold" style={{ color: theme.primary }}>{fresh} new in 14 days</span>}
       </div>
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="tablist" aria-label="Record type">
         {TABS.map((t) => (
@@ -56,7 +56,7 @@ export const BestsPanel: React.FC<Props> = ({ theme, workouts, units, onShare })
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
             className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border"
-            style={{ background: tab === t.id ? theme.primary : 'transparent', color: tab === t.id ? 'var(--on-accent)' : '#9aa3b2', borderColor: tab === t.id ? 'transparent' : '#1A1E26' }}
+            style={{ background: tab === t.id ? theme.primary : 'transparent', color: tab === t.id ? 'var(--on-accent)' : '#9aa3b2', borderColor: tab === t.id ? 'transparent' : '#1A1E26', boxShadow: tab === t.id ? `0 0 16px ${theme.primary}66` : undefined }}
           >
             {t.label}
           </button>
@@ -72,17 +72,17 @@ export const BestsPanel: React.FC<Props> = ({ theme, workouts, units, onShare })
                 <div className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
                   {r.label}
                   {r.estimated && (
-                    <span title="From a distance and time without a GPS track" className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full border border-[#2A3040] text-neutral-400">
+                    <span title="From a distance and time without a GPS track" className="text-xs font-bold uppercase px-1.5 py-0.5 rounded-full border border-[#2A3040] text-neutral-400">
                       Logged
                     </span>
                   )}
                   {isRecent(r) && (
-                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full" style={{ background: theme.primary, color: 'var(--on-accent)' }}>
+                    <span className="text-xs font-extrabold uppercase px-1.5 py-0.5 rounded-full" style={{ background: theme.primary, color: 'var(--on-accent)' }}>
                       New
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-neutral-500">
+                <div className="text-xs text-neutral-400">
                   {r.sub}
                   {r.at > 0 ? ` · ${shortMonthDay(toDateKey(r.at))}` : ''}
                 </div>

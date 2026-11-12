@@ -52,15 +52,15 @@ export const SmartAlarmCard: React.FC<{ theme: ColorPalette }> = ({ theme }) => 
           <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: a.enabled ? '1.15rem' : '0.125rem' }} />
         </button>
       </div>
-      <p className="text-[11px] text-neutral-400 leading-relaxed">
+      <p className="text-xs text-neutral-400 leading-relaxed">
         Wear your watch to bed. From {start} the watch listens to your wrist movement and heart rate and buzzes at the first sign of light sleep. If it sees none, it buzzes at your wake time. It only listens inside that window, and nothing is recorded or sent.
       </p>
       <div className="grid grid-cols-2 gap-3">
-        <label className="text-[11px] text-neutral-400">
+        <label className="text-xs text-neutral-400">
           Wake no later than
           <input type="time" value={a.wake} onChange={(e) => setA({ ...a, wake: e.target.value })} aria-label="Latest wake time" className="mt-1 w-full px-3 py-2 text-sm" />
         </label>
-        <label className="text-[11px] text-neutral-400">
+        <label className="text-xs text-neutral-400">
           Window
           <select value={a.windowMin} onChange={(e) => setA({ ...a, windowMin: Number(e.target.value) })} aria-label="Window length" className="mt-1 w-full px-3 py-2 text-sm">
             {[15, 20, 30, 45].map((m) => (
@@ -71,7 +71,7 @@ export const SmartAlarmCard: React.FC<{ theme: ColorPalette }> = ({ theme }) => 
           </select>
         </label>
       </div>
-      <p className="text-[10px] text-neutral-600 leading-relaxed">
+      <p className="text-xs text-neutral-400 leading-relaxed">
         It is a gentle wake-up, not a guaranteed one: keep your normal phone alarm as a backup the first few nights. The watch needs its battery above about 20% and the Minimal Fitness watch app installed.
       </p>
     </section>

@@ -45,12 +45,12 @@ export const SegmentsOnWorkout: React.FC<{ workout: WorkoutSession; all: Workout
         <div className="flex items-center gap-2 text-xs font-bold text-white">
           <Flag className="w-4 h-4" style={{ color: theme.primary }} /> Segments
         </div>
-        <button onClick={() => { setOpen((o) => !o); setFrom(0); setTo(Math.round(total * 100) / 100); }} className="text-[11px] font-bold" style={{ color: theme.primary }}>
+        <button onClick={() => { setOpen((o) => !o); setFrom(0); setTo(Math.round(total * 100) / 100); }} className="text-xs font-bold" style={{ color: theme.primary }}>
           {open ? 'Cancel' : 'Mark a segment'}
         </button>
       </div>
 
-      {standings.length === 0 && !open && <p className="text-[11px] text-neutral-400">Mark a hill or any stretch of this {workout.type.toLowerCase()}. Every time you pass it again you get a time and a rank against your own efforts.</p>}
+      {standings.length === 0 && !open && <p className="text-xs text-neutral-400">Mark a hill or any stretch of this {workout.type.toLowerCase()}. Every time you pass it again you get a time and a rank against your own efforts.</p>}
 
       {standings.map(({ seg, effort, of, best }) => (
         <div key={seg.id} className="flex items-center gap-2 text-xs">
@@ -65,11 +65,11 @@ export const SegmentsOnWorkout: React.FC<{ workout: WorkoutSession; all: Workout
 
       {open && (
         <div className="space-y-2 pt-1">
-          <label className="block text-[11px] text-neutral-400">
+          <label className="block text-xs text-neutral-400">
             Starts at {kmToDisplay(from, units, 2)} {du}
             <input type="range" min={0} max={total} step={0.05} value={from} onChange={(e) => setFrom(Math.min(Number(e.target.value), (to || total) - 0.1))} className="w-full" aria-label="Segment start" />
           </label>
-          <label className="block text-[11px] text-neutral-400">
+          <label className="block text-xs text-neutral-400">
             Ends at {kmToDisplay(to || total, units, 2)} {du} ({kmToDisplay(Math.max(0, (to || total) - from), units, 2)} {du} long)
             <input type="range" min={0} max={total} step={0.05} value={to || total} onChange={(e) => setTo(Math.max(Number(e.target.value), from + 0.1))} className="w-full" aria-label="Segment end" />
           </label>
@@ -105,7 +105,7 @@ export const SegmentsPanel: React.FC<{ workouts: WorkoutSession[]; units: UnitSy
             <button onClick={() => setOpenId(open ? null : s.id)} className="w-full flex items-center justify-between gap-2 px-3.5 py-3 text-left" aria-expanded={open}>
               <div className="min-w-0">
                 <div className="text-sm font-bold text-white truncate">{s.name}</div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-xs text-neutral-400">
                   {kmToDisplay(s.km, units, 2)} {distanceUnit(units)} · {s.sport} · {efforts.length} {efforts.length === 1 ? 'pass' : 'passes'}
                 </div>
               </div>
@@ -119,19 +119,19 @@ export const SegmentsPanel: React.FC<{ workouts: WorkoutSession[]; units: UnitSy
                   const w = workouts.find((x) => x.id === e.workoutId);
                   return (
                     <button key={e.workoutId} onClick={() => w && onOpenWorkout(w)} className="w-full flex items-center gap-2 text-xs py-1 text-left">
-                      <span className="w-6 text-neutral-500">{e.rank}</span>
+                      <span className="w-6 text-neutral-400">{e.rank}</span>
                       <span className="flex-1 text-neutral-300">{shortMonthDay(toDateKey(e.at))}</span>
                       <span className="font-mono text-white">{formatDuration(e.seconds)}</span>
                     </button>
                   );
                 })}
-                {efforts.length === 0 && <p className="text-[11px] text-neutral-500">No recorded workout passes through this one.</p>}
+                {efforts.length === 0 && <p className="text-xs text-neutral-400">No recorded workout passes through this one.</p>}
                 <button
                   onClick={() => {
                     setSegs(segs.filter((x) => x.id !== s.id));
                     setOpenId(null);
                   }}
-                  className="mt-1 text-[11px] font-bold text-neutral-500 hover:text-rose-400 flex items-center gap-1"
+                  className="mt-1 text-xs font-bold text-neutral-400 hover:text-rose-400 flex items-center gap-1"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Delete segment
                 </button>

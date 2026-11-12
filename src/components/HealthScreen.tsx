@@ -48,7 +48,7 @@ export const HealthScreen: React.FC<HealthScreenProps> = ({
     <div className="space-y-4 pb-8 max-w-lg mx-auto">
       <div>
         <h1 className="text-xl font-bold text-white tracking-tight">Heart Rate</h1>
-        <p className="text-xs text-[#7E889B] mt-0.5">Live readings from your Pixel Watch or a Bluetooth sensor.</p>
+        <p className="text-xs text-[#9AA3B2] mt-0.5">Live readings from your watch or a Bluetooth sensor.</p>
       </div>
 
       <section
@@ -66,13 +66,13 @@ export const HealthScreen: React.FC<HealthScreenProps> = ({
             />
             <span
               className="text-xs font-semibold tracking-wider uppercase"
-              style={{ color: live ? theme.primary : '#7E889B' }}
+              style={{ color: live ? theme.primary : '#9AA3B2' }}
             >
               {live ? 'Live' : 'Not connected'}
             </span>
           </div>
-          <span className="text-xs font-mono text-[#7E889B]">
-            {hrSource === 'watch' ? watch.nodeName || 'Pixel Watch' : hrSource === 'ble' ? 'Bluetooth sensor' : ''}
+          <span className="text-xs font-mono text-[#9AA3B2]">
+            {hrSource === 'watch' ? watch.nodeName || 'Watch' : hrSource === 'ble' ? 'Bluetooth sensor' : ''}
           </span>
         </div>
 
@@ -91,9 +91,9 @@ export const HealthScreen: React.FC<HealthScreenProps> = ({
               <span className="text-5xl font-bold font-mono text-white tracking-tight tabular-nums">
                 {live ? liveBpm : '—'}
               </span>
-              <span className="text-sm font-mono text-[#7E889B]">bpm</span>
+              <span className="text-sm font-mono text-[#9AA3B2]">bpm</span>
             </div>
-            <p className="text-xs text-[#7E889B] font-medium">
+            <p className="text-xs text-[#9AA3B2] font-medium">
               {zone ? `Zone ${zone} · ${ZONE_NAMES[zone]}` : 'Connect a sensor to see your heart rate'}
             </p>
           </div>
@@ -120,21 +120,21 @@ export const HealthScreen: React.FC<HealthScreenProps> = ({
         style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
       >
         <div>
-          <span className="text-[10px] font-mono text-[#7E889B] uppercase block">Max HR</span>
+          <span className="text-xs font-mono text-[#9AA3B2] uppercase block">Max HR</span>
           <span className="text-lg font-bold font-mono text-white block mt-0.5">{maxHr}</span>
-          <span className="text-[10px] text-neutral-500">
+          <span className="text-xs text-neutral-400">
             {profile.maxHrOverride && profile.maxHrOverride > 100 ? 'your setting' : 'from your age'}
           </span>
         </div>
         <div>
-          <span className="text-[10px] font-mono text-[#7E889B] uppercase block">Resting HR</span>
+          <span className="text-xs font-mono text-[#9AA3B2] uppercase block">Resting HR</span>
           <span className="text-lg font-bold font-mono text-white block mt-0.5">{vitals?.restingBpm || profile.restingHr}</span>
-          <span className="text-[10px] text-neutral-500">{vitals?.restingBpm ? 'Health Connect' : 'your setting'}</span>
+          <span className="text-xs text-neutral-400">{vitals?.restingBpm ? 'Health Connect' : 'your setting'}</span>
         </div>
         <div>
-          <span className="text-[10px] font-mono text-[#7E889B] uppercase block">Avg workout HR</span>
+          <span className="text-xs font-mono text-[#9AA3B2] uppercase block">Avg workout HR</span>
           <span className="text-lg font-bold font-mono text-white block mt-0.5">{avgOfMeasured ?? '—'}</span>
-          <span className="text-[10px] text-neutral-500">
+          <span className="text-xs text-neutral-400">
             {measured.length ? `${measured.length} sensor workout${measured.length === 1 ? '' : 's'}` : 'no sensor workouts'}
           </span>
         </div>
@@ -146,21 +146,21 @@ export const HealthScreen: React.FC<HealthScreenProps> = ({
           style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
         >
           <div>
-            <span className="text-[10px] font-mono text-[#7E889B] uppercase block">Latest reading</span>
+            <span className="text-xs font-mono text-[#9AA3B2] uppercase block">Latest reading</span>
             <span className="text-lg font-bold font-mono text-white block mt-0.5">{vitals.latestBpm || '—'}</span>
-            <span className="text-[10px] text-neutral-500">
+            <span className="text-xs text-neutral-400">
               {vitals.latestAt ? new Date(vitals.latestAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''} · Health Connect
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-mono text-[#7E889B] uppercase block">Average, last 24 h</span>
+            <span className="text-xs font-mono text-[#9AA3B2] uppercase block">Average, last 24 h</span>
             <span className="text-lg font-bold font-mono text-white block mt-0.5">{vitals.avgBpm24h || '—'}</span>
-            <span className="text-[10px] text-neutral-500">all-day watch readings</span>
+            <span className="text-xs text-neutral-400">all-day watch readings</span>
           </div>
         </section>
       )}
 
-      <p className="text-[10px] text-neutral-600 text-center px-4 leading-relaxed">
+      <p className="text-xs text-neutral-400 text-center px-4 leading-relaxed">
         Heart-rate readings are for fitness tracking, not medical advice. Max HR is estimated from your age unless you set
         your own in Profile.
       </p>

@@ -20,7 +20,7 @@ export const METRIC_CONFIGS: MetricConfig[] = [
     id: 'live_hr',
     label: 'Live Heart Rate',
     category: 'Cardio',
-    description: 'Live heart rate streamed from your Pixel Watch or a Bluetooth sensor',
+    description: 'Live heart rate streamed from your watch or a Bluetooth sensor',
     defaultVisible: true,
   },
   {

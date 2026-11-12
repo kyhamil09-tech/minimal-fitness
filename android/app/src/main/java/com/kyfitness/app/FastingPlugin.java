@@ -27,6 +27,13 @@ public class FastingPlugin extends Plugin {
         e.putString("protocol", call.getString("protocol", "Fast"));
         e.putBoolean("live", !Boolean.FALSE.equals(call.getBoolean("live", true)));
         e.putBoolean("stages", !Boolean.FALSE.equals(call.getBoolean("stages", true)));
+        e.putBoolean("glow", !Boolean.FALSE.equals(call.getBoolean("glow", true)));
+        // The app's accent color for the current color scheme, so the notification matches it.
+        try {
+            e.putInt("accent", android.graphics.Color.parseColor(call.getString("accent", "#FF5500")));
+        } catch (IllegalArgumentException ignored) {
+            // keep the color it had
+        }
         e.putFloat("lastHours", call.getFloat("lastHours", 16f));
         e.putString("lastProtocol", call.getString("lastProtocol", "16:8 Standard"));
         // A new fast starts at its own stage without an alert; the same fast keeps the stage it already announced.

@@ -42,6 +42,25 @@ final class VitalsStore {
 
     static void addHr(Context c, long t, int bpm) {
         append(c, "h," + t + "," + bpm);
+        SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (t >= p.getLong("lastBpmT", 0)) p.edit().putInt("lastBpm", bpm).putLong("lastBpmT", t).apply();
+    }
+
+    /** The newest heart rate reading, or 0 when there is none from the last {@code maxAgeMs}. */
+    static int lastBpm(Context c, long maxAgeMs) {
+        SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        return System.currentTimeMillis() - p.getLong("lastBpmT", 0) <= maxAgeMs ? p.getInt("lastBpm", 0) : 0;
+    }
+
+    /** Today's total for {@link #setDaily}'s fields, or -1 when none has arrived today. */
+    static double daily(Context c, String field) {
+        try {
+            JSONObject all = new JSONObject(c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("daily", "{}"));
+            JSONObject day = all.optJSONObject(LocalDate.now().toString());
+            return day != null && day.has(field) ? day.getDouble(field) : -1;
+        } catch (JSONException e) {
+            return -1;
+        }
     }
 
     /** Cumulative steps today, kept at most once a minute and only when the count changed. */
@@ -59,7 +78,7 @@ final class VitalsStore {
         append(c, "s," + t + "," + code);
     }
 
-    /** Today's total for one kind of daily number: "steps", "kcal", "dist" (metres) or "floors". */
+    /** Today's total for one kind of daily number: "steps", "kcal", "dist" (meters) or "floors". */
     static void setDaily(Context c, String field, double value) {
         synchronized (LOCK) {
             SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);

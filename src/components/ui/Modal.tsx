@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { GrabHandle } from './GrabHandle';
 
 interface ModalProps {
   isOpen: boolean;
@@ -45,7 +46,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center min-[1000px]:items-stretch min-[1000px]:justify-end p-0 sm:p-4 min-[1000px]:p-0 bg-black/70 backdrop-blur-sm animate-fadeIn"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && dismissible) onClose();
       }}
@@ -56,10 +57,11 @@ export const Modal: React.FC<ModalProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-md glass-sheet animate-sheet rounded-t-[28px] sm:rounded-[28px] text-white max-h-[92vh] flex flex-col outline-none"
+        className="w-full max-w-md min-[1000px]:max-w-[34rem] glass-sheet animate-sheet rounded-t-[28px] sm:rounded-[28px] min-[1000px]:rounded-r-none min-[1000px]:max-h-none text-white max-h-[92vh] flex flex-col outline-none"
       >
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[#1A1E26] shrink-0">
-          <h2 id={titleId} className="text-sm font-bold text-white flex items-center gap-2">
+        {dismissible && <GrabHandle onClose={onClose} />}
+        <div className="flex items-center justify-between px-5 pt-3 sm:pt-5 pb-2 border-b border-[#1A1E26] shrink-0">
+          <h2 id={titleId} className="text-base font-bold text-white flex items-center gap-2">
             {icon}
             {title}
           </h2>
@@ -67,9 +69,9 @@ export const Modal: React.FC<ModalProps> = ({
             <button
               onClick={onClose}
               aria-label="Close dialog"
-              className="text-neutral-400 hover:text-white p-1 -m-1 rounded-lg"
+              className="text-neutral-300 hover:text-white flex h-11 w-11 -mr-2 items-center justify-center rounded-full"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           )}
         </div>
@@ -82,4 +84,4 @@ export const Modal: React.FC<ModalProps> = ({
 
 export const fieldClass =
   'w-full bg-black border border-[#1A1E26] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-400 font-mono';
-export const labelClass = 'text-[11px] text-neutral-400';
+export const labelClass = 'text-xs text-neutral-400';

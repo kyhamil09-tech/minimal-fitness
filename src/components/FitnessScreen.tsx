@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { ExerciseLog } from '../types/tracking';
+import { routineLogs } from '../lib/routines';
 import {
   Play,
   Activity,
@@ -17,9 +19,22 @@ import {
   Minus,
   Zap,
   Route as RouteIcon,
-  MessageSquare,
+  Eye,
+  ChevronDown,
+  MoreHorizontal,
+  Snowflake,
+  Waves,
+  Lock,
+  Unlock,
+  Map as MapIcon,
+  ShieldCheck,
 } from 'lucide-react';
+import { useT } from '../lib/i18n';
+import { HoldButton, LiveStat, SplitRuler, ZoneRibbon } from './run/LiveParts';
+import type { MessageKey } from '../locales/en';
+import { Preset, PresetPreview, PreviewAction } from './PresetPreview';
 import { Segmented } from './ui/Segmented';
+import { Modal } from './ui/Modal';
 import type { WeatherState } from '../hooks/useWeather';
 import { WeatherCard } from './WeatherCard';
 import { GearKind, NO_GEAR, Shoe, defaultShoe, gearKindFor, gearOfKind, kindOf, shoeKm, shoeMessage, shoeState } from '../lib/shoes';
@@ -31,10 +46,11 @@ import { ColorPalette } from '../types/theme';
 import { useGeoTracker } from '../hooks/useGeoTracker';
 import { markWatchWorkoutDiscarded, useWatchCommands, useWatchWorkoutSync } from '../hooks/useWatchWorkoutSync';
 import { CalorieSample, WatchCommand, WatchWorkoutState } from '../lib/watch';
-import { currentRestingHr, estimateCalories, estimateWorkoutCalories, getMaxHr, heartRateZone, ZONE_NAMES, trimp, workoutsOnDay } from '../lib/calc';
+import { currentRestingHr, estimateCalories, estimateWorkoutCalories, getMaxHr, heartRateZone, lastLogFor, ZONE_NAMES, trimp, workoutsOnDay } from '../lib/calc';
+import { getExercise } from '../data/exercises';
 import { summarizeStrokes } from '../lib/strokeRate';
 import {  todayKey } from '../lib/dates';
-import { KM_PER_MI, distanceUnit, formatDistance, formatPace, kmToDisplay } from '../lib/units';
+import { KM_PER_MI, distanceUnit, formatDistance, formatPace, kgToDisplay, kmToDisplay } from '../lib/units';
 import type { RunSection } from '../lib/appMap';
 import {
   GPS_TYPES,
@@ -60,31 +76,47 @@ import { LatLng, haversineKm } from '../lib/geo';
 import { FollowState, RouteFollower, bearingDeg, headingFrom, relativeTurn, turnAdvice, turnText } from '../lib/routeFollow';
 import type { SavedRoute } from '../lib/savedRoutes';
 import { FollowBanner } from './FollowBanner';
-import { StrengthLoggerModal } from './StrengthLoggerModal';
 import { WorkoutDetailModal } from './WorkoutDetailModal';
 import { ErrorBoundary } from './ErrorBoundary';
 import { LiveMap } from './LiveMap';
 import { RoutesView } from './RoutesView';
 import { ManualWorkoutModal } from './ManualWorkoutModal';
+import { RunWalkBuilder } from './RunWalkBuilder';
 import { ActivitiesPanel } from './ActivitiesPanel';
 import { SegmentsPanel } from './SegmentTools';
-import { hasNativeTracker, readNativeSamples, speakNative, startNativeSession, stopNativeSession } from '../lib/tracker';
+import { AutoPauseDetector, isWalkLike } from '../lib/autoPause';
+import { notify } from '../lib/notifications';
+import { distanceFromSteps, learnStepModel, readCalibration } from '../lib/stride';
+import { Ghost, GhostChoices, gapSec, gapText, ghostChoices, ghostFromPace, ghostFromTrack } from '../lib/ghost';
+import { GhostMode, GhostPicker } from './run/GhostPicker';
+import { checkInDue, hasMoved } from '../lib/stillCheck';
+import { hasNativeTracker, readNativeSamples, speakCue, speakNative, startNativeSession, stopNativeSession, vibrateNative } from '../lib/tracker';
 import { Glance, Launch, isAndroidApp } from '../lib/native';
-import { buildWatchRoutines, resolveWatchRoutine, watchRoutinesJson } from '../lib/watchStrength';
+import { buildWatchExercises, buildWatchRoutines, resolveWatchRoutine, watchRoutinesJson, weightStep, type WatchRoutine } from '../lib/watchStrength';
+import { ProgramState, getProgram, planSession, plannedLogs } from '../lib/programs';
 import { readCadence, readStrokeRate, startCadence, startStrokes, stopCadence, stopStrokes, summarizeCadence } from '../lib/cadence';
 import {
+  CueState,
   CustomIntervalInput,
+  DEFAULT_RUN_WALK,
+  FRESH_CUES,
   INTERVAL_WORKOUTS,
   IntervalStep,
+  RUN_WALK_LIMITS,
+  RunWalkInput,
   buildCustomIntervals,
-  describeStep,
+  buildRunWalk,
+  clampRunWalk,
   plannedSeconds,
+  spokenStep,
+  stepCue,
   stepProgress,
+  warnText,
 } from '../data/intervals';
 import { formatPaceSec, paceGapSec, paceVerdict, verdictMessage, zoneVerdict } from '../lib/targets';
 import { nextMilestone } from '../lib/milestones';
 import { useCyclingSensors } from '../hooks/useCyclingSensors';
-import { armLiveShare, canShareLocation, disarmLiveShare, sendSos, setSharePaused, useLiveShare } from '../lib/liveShare';
+import { Share } from '@capacitor/share';
 import { CyclingSensorsCard } from './CyclingSensorsCard';
 import { bestAverage, estimateFtp, powerLoad, powerZoneSeconds, summarizePower } from '../lib/cyclingSensors';
 import { MAX_BPM, MIN_BPM, clampBpm, setBeatBpm, startBeat, stopBeat } from '../lib/metronome';
@@ -95,6 +127,15 @@ import { downsampleHr } from '../lib/workoutStats';
 import { PlansPanel } from './PlansPanel';
 
 interface ExerciseScreenProps {
+  /** The strength logger lives in App (the Lift side uses it too): these start it, close it and tell it the watch pressed Stop. */
+  strengthOpen: boolean;
+  onStartStrength: (ids: string[], opts?: { title?: string; fromWatch?: boolean; logs?: ExerciseLog[]; program?: { id: string; index: number } }) => void;
+  /** The program you follow, so its next workout is offered on the watch. */
+  program?: ProgramState | null;
+  onCloseStrength: () => void;
+  onStrengthStop: () => void;
+  /** Opens the Lift side (a plain weightlifting app inside this one). */
+  onOpenLift?: () => void;
   workouts: WorkoutSession[];
   onAddWorkout: (workout: WorkoutSession) => void;
   onDeleteWorkout: (id: string) => void;
@@ -127,10 +168,68 @@ once changes for every request. */
   onDeleteRoute: (id: string) => void;
 }
 
+const SPORT_DEFS: { id: WorkoutType; label: string; icon: React.ElementType }[] = [
+  { id: 'Running', label: 'Run', icon: Activity },
+  { id: 'Walking', label: 'Walk', icon: Footprints },
+  { id: 'Hiking', label: 'Hike', icon: MapPin },
+  { id: 'Cycling', label: 'Cycle', icon: Bike },
+  { id: 'Strength', label: 'Strength', icon: Dumbbell },
+  { id: 'Treadmill', label: 'Treadmill', icon: Activity },
+  { id: 'IndoorCycling', label: 'Indoor bike', icon: Bike },
+  { id: 'Rowing', label: 'Row', icon: Activity },
+  { id: 'HIIT', label: 'HIIT', icon: Flag },
+  { id: 'Yoga', label: 'Yoga', icon: Activity },
+  { id: 'Elliptical', label: 'Elliptical', icon: Activity },
+  { id: 'Calisthenics', label: 'Bodyweight', icon: Dumbbell },
+  { id: 'Swimming', label: 'Pool swim', icon: Activity },
+  { id: 'OpenWaterSwim', label: 'Open water', icon: Activity },
+  { id: 'StairClimbing', label: 'Stairs', icon: Activity },
+  { id: 'Dance', label: 'Dance', icon: Activity },
+  { id: 'Pilates', label: 'Pilates', icon: Activity },
+  { id: 'Stretching', label: 'Stretch', icon: Activity },
+  { id: 'AlpineSkiing', label: 'Downhill ski', icon: Snowflake },
+  { id: 'CrossCountrySkiing', label: 'Cross-country', icon: Snowflake },
+  { id: 'Snowboarding', label: 'Snowboard', icon: Snowflake },
+  { id: 'Snowshoeing', label: 'Snowshoe', icon: Snowflake },
+  { id: 'IceSkating', label: 'Ice skate', icon: Snowflake },
+  { id: 'Kayaking', label: 'Kayak', icon: Waves },
+  { id: 'Paddleboarding', label: 'Paddleboard', icon: Waves },
+] as { id: WorkoutType; label: string; icon: React.ElementType }[];
+
+const SPORT_GROUPS: { title: string; ids: WorkoutType[] }[] = [
+  { title: 'Outdoors', ids: ['Running', 'Walking', 'Hiking', 'Cycling', 'OpenWaterSwim'] as WorkoutType[] },
+  { title: 'Gym', ids: ['Strength', 'Calisthenics', 'HIIT', 'Treadmill', 'IndoorCycling', 'Rowing', 'Elliptical', 'StairClimbing'] as WorkoutType[] },
+  { title: 'Studio and pool', ids: ['Yoga', 'Pilates', 'Stretching', 'Dance', 'Swimming'] as WorkoutType[] },
+  { title: 'Snow and ice', ids: ['AlpineSkiing', 'CrossCountrySkiing', 'Snowboarding', 'Snowshoeing', 'IceSkating'] as WorkoutType[] },
+  { title: 'On the water', ids: ['Kayaking', 'Paddleboarding'] as WorkoutType[] },
+];
+
+/** The picker shows the sport chosen now, the ones done most lately, then the usual starters, up to five. */
+const pickQuickSports = (selected: WorkoutType, workouts: WorkoutSession[]): WorkoutType[] => {
+  const since = Date.now() - 90 * 24 * 3600 * 1000;
+  const counts = new Map<WorkoutType, number>();
+  for (const w of workouts) if ((w.startedAt ?? 0) >= since) counts.set(w.type, (counts.get(w.type) ?? 0) + 1);
+  const known = new Set(SPORT_DEFS.map((s) => s.id));
+  const recent = [...counts.entries()].filter(([t]) => known.has(t)).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const out: WorkoutType[] = [selected];
+  for (const t of [...recent, 'Running', 'Walking', 'Strength', 'Cycling', 'Hiking'] as WorkoutType[]) {
+    if (out.length >= 5) break;
+    if (!out.includes(t) && known.has(t)) out.push(t);
+  }
+  return out;
+};
+
 type RunView = RunSection;
 
 
+const GROUP_KEYS: Record<string, MessageKey> = { Outdoors: 'sportGroup.outdoors', Gym: 'sportGroup.gym', 'Studio and pool': 'sportGroup.studio', 'Snow and ice': 'sportGroup.snow', 'On the water': 'sportGroup.water' };
+
 export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
+  strengthOpen,
+  onStartStrength,
+  onCloseStrength,
+  onStrengthStop,
+  onOpenLift,
   workouts,
   onAddWorkout,
   onDeleteWorkout,
@@ -144,6 +243,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   profile,
   activePlan,
   routines,
+  program,
   onActivatePlan,
   onSaveRoutine,
   onDeleteRoutine,
@@ -162,6 +262,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   const maxHr = getMaxHr(profile);
 
   // Which part of the Run tab is showing
+  const t = useT();
   const [runView, setRunView] = useState<RunView>('start');
   useEffect(() => {
     if (openRunView) setRunView(openRunView.view);
@@ -181,7 +282,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   const [goalValue, setGoalValue] = useState<number>(5);
   const [activeGoal, setActiveGoal] = useState<ActiveGoal | null>(null);
   const goalHit = useRef(false);
-  // Spoken milestones already said this run (halfway, last kilometre ...).
+  // Spoken milestones already said this run (halfway, last kilometer ...).
   const milestonesSaid = useRef<Set<string>>(new Set());
   const [goalToast, setGoalToast] = useState(false);
 
@@ -219,6 +320,11 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   // Structured intervals and pace / heart-rate targets
   const [ivChoice, setIvChoice] = useState<string>(() => readSetup().ivChoice ?? '5x3');
   const [custom, setCustom] = useState<CustomIntervalInput>(() => readSetup().custom ?? DEFAULT_CUSTOM);
+  // A read-through of an interval preset or quick workout before choosing or logging it.
+  const [preview, setPreview] = useState<{ preset: Preset; actions: PreviewAction[] } | null>(null);
+  const [runWalk, setRunWalk] = useState<RunWalkInput>(() => clampRunWalk(readSetup().runWalk ?? DEFAULT_RUN_WALK));
+  /** Where the warning and countdown for the current interval step have got to, so each is given once. */
+  const cueState = useRef<{ idx: number; st: CueState }>({ idx: -1, st: FRESH_CUES });
   const [paceTargetOn, setPaceTargetOn] = useState<boolean>(() => readSetup().paceOn ?? false);
   const [paceTarget, setPaceTarget] = useState<number>(() => readSetup().pace ?? 330);
   const [zoneTarget, setZoneTarget] = useState<number>(() => readSetup().zone ?? 0);
@@ -228,6 +334,8 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   const [beatAlt, setBeatAlt] = useState<boolean>(() => readSetup().alternate ?? false);
   const [beatMuted, setBeatMuted] = useState(false);
   const [beatPreview, setBeatPreview] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [sportsOpen, setSportsOpen] = useState(false);
   useEffect(() => {
     try {
       localStorage.setItem(SETUP_KEY, JSON.stringify({ ...readSetup(), beatOn, bpm: beatBpm, alternate: beatAlt } satisfies RunSetup));
@@ -235,6 +343,36 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       // storage unavailable
     }
   }, [beatOn, beatBpm, beatAlt]);
+  // Race a ghost: your last run, your quickest, or a steady pace. Chosen on the start screen, fixed when the workout starts.
+  const [ghostMode, setGhostMode] = useState<GhostMode>(() => {
+    try {
+      return (JSON.parse(localStorage.getItem('kyfit_ghost') || '{}').mode as GhostMode) || 'off';
+    } catch {
+      return 'off';
+    }
+  });
+  const [ghostPace, setGhostPace] = useState<number>(() => {
+    try {
+      return Number(JSON.parse(localStorage.getItem('kyfit_ghost') || '{}').pace) || 330;
+    } catch {
+      return 330;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('kyfit_ghost', JSON.stringify({ mode: ghostMode, pace: ghostPace }));
+    } catch {
+      // storage unavailable
+    }
+  }, [ghostMode, ghostPace]);
+  const [activeGhost, setActiveGhost] = useState<Ghost | null>(null);
+  const buildGhost = (type: WorkoutType): Ghost | null => {
+    if (ghostMode === 'pace') return ghostFromPace(`${formatPaceSec(Math.round(ghostPace * (imperial ? 1.609344 : 1)))} pace`, ghostPace);
+    const c = ghostChoices(workouts, type);
+    if (ghostMode === 'last') return ghostFromTrack('Last run', c.last?.track);
+    if (ghostMode === 'fastest') return ghostFromTrack('Fastest run', c.fastest?.track);
+    return null;
+  };
   const [activeSteps, setActiveSteps] = useState<IntervalStep[] | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
   const stepStart = useRef({ sec: 0, km: 0 });
@@ -259,6 +397,17 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
 
   // Live workout recording state (timestamp based so background tabs don't drift)
   const [isSessionActive, setIsSessionActive] = useState(false);
+  // The live screen: which view fills the middle, which number is the big one, and whether the controls are locked against stray touches.
+  const [showMap, setShowMap] = useState(false);
+  const [swapPace, setSwapPace] = useState(false);
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    if (!isSessionActive) {
+      setLocked(false);
+      setShowMap(false);
+      setSwapPace(false);
+    }
+  }, [isSessionActive]);
   const [selectedSport, setSelectedSport] = useState<WorkoutType>(() => {
     if (prefs.defaultSport !== 'last') return prefs.defaultSport;
     try {
@@ -269,6 +418,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   });
   // The gear for the sport picked on the Start screen: shoes for running and walking, a bike for riding.
   const sportGear = gearKindFor(selectedSport);
+  const quickSports = useMemo(() => pickQuickSports(selectedSport, workouts), [selectedSport, workouts]);
   const selectedShoe = sportGear ? defaultShoe(gearOfKind(shoes, sportGear), savedGear[sportGear]) : null;
   const chooseShoe = (id: string) => {
     if (!sportGear) return;
@@ -304,20 +454,13 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   const geo = useGeoTracker();
   const usesGps = GPS_TYPES.includes(selectedSport);
 
-  // Strength logger
-  const [strength, setStrength] = useState<{ open: boolean; ids: string[]; title?: string }>({
-    open: false,
-    ids: [],
-  });
+  // Strength logger: a session the watch started opens without launching the watch app again.
+  const beginStrength = (ids: string[], opts?: { title?: string; fromWatch?: boolean; logs?: ExerciseLog[]; program?: { id: string; index: number } }) =>
+    onStartStrength(ids, { ...opts, fromWatch: opts?.fromWatch ?? Date.now() - startedFromWatch.current <= 10_000 });
 
   // Filter chips + history
 
-  // Safety live share: texts a map link to your chosen contacts while a GPS workout runs (Settings > Live share).
-  const [liveShare] = useLiveShare();
-  const [shareThisRun, setShareThisRun] = useState(true);
-  const [sharing, setSharing] = useState(false);
   const [liveNote, setLiveNote] = useState('');
-  const [confirmSos, setConfirmSos] = useState(false);
 
   // Manual Workout Logger Modal state
   const [showManualModal, setShowManualModal] = useState(false);
@@ -344,8 +487,8 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   const lastLapElapsed = useRef(0);
   const [autoPaused, setAutoPaused] = useState(false);
   const autoPausedRef = useRef(false);
-  const slowSeconds = useRef(0);
-  const fastSeconds = useRef(0);
+  /** Decides auto-pause in a browser (the Android app decides natively, so it works with the screen off). */
+  const autoPauseDetector = useRef<AutoPauseDetector | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   pausedAtRef.current = pausedAt;
 
@@ -416,11 +559,11 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     setIsSessionActive(true);
     if (GPS_TYPES.includes(r.sport)) {
       void geo
-        .start(coachOptions(), r.geo)
+        .start(coachOptions(!!r.iv?.steps && prefs.intervalVoice, r.sport), r.geo)
         .then(() => geo.setPaused(true));
     } else if (hasNativeTracker()) {
       timedNative.current = true;
-      startNativeSession(false).catch(() => {
+      startNativeSession(false, { intervalCues: !!r.iv?.steps && prefs.intervalVoice, voice: prefs.intervalVoiceName }).catch(() => {
         timedNative.current = false;
       });
     }
@@ -476,19 +619,31 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   const setupSteps = (): IntervalStep[] | null =>
     goalType !== 'intervals'
       ? null
-      : ivChoice === 'custom'
-        ? buildCustomIntervals(custom)
-        : (INTERVAL_WORKOUTS.find((w) => w.id === ivChoice)?.steps ?? null);
+      : ivChoice === 'runwalk'
+        ? buildRunWalk(runWalk)
+        : ivChoice === 'custom'
+          ? buildCustomIntervals(custom)
+          : (INTERVAL_WORKOUTS.find((w) => w.id === ivChoice)?.steps ?? null);
 
   /** Speaks (when spoken updates are on) and buzzes: used for interval steps and target alerts. */
   const announce = (text: string, pattern: number[] = [200, 100, 200], kind: 'steps' | 'alerts' = 'steps') => {
-    buzz(kind === 'steps' ? prefs.hapticsSteps : prefs.hapticsAlerts, pattern);
-    if (text) void speakNative(text);
+    // The phone's own vibrator, so it still buzzes with the screen off (a hidden web page cannot vibrate).
+    if (kind === 'steps' ? prefs.hapticsSteps : prefs.hapticsAlerts) void vibrateNative(pattern);
+    if (!text) return;
+    // Interval steps are spoken whenever voice for intervals is on; pace and heart-rate alerts follow the running updates.
+    if (kind === 'steps') {
+      if (prefs.intervalVoice) void speakCue(text);
+    } else {
+      void speakNative(text);
+    }
   };
 
   /** What the native recorder needs: spoken update spacing and contents, and the GPS battery mode. */
-  const coachOptions = () => ({
+  const coachOptions = (intervalCues = false, sport?: string) => ({
+    sport,
     cues: runOptions.voiceCues,
+    intervalCues,
+    voice: prefs.intervalVoiceName,
     unit: (imperial ? 'mi' : 'km') as 'mi' | 'km',
     cueHr: runOptions.voiceHeartRate,
     ...(prefs.voiceMode === 'time' ? { everyMin: prefs.voiceMinutes } : { everyKm: voiceStepKm(prefs, imperial) }),
@@ -496,6 +651,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     sayTime: prefs.voiceSayTime,
     sayPace: prefs.voiceSayPace,
     saver: prefs.gpsSaver,
+    autoPause: runOptions.autoPause,
   });
 
   // Keep the screen on while a workout runs, when that is switched on.
@@ -528,7 +684,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
 
   const handleStartWorkout = (type: WorkoutType, goal?: ActiveGoal | null) => {
     if (type === 'Strength') {
-      setStrength({ open: true, ids: [] });
+      beginStrength([]);
       return;
     }
     const chosen = goal === undefined ? setupGoal() : goal;
@@ -554,6 +710,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     setActiveSteps(steps);
     setStepIdx(0);
     stepStart.current = { sec: 0, km: 0 };
+    cueState.current = { idx: -1, st: FRESH_CUES };
     setIntervalsDone(false);
     const targets = fromSetup
       ? {
@@ -562,6 +719,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
         }
       : null;
     setActiveTargets(targets && (targets.pace || targets.zone) ? targets : null);
+    setActiveGhost(fromSetup && GPS_TYPES.includes(type) && ghostMode !== 'off' ? buildGhost(type) : null);
     setBeatMuted(false);
     setBeatPreview(false);
     cadenceReadings.current = [];
@@ -572,13 +730,13 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       try {
         localStorage.setItem(
           SETUP_KEY,
-          JSON.stringify({ ...readSetup(), ivChoice, custom, paceOn: paceTargetOn, pace: paceTarget, zone: zoneTarget } satisfies RunSetup)
+          JSON.stringify({ ...readSetup(), ivChoice, custom, runWalk, paceOn: paceTargetOn, pace: paceTarget, zone: zoneTarget } satisfies RunSetup)
         );
       } catch {
         // storage unavailable
       }
     }
-    if (steps && steps.length > 0) window.setTimeout(() => announce(describeStep(steps[0], imperial)), 1800);
+    if (steps && steps.length > 0) window.setTimeout(() => announce(spokenStep(steps[0], imperial), steps[0].kind === 'work' ? [400] : [150, 80, 150]), 1800);
     setSelectedSport(type);
     const t = Date.now();
     setSessionStart(t);
@@ -591,28 +749,18 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     lastLapElapsed.current = 0;
     autoPausedRef.current = false;
     setAutoPaused(false);
-    slowSeconds.current = 0;
-    fastSeconds.current = 0;
+    autoPauseDetector.current = new AutoPauseDetector({ enabled: runOptions.autoPause, walkLike: isWalkLike(type), beganAt: t });
     setIsSessionActive(true);
     timedNative.current = false;
     if (!GPS_TYPES.includes(type) && hasNativeTracker()) {
       // No GPS for this sport, but keep recording heart rate natively so nothing is lost with the screen off.
       timedNative.current = true;
-      startNativeSession(false).catch(() => {
+      startNativeSession(false, { intervalCues: !!steps && prefs.intervalVoice, voice: prefs.intervalVoiceName }).catch(() => {
         timedNative.current = false;
       });
     }
     if (GPS_TYPES.includes(type)) {
-      void geo.start(coachOptions());
-      // Safety live share: text a map link to the contacts you chose (only if you switched it on, and not for this run if you turned it off here).
-      setLiveNote('');
-      setConfirmSos(false);
-      if (shareThisRun && liveShare.enabled) {
-        void armLiveShare(liveShare, type, imperial).then((err) => {
-          setSharing(err === null);
-          if (err) setLiveNote(err);
-        });
-      }
+      void geo.start(coachOptions(!!steps && prefs.intervalVoice, type));
     }
   };
 
@@ -643,20 +791,40 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     }
   };
 
-  const pauseWorkout = () => {
+  /** `auto` is only for the browser's own auto-pause; a pause or resume by you (or the watch) makes auto-pause stand down. */
+  const pauseWorkout = (auto = false) => {
     if (pausedAtRef.current !== null) return;
+    if (!auto) autoPauseDetector.current?.setManualPaused(true);
     setPausedAt(Date.now());
     geo.setPaused(true);
-    setSharePaused(true);
   };
 
-  const resumeWorkout = () => {
+  const resumeWorkout = (auto = false) => {
     const at = pausedAtRef.current;
     if (at === null) return;
+    if (!auto) autoPauseDetector.current?.setManualPaused(false);
     setPausedTotal((p) => p + (Date.now() - at));
     setPausedAt(null);
     geo.setPaused(false);
-    setSharePaused(false);
+  };
+
+  // The Android app pauses the workout itself when you stop, even with the screen off, and tells us when it did (and when you moved
+  // again) so the clock leaves that time out. A pause you made by hand is never touched.
+  geo.onAutoPause.current = (ts, paused) => {
+    if (paused) {
+      if (pausedAtRef.current !== null) return;
+      pausedAtRef.current = ts;
+      setPausedAt(ts);
+      autoPausedRef.current = true;
+      setAutoPaused(true);
+    } else if (autoPausedRef.current && pausedAtRef.current !== null) {
+      const at = pausedAtRef.current;
+      setPausedTotal((p) => p + Math.max(0, ts - at));
+      pausedAtRef.current = null;
+      setPausedAt(null);
+      autoPausedRef.current = false;
+      setAutoPaused(false);
+    }
   };
 
   /** Pause / Resume button (and the watch's buttons). A manual choice always overrides auto-pause. */
@@ -675,30 +843,113 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     if (runOptions.voiceCues) void speakNative(`Lap ${lap.n}. ${formatDuration(splitSec)}.`);
   };
 
-  // Auto-pause: stop the clock after ~6 s of standing still, resume after ~2 s of real movement.
+  // "Are you okay?" (opt-in): when a GPS workout has not moved for a few minutes, buzz, speak and ask until it is answered. A pause you
+  // made by hand never triggers it. Nothing is sent anywhere: the person taps I am OK, or shares their location themselves.
+  const lastMove = useRef({ at: Date.now(), km: 0 });
+  const [checkIn, setCheckIn] = useState(false);
+  useEffect(() => {
+    lastMove.current = { at: Date.now(), km: geo.distanceKm };
+    setCheckIn(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSessionActive]);
+  useEffect(() => {
+    if (hasMoved(lastMove.current.km, geo.distanceKm)) lastMove.current = { at: Date.now(), km: geo.distanceKm };
+    else if (geo.distanceKm < lastMove.current.km) lastMove.current.km = geo.distanceKm;
+  }, [geo.distanceKm]);
+  useEffect(() => {
+    if (!prefs.safetyCheck || !isSessionActive || !usesGps) return;
+    const id = setInterval(() => {
+      if (pausedAtRef.current !== null && !autoPausedRef.current) {
+        lastMove.current.at = Date.now();
+        return;
+      }
+      if (checkInDue(lastMove.current.at, Date.now(), prefs.safetyCheckMin)) setCheckIn(true);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [prefs.safetyCheck, prefs.safetyCheckMin, isSessionActive, usesGps]);
+  useEffect(() => {
+    if (!checkIn) return;
+    const alert = () => {
+      void vibrateNative([400, 200, 400, 200, 400]);
+      void speakNative('Are you okay? You have stopped moving. Tap I am okay to carry on.');
+      void notify('Are you okay?', 'Your workout has stopped moving. Open the app and tap I am OK.', 'safety');
+    };
+    alert();
+    const id = setInterval(alert, 30_000);
+    return () => clearInterval(id);
+  }, [checkIn]);
+  const ghostOptions = useMemo<GhostChoices>(() => ghostChoices(workouts, selectedSport), [workouts, selectedSport]);
+  // Ahead or behind the ghost: said out loud when it flips, at most every 45 seconds.
+  const ghostGap = activeGhost && isSessionActive && usesGps ? gapSec(activeGhost, elapsedSeconds, geo.distanceKm) : null;
+  const ghostSide = useRef<'ahead' | 'behind' | 'level'>('level');
+  const ghostSaid = useRef(0);
+  useEffect(() => {
+    if (!isSessionActive) {
+      setActiveGhost(null);
+      ghostSide.current = 'level';
+    }
+  }, [isSessionActive]);
+  useEffect(() => {
+    if (ghostGap === null) return;
+    const g = gapText(ghostGap);
+    if (g.state === 'level' || g.state === ghostSide.current) return;
+    const first = ghostSide.current === 'level';
+    ghostSide.current = g.state;
+    if (first || Date.now() - ghostSaid.current < 45_000 || !runOptions.voiceCues) return;
+    ghostSaid.current = Date.now();
+    void speakNative(g.state === 'ahead' ? `You are ahead of the ghost by ${Math.abs(ghostGap)} seconds.` : `You are behind the ghost by ${Math.abs(ghostGap)} seconds.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ghostGap === null ? null : gapText(ghostGap).state]);
+  // The run notification's Pause / resume button (and nothing else) sends this; a toggle only means something while a workout runs.
+  const toggleRef = useRef(handleTogglePause);
+  toggleRef.current = handleTogglePause;
+  const activeRef = useRef(isSessionActive);
+  activeRef.current = isSessionActive;
+  useEffect(() => {
+    const on = (e: Event) => {
+      if ((e as CustomEvent).detail === 'toggle' && activeRef.current) toggleRef.current();
+    };
+    window.addEventListener('kyfit-run-command', on);
+    return () => window.removeEventListener('kyfit-run-command', on);
+  }, []);
+  const shareLocation = async () => {
+    const pts = geo.getRecent(1);
+    const p = pts[pts.length - 1];
+    if (!p) {
+      setLiveNote('Still finding your position. Try again in a moment.');
+      return;
+    }
+    try {
+      await Share.share({
+        title: 'My location',
+        text: 'I am out on a workout. My location right now:',
+        url: `https://maps.google.com/?q=${p.lat.toFixed(5)},${p.lng.toFixed(5)}`,
+        dialogTitle: 'Share my location',
+      });
+      setLiveNote('');
+    } catch {
+      // closing the share sheet is not an error
+    }
+  };
+
+  // Auto-pause in a browser: stop the clock after ~6 s of standing still, resume after ~2 s of real movement (see lib/autoPause.ts).
+  // In the Android app the phone decides this itself while it records, so it works with the screen off; this is only the fallback.
   const speedRef = useRef<number | null>(null);
   speedRef.current = geo.speedMs;
   useEffect(() => {
-    if (!runOptions.autoPause || !isSessionActive || !usesGps) return;
+    if (!runOptions.autoPause || !isSessionActive || !usesGps || hasNativeTracker()) return;
     const id = setInterval(() => {
-      const v = speedRef.current;
-      if (v === null) return;
-      if (pausedAtRef.current === null) {
-        slowSeconds.current = v < 0.7 ? slowSeconds.current + 1 : 0;
-        if (slowSeconds.current >= 6) {
-          slowSeconds.current = 0;
-          autoPausedRef.current = true;
-          setAutoPaused(true);
-          pauseWorkout();
-        }
-      } else if (autoPausedRef.current) {
-        fastSeconds.current = v > 1.4 ? fastSeconds.current + 1 : 0;
-        if (fastSeconds.current >= 2) {
-          fastSeconds.current = 0;
-          autoPausedRef.current = false;
-          setAutoPaused(false);
-          resumeWorkout();
-        }
+      const det = autoPauseDetector.current;
+      if (!det) return;
+      const action = det.onSpeed(Date.now(), speedRef.current);
+      if (action === 'pause') {
+        autoPausedRef.current = true;
+        setAutoPaused(true);
+        pauseWorkout(true);
+      } else if (action === 'resume') {
+        autoPausedRef.current = false;
+        setAutoPaused(false);
+        resumeWorkout(true);
       }
     }, 1000);
     return () => clearInterval(id);
@@ -711,15 +962,18 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     if (!launchRequest || launchRequest.nonce === lastLaunch.current) return;
     lastLaunch.current = launchRequest.nonce;
     // Widgets and tiles open the setup card for that workout; the goal is chosen before it starts.
-    if (!isSessionActive && !strength.open) {
+    if (!isSessionActive && !strengthOpen) {
       setSelectedSport(launchRequest.type);
       setRunView('start');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchRequest?.nonce]);
-  const handleFinishWorkout = async () => {
-    const minutes = Math.max(1, Math.round(elapsedSeconds / 60));
-    const durationSec = elapsedSeconds;
+  const handleFinishWorkout = async (endedAt?: number) => {
+    // When it was ended earlier (the watch stopped it while this screen was asleep), the workout ends then, not now.
+    const endMs = typeof endedAt === 'number' && endedAt > sessionStart ? Math.min(endedAt, Date.now()) : null;
+    const secs = endMs ? Math.max(0, Math.floor((Math.min(endMs, pausedAt ?? endMs) - sessionStart - pausedTotal) / 1000)) : elapsedSeconds;
+    const minutes = Math.max(1, Math.round(secs / 60));
+    const durationSec = secs;
     let result: Awaited<ReturnType<typeof geo.stop>> | null = null;
     try {
       result = usesGps ? await geo.stop() : null;
@@ -736,8 +990,9 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       const pedalRpm = ride.cadence.filter((v) => v > 0);
       const ftp = prefs.ftpW > 0 ? prefs.ftpW : estimateFtp(workouts) ?? 0;
       const cadenceSummary = rowing ? summarizeStrokes(cadenceReadings.current) : summarizeCadence(cadenceReadings.current);
+      const indoorKm = !hasGps && selectedSport === 'Treadmill' && stepsRef.current >= 50 ? distanceFromSteps(stepsRef.current, Math.max(1, durationSec - Math.max(0, Math.round(((endMs ?? Date.now()) - sessionStart) / 1000 - durationSec))), stepModel, readCalibration()) : 0;
       // Time spent paused: the whole span from start to finish minus the time the workout actually ran.
-      const pausedSec = Math.max(0, Math.round((Date.now() - sessionStart) / 1000 - durationSec));
+      const pausedSec = Math.max(0, Math.round(((endMs ?? Date.now()) - sessionStart) / 1000 - durationSec));
 
       // Prefer the phone's native heart-rate record (complete even with the screen off).
       let timedHr: [number, number][] = [];
@@ -764,7 +1019,9 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
         startedAt: sessionStart,
         durationMinutes: minutes,
         durationSec,
-        distanceKm: hasGps ? result!.distanceKm : undefined,
+        distanceKm: hasGps ? result!.distanceKm : indoorKm > 0 ? indoorKm : undefined,
+        distanceEstimated: !hasGps && indoorKm > 0 ? true : undefined,
+        stepCount: !hasGps && indoorKm > 0 ? stepsRef.current : undefined,
         gpsTracked: hasGps,
         route: hasGps ? result!.route : undefined,
         track: hasGps ? result!.track : undefined,
@@ -821,8 +1078,6 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
 
     onAddWorkout(newSession);
     clearLiveRun();
-    disarmLiveShare();
-    setSharing(false);
     setIsSessionActive(false);
     setPausedAt(null);
     // Show the full breakdown straight away.
@@ -830,8 +1085,6 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   };
   const handleDiscardWorkout = () => {
     cycling.takeSamples();
-    disarmLiveShare();
-    setSharing(false);
     clearLiveRun();
     markWatchWorkoutDiscarded();
     if (usesGps) void geo.stop();
@@ -857,15 +1110,26 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   // Cadence from the phone's step sensor (or, rowing, the stroke rate from its movement), read every few seconds during the workout.
   const [cadence, setCadence] = useState(0);
   const cadenceReadings = useRef<number[]>([]);
+  // Treadmill: with no GPS, the steps the phone counts are turned into a distance using your own step length (lib/stride).
+  const stepsRef = useRef(0);
+  const [indoorSteps, setIndoorSteps] = useState(0);
+  const stepModel = useMemo(() => learnStepModel(workouts, profile.heightCm), [workouts, profile.heightCm]);
   useEffect(() => {
     if (!isSessionActive) return;
+    stepsRef.current = 0;
+    setIndoorSteps(0);
     let alive = true;
     const rowing = selectedSport === 'Rowing';
     void (rowing ? startStrokes() : startCadence());
     const id = setInterval(async () => {
       if (!alive || pausedAtRef.current !== null) return;
-      const spm = rowing ? await readStrokeRate() : (await readCadence()).spm;
+      const reading = rowing ? { spm: await readStrokeRate(), steps: 0 } : await readCadence();
+      const spm = reading.spm;
       if (!alive) return;
+      if (!rowing && reading.steps > 0) {
+        stepsRef.current = reading.steps;
+        if (selectedSport === 'Treadmill') setIndoorSteps(reading.steps);
+      }
       setCadence(spm);
       if (spm > 0) cadenceReadings.current.push(spm);
     }, rowing ? 3000 : 2000);
@@ -937,7 +1201,27 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     }
     stepStart.current = { sec: elapsedSeconds, km: geo.distanceKm };
     setStepIdx(next);
-    announce(describeStep(activeSteps[next], imperial), activeSteps[next].kind === 'work' ? [400] : [150, 80, 150]);
+    announce(spokenStep(activeSteps[next], imperial), activeSteps[next].kind === 'work' ? [400] : [150, 80, 150]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsedSeconds]);
+
+  // Before a timed step ends: a buzz and a spoken "Walk in 10 seconds" (the time is yours to set), then 3, 2, 1 in the last seconds.
+  useEffect(() => {
+    if (!isSessionActive || !activeSteps || intervalsDone || isPaused) return;
+    const step = activeSteps[stepIdx];
+    if (!step || step.durationSec === undefined) return;
+    const left = Math.ceil(Math.max(0, step.durationSec - (elapsedSeconds - stepStart.current.sec)));
+    if (cueState.current.idx !== stepIdx) cueState.current = { idx: stepIdx, st: FRESH_CUES };
+    const d = stepCue(left, step.durationSec, prefs.intervalWarnSec, prefs.intervalCountdown, cueState.current.st);
+    cueState.current.st = d.state;
+    if (d.cue === 'warn') {
+      const next = activeSteps[stepIdx + 1];
+      if (prefs.hapticsSteps) void vibrateNative([120, 100, 120]);
+      if (prefs.intervalVoice) void speakCue(next ? warnText(next, left) : `The workout ends in ${left} seconds.`);
+    } else if (d.cue === 'count') {
+      if (prefs.hapticsSteps) void vibrateNative([60]);
+      if (prefs.intervalVoice) void speakCue(String(d.count), true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsedSeconds]);
 
@@ -951,7 +1235,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       (paceChecked ? paceVerdict(geo.speedMs, paceChecked) : null) ??
       (activeTargets.zone && hrFromSensor ? zoneVerdict(liveBpm, maxHr, activeTargets.zone) : null);
     const off = v !== null && v !== 'ok';
-    // For a pace target, say how far off you are ("Speed up, you are 15 seconds per kilometre behind").
+    // For a pace target, say how far off you are ("Speed up, you are 15 seconds per kilometer behind").
     const gap = paceChecked && (v === 'slow' || v === 'fast') ? paceGapSec(geo.speedMs, paceChecked) : null;
     const msg = verdictMessage(v, gap === null ? undefined : Math.abs(gap), imperial);
     setAlertText(off ? msg : '');
@@ -964,7 +1248,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsedSeconds]);
 
-  // Halfway, a quarter to go, the last kilometre: said once each, for distance and time goals (see lib/milestones).
+  // Halfway, a quarter to go, the last kilometer: said once each, for distance and time goals (see lib/milestones).
   useEffect(() => {
     if (!isSessionActive || isPaused || !activeGoal || activeGoal.type === 'calories' || goalHit.current) return;
     const m = nextMilestone({
@@ -1095,7 +1379,6 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   };
 
   // ---- Watch sync: mirror this workout to the watch and obey its Pause / Stop / Start buttons ----
-  const [strengthStopToken, setStrengthStopToken] = useState(0);
   const watchState: WatchWorkoutState | null = isSessionActive
     ? {
         active: true,
@@ -1124,12 +1407,49 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
   useWatchWorkoutSync(watchState, watchStartedHere);
 
   // The strength sessions the watch offers (today's plan day, your routines, starter templates), kept up to date on the watch.
-  const watchRoutines = useMemo(() => buildWatchRoutines({ routines, activePlan }), [routines, activePlan]);
-  const watchRoutinesText = useMemo(() => watchRoutinesJson(watchRoutines), [watchRoutines]);
+  const watchProgram = useMemo(() => {
+    const def = program ? getProgram(program.programId) : undefined;
+    if (!program || !def) return null;
+    const plan = planSession(def, program, profile.units);
+    const ids = plan.exercises.map((e) => e.exerciseId).filter((id) => !!getExercise(id));
+    const entry: WatchRoutine = {
+      id: 'prog:next',
+      name: `Program: ${plan.info.day.name}`,
+      sub: `${def.name}, ${ids.length} exercise${ids.length === 1 ? '' : 's'}`,
+      ids,
+      sets: Object.fromEntries(plan.exercises.map((e) => [e.exerciseId, e.sets.map((s) => ({ r: Math.max(1, Math.round(s.reps)), w: s.weightKg > 0 ? kgToDisplay(s.weightKg, profile.units) : 0 }))])),
+    };
+    return { entry, logs: plannedLogs(plan.exercises, (id) => getExercise(id)?.name ?? id), ref: { id: def.id, index: program.done } };
+  }, [program, profile.units]);
+  const watchRoutines = useMemo(() => buildWatchRoutines({ routines, activePlan, program: watchProgram?.entry }), [routines, activePlan, watchProgram]);
+  const watchRoutinesText = useMemo(
+    () =>
+      watchRoutinesJson(
+        watchRoutines,
+        (id) => {
+          const ex = getExercise(id);
+          if (!ex) return null;
+          const last = lastLogFor(workouts, id);
+          const sets = last
+            ? last.sets.map((s) => ({ r: Math.max(1, Math.round(s.reps)), w: s.weightKg ? kgToDisplay(s.weightKg, units) : 0 }))
+            : [0, 1, 2].map(() => ({ r: 8, w: 0 }));
+          return { id, n: ex.name, step: weightStep(id, units), sets };
+        },
+        units === 'imperial' ? 'lb' : 'kg'
+      ),
+    [watchRoutines, workouts, units]
+  );
   useEffect(() => {
     if (!isAndroidApp()) return;
     Glance.sendRoutines({ json: watchRoutinesText }).catch(() => undefined);
   }, [watchRoutinesText]);
+
+  // The exercise library, so the watch can add an exercise to a session of its own (or ask this phone to add it to a running one).
+  const watchExercisesText = useMemo(() => JSON.stringify(buildWatchExercises(workouts, units)), [workouts, units]);
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    Glance.sendExercises({ json: watchExercisesText }).catch(() => undefined);
+  }, [watchExercisesText]);
 
   // The shoes and bikes the watch offers when you start a run or a ride there, with their mileage and the current choice.
   const watchGearText = useMemo(() => JSON.stringify(buildWatchGear(shoes, workouts, savedGear, units)), [shoes, workouts, savedGear, units]);
@@ -1138,11 +1458,17 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
     Glance.sendGear({ json: watchGearText }).catch(() => undefined);
   }, [watchGearText]);
 
-  const WATCH_SPORTS: WorkoutType[] = ['Running', 'Walking', 'Cycling', 'Hiking', 'Strength', 'Treadmill', 'IndoorCycling', 'Rowing', 'HIIT', 'Yoga', 'Elliptical', 'Calisthenics'];
+  /** A watch button press older than this is treated as held up, not as something to do right now. */
+  const WATCH_COMMAND_FRESH_MS = 45_000;
+  const WATCH_SPORTS: WorkoutType[] = ['Running', 'Walking', 'Cycling', 'Hiking', 'Strength', 'Treadmill', 'IndoorCycling', 'Rowing', 'HIIT', 'Yoga', 'Elliptical', 'Calisthenics', 'Swimming', 'OpenWaterSwim', 'StairClimbing', 'Dance', 'Pilates', 'Stretching', 'AlpineSkiing', 'CrossCountrySkiing', 'Snowboarding', 'Snowshoeing', 'IceSkating', 'Kayaking', 'Paddleboarding'];
   useWatchCommands((c: WatchCommand) => {
+    // A button pressed on the watch a while ago can reach the app late (it was asleep and only now handles it). It is not obeyed as if
+    // it were fresh: a start from half an hour ago must not begin a new workout now.
+    const age = c.at ? Date.now() - c.at : 0;
+    const held = age > WATCH_COMMAND_FRESH_MS;
     if (c.cmd === 'start') {
       const type = WATCH_SPORTS.find((s) => s === c.type);
-      if (!type || isSessionActive || strength.open) return;
+      if (!type || isSessionActive || strengthOpen || held) return;
       startedFromWatch.current = Date.now();
       // The shoes or bike picked on the watch count this workout's mileage.
       if (c.gear) chooseGearById(c.gear, type);
@@ -1150,7 +1476,9 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       if (type === 'Strength' && c.routine) {
         const picked = resolveWatchRoutine(c.routine, watchRoutines);
         if (picked) {
-          setStrength({ open: true, ids: picked.ids, title: picked.name.replace(/^Today: /, '') });
+          const rt = picked.id.startsWith('r:') ? routines.find((x) => x.id === picked.id.slice(2)) : undefined;
+          const prog = picked.id === 'prog:next' ? watchProgram : null;
+          beginStrength(picked.ids, { title: picked.name.replace(/^(Today|Program): /, ''), fromWatch: true, ...(rt && routineLogs(rt) ? { logs: routineLogs(rt) } : {}), ...(prog ? { logs: prog.logs, program: prog.ref } : {}) });
           return;
         }
       }
@@ -1162,15 +1490,18 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
           : null;
       handleStartWorkout(type, goal);
     } else if (c.cmd === 'pause') {
-      if (isSessionActive && !isPaused) handleTogglePause();
+      if (isSessionActive && !isPaused && !held) handleTogglePause();
     } else if (c.cmd === 'resume') {
-      if (isSessionActive && isPaused) handleTogglePause();
+      if (isSessionActive && isPaused && !held) handleTogglePause();
     } else if (c.cmd === 'stop') {
-      if (isSessionActive) handleFinishWorkout();
-      else if (strength.open) setStrengthStopToken((n) => n + 1);
+      // A held-up stop still ends a workout that began before the press (it ends at the moment of the press), but never one that began after.
+      if (isSessionActive) {
+        if (!held || !c.at || sessionStart < c.at) void handleFinishWorkout(held ? c.at : undefined);
+      } else if (strengthOpen && !held) onStrengthStop();
     } else if (c.cmd === 'discard') {
-      if (isSessionActive) handleDiscardWorkout();
-      else if (strength.open) setStrength((s) => ({ ...s, open: false }));
+      if (isSessionActive) {
+        if (!held || !c.at || sessionStart < c.at) handleDiscardWorkout();
+      } else if (strengthOpen && !held) onCloseStrength();
     }
   });
   const geoMessage =
@@ -1192,7 +1523,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
         </div>
         <button
           onClick={() => setShowManualModal(true)}
-          className="mt-1 px-3.5 py-2 rounded-full glass-chip text-[11px] font-extrabold uppercase tracking-wider text-white flex items-center gap-1.5"
+          className="mt-1 px-3.5 py-2 rounded-full glass-chip text-xs font-extrabold uppercase tracking-wider text-white flex items-center gap-1.5"
         >
           <Plus className="w-3.5 h-3.5" style={{ color: theme.primary }} />
           <span>Log workout</span>
@@ -1200,19 +1531,38 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
       </div>
 
       {!isSessionActive && (
-        <Segmented<RunView>
-          ariaLabel="Run sections"
-          theme={theme}
-          value={runView}
-          onChange={setRunView}
-          options={[
-            { id: 'start', label: 'Start' },
-            { id: 'plans', label: 'Plans' },
-            { id: 'activities', label: 'Activities' },
-            { id: 'routes', label: 'Routes' },
-            { id: 'gear', label: 'Gear' },
-          ]}
-        />
+        <div className="space-y-2">
+          {onOpenLift && (
+            <button type="button" onClick={onOpenLift} className="w-full min-h-11 rounded-2xl border px-4 text-sm font-semibold flex items-center justify-between glass-tile" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
+              <span className="flex items-center gap-2"><Dumbbell className="w-4 h-4" style={{ color: theme.primary }} aria-hidden="true" />Open Lift for weightlifting</span>
+              <ChevronDown className="w-4 h-4 -rotate-90 text-neutral-400" aria-hidden="true" />
+            </button>
+          )}
+          <Segmented<'start' | 'plans' | 'history'>
+            ariaLabel="Run sections"
+            theme={theme}
+            value={runView === 'start' || runView === 'plans' ? runView : 'history'}
+            onChange={(v) => setRunView(v === 'history' ? (runView === 'routes' || runView === 'gear' ? runView : 'activities') : v)}
+            options={[
+              { id: 'start', label: 'Start' },
+              { id: 'plans', label: 'Plans' },
+              { id: 'history', label: 'History' },
+            ]}
+          />
+          {runView !== 'start' && runView !== 'plans' && (
+            <Segmented<RunView>
+              ariaLabel="History sections"
+              theme={theme}
+              value={runView}
+              onChange={setRunView}
+              options={[
+                { id: 'activities', label: 'Activities' },
+                { id: 'routes', label: 'Routes' },
+                { id: 'gear', label: 'Gear' },
+              ]}
+            />
+          )}
+        </div>
       )}
 
       {/* START COUNTDOWN */}
@@ -1221,284 +1571,380 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
           role="dialog"
           aria-label="Starting"
           onClick={cancelCountdown}
-          className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+          style={{ backgroundColor: 'var(--page-bg)' }}
         >
-          <div className="hero-num text-[14rem]" style={{ color: theme.primary }}>
-            {countdown.left}
+          <div className="eyebrow-accent mb-2">Get ready · {selectedSport}</div>
+          <div className="relative flex h-72 w-72 items-center justify-center">
+            <span key={`ring-${countdown.left}`} className="count-ring" aria-hidden="true" />
+            <div key={countdown.left} className="hero-num count-pop text-[11rem]" style={{ color: theme.primary }} aria-live="assertive">
+              {countdown.left}
+            </div>
           </div>
           <div className="stat-label mt-6">Tap anywhere to cancel</div>
         </div>
       )}
 
+      {isSessionActive && checkIn && (
+        <div role="dialog" aria-modal="true" aria-labelledby="check-in-title" className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-5 px-6 text-center" style={{ backgroundColor: 'var(--page-bg, #09090B)' }}>
+          <ShieldCheck className="h-14 w-14" style={{ color: theme.primary }} aria-hidden="true" />
+          <h2 id="check-in-title" className="text-3xl font-black uppercase italic text-white">Are you okay?</h2>
+          <p className="max-w-xs text-sm text-neutral-300">You have not moved for {prefs.safetyCheckMin} minutes. Tap the button if you are fine and the workout carries on.</p>
+          <button
+            autoFocus
+            onClick={() => {
+              lastMove.current = { at: Date.now(), km: geo.distanceKm };
+              setCheckIn(false);
+            }}
+            className="min-h-14 w-full max-w-xs rounded-full text-lg font-black uppercase"
+            style={{ backgroundColor: theme.primary, color: '#09090B' }}
+          >
+            I am OK
+          </button>
+          <button onClick={() => void shareLocation()} className="flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-full border text-sm font-bold text-white" style={{ borderColor: 'var(--hairline)', backgroundColor: 'var(--card)' }}>
+            <MapPin className="h-4 w-4" aria-hidden="true" /> Share my location
+          </button>
+        </div>
+      )}
+
       {/* LIVE WORKOUT: takes over the whole screen while recording */}
-      {isSessionActive && (
-        <section
-          className="fixed inset-0 z-50 bg-black flex flex-col"
-          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-          aria-label="Workout in progress"
-        >
-          <div className="flex items-center justify-between px-5 pt-4">
-            <span className="eyebrow-accent flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${isPaused ? '' : 'animate-pulse'}`}
-                style={{ backgroundColor: isPaused ? '#8a8a8a' : theme.primary }}
-              />
-              {isPaused ? (autoPaused ? 'Auto-paused' : 'Paused') : selectedSport}
-            </span>
-            <span className="stat-label">{usesGps ? (geo.status === 'tracking' ? 'GPS locked' : 'GPS…') : 'Timer only'}</span>
-          </div>
-
-          {usesGps && runOptions.liveMap && geo.pointCount >= 1 && (
-            <div className="px-4 pt-3">
-              <LiveMap getPoints={geo.getPoints} pointCount={geo.pointCount} color={theme.primary} height={230} reference={reference} />
-            </div>
-          )}
-
-          {usesGps && geo.pointCount >= 1 && (followRoute || homeMode) && (
-            <FollowBanner state={follow} heading={heading} homeMode={homeMode || !followRoute} routeName={followRoute?.name} units={units} accent={theme.primary} />
-          )}
-          {usesGps && geo.pointCount >= 1 && (
-            <div className="px-4 pt-2 flex justify-center">
-              <button type="button" onClick={() => setHomeMode((v) => !v)} aria-pressed={homeMode} className="px-3.5 py-1.5 rounded-full glass-chip text-[11px] font-semibold text-neutral-200">
-                {homeMode ? (followRoute ? 'Back to the route guide' : 'Hide the way back') : 'Way back to the start'}
-              </button>
-            </div>
-          )}
-
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-5 text-center">
-            {usesGps ? (
-              <>
-                <div className="hero-num text-[8.5rem]" aria-live="off">
-                  {kmToDisplay(geo.distanceKm, units)}
+      {isSessionActive &&
+        (() => {
+          const upm = units === 'imperial' ? 1609.344 : 1000;
+          const curPaceSec = geo.speedMs !== null && geo.speedMs > 0.6 ? upm / geo.speedMs : 0;
+          const curPace = curPaceSec > 0 && curPaceSec < 3600 ? formatPaceSec(curPaceSec) : '--:--';
+          const avgPace = formatPace(elapsedSeconds / 60, geo.distanceKm, units);
+          const dist = kmToDisplay(geo.distanceKm, units, 2);
+          const [whole, dec = '00'] = dist.toFixed(2).split('.');
+          const unitName = units === 'imperial' ? 'miles' : 'km';
+          const mapOn = usesGps && runOptions.liveMap && geo.pointCount >= 1;
+          const statusText = isPaused ? (autoPaused ? 'Auto-paused' : 'Paused') : selectedSport;
+          const ctlDim = locked ? 'opacity-40' : '';
+          return (
+            <section className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: 'var(--page-bg)', paddingTop: 'env(safe-area-inset-top, 0px)' }} aria-label="Workout in progress" data-live-run="true">
+              <div className="flex items-center justify-between gap-2 px-5 pt-4">
+                <div className="flex items-center gap-2 rounded-full border px-3.5 py-1.5" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' }}>
+                  <span className={`h-2 w-2 rounded-full ${usesGps && geo.status === 'tracking' ? 'animate-pulse' : ''}`} style={{ backgroundColor: !usesGps || geo.status === 'tracking' ? '#10B981' : '#FFB300' }} />
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-[#E4E4E7]">{usesGps ? (geo.status === 'tracking' ? 'GPS locked · local' : 'Finding GPS…') : 'Timer only'}</span>
                 </div>
-                <div className="hero-unit text-2xl mt-2">{distanceUnit(units)}</div>
-              </>
-            ) : (
-              <>
-                <div className="hero-num text-[6.5rem]" aria-live="off">
-                  {formatTimer(elapsedSeconds)}
-                </div>
-                <div className="hero-unit text-2xl mt-2">Time</div>
-              </>
-            )}
+                {mapOn && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMap((v) => !v)}
+                    aria-pressed={showMap}
+                    className="flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-xs font-extrabold uppercase tracking-wider"
+                    style={showMap ? { backgroundColor: theme.primary, borderColor: theme.primary, color: '#09090B' } : { backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)', color: '#E4E4E7' }}
+                  >
+                    <MapIcon className="h-4 w-4" aria-hidden="true" />
+                    {showMap ? 'Stats' : 'Map'}
+                  </button>
+                )}
+              </div>
 
-            {activeSteps && activeSteps.length > 0 && (() => {
-              const idx = Math.min(stepIdx, activeSteps.length - 1);
-              const step = activeSteps[idx];
-              const prog = stepProgress(step, elapsedSeconds - stepStart.current.sec, geo.distanceKm - stepStart.current.km);
-              const color = intervalsDone ? theme.primary : step.kind === 'work' ? theme.primary : step.kind === 'recover' ? '#7dd3fc' : theme.secondary;
-              const left =
-                prog.remainingSec !== undefined
-                  ? formatTimer(Math.ceil(prog.remainingSec))
-                  : `${kmToDisplay(prog.remainingKm ?? 0, units, 2)} ${distanceUnit(units)}`;
-              const next = activeSteps[idx + 1];
-              return (
-                <div className="w-full max-w-sm mt-5 rounded-[22px] border p-4 text-left" style={{ borderColor: color, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                  <div className="flex items-center justify-between">
-                    <span className="eyebrow-accent" style={{ color }}>
-                      {intervalsDone ? 'Workout complete' : step.label}
-                    </span>
-                    <span className="stat-label">
-                      Step {idx + 1} / {activeSteps.length}
-                    </span>
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-3">
+                <div className="mt-3 flex justify-center">
+                  <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-widest" style={{ backgroundColor: 'var(--card)', color: isPaused ? '#A1A1AA' : theme.primary }}>
+                    <span className={`h-2 w-2 rounded-full ${isPaused ? '' : 'animate-pulse'}`} style={{ backgroundColor: isPaused ? '#71717A' : theme.primary }} />
+                    {statusText}
+                    {locked && <Lock className="h-3 w-3" aria-label="Controls locked" />}
+                  </span>
+                </div>
+
+                {showMap && mapOn ? (
+                  <div className="relative mt-3 overflow-hidden rounded-3xl border" style={{ borderColor: 'var(--hairline-strong)' }}>
+                    <LiveMap getPoints={geo.getPoints} pointCount={geo.pointCount} color={theme.primary} height={300} reference={reference} />
+                    <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-2xl px-4 py-2.5" style={{ backgroundColor: 'rgba(9,9,11,0.88)', border: '1px solid var(--hairline-strong)' }}>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">Distance</div>
+                        <div className="hero-num text-[1.6rem] leading-none">{dist.toFixed(2)} <span className="text-sm">{distanceUnit(units)}</span></div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">Pace</div>
+                        <div className="hero-num text-[1.6rem] leading-none" style={{ color: theme.primary }}>{curPace}</div>
+                      </div>
+                    </div>
                   </div>
-                  {!intervalsDone && (
+                ) : usesGps ? (
+                  <button
+                    type="button"
+                    onClick={() => setSwapPace((v) => !v)}
+                    aria-label={swapPace ? 'Showing current pace. Tap to show distance.' : 'Showing distance. Tap to show current pace.'}
+                    className="mt-2 block w-full text-center"
+                  >
+                    <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#A1A1AA]">
+                      {swapPace ? 'Current pace' : 'Distance'}
+                      <span style={{ color: theme.primary }}>· tap to swap</span>
+                    </span>
+                    {swapPace ? (
+                      <div className="flex items-baseline justify-center leading-none">
+                        <span className="hero-num text-[6.5rem]" style={{ color: theme.primary }} aria-live="off">
+                          {curPace}
+                        </span>
+                        <span className="hero-unit ml-2 text-xl">/{distanceUnit(units)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-baseline justify-center leading-none">
+                        <span className="hero-num text-[7.5rem]" aria-live="off">
+                          {whole}
+                        </span>
+                        <span className="ml-1 flex flex-col items-start">
+                          <span className="hero-num text-[3.2rem]" style={{ color: theme.primary }}>
+                            .{dec}
+                          </span>
+                          <span className="hero-unit mt-1 text-sm">{unitName}</span>
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                ) : (
+                  <div className="mt-4 text-center">
+                    <div className="hero-num text-[6.5rem]" aria-live="off">
+                      {formatTimer(elapsedSeconds)}
+                    </div>
+                    <div className="hero-unit mt-1 text-xl">Time</div>
+                    {selectedSport === 'Treadmill' && indoorSteps >= 20 && (
+                      <div className="mt-4" role="status" aria-label="Distance from steps">
+                        <span className="hero-num text-5xl" style={{ color: theme.primary }}>
+                          {kmToDisplay(distanceFromSteps(indoorSteps, Math.max(1, elapsedSeconds), stepModel, readCalibration()), units, 2)}
+                        </span>
+                        <span className="hero-unit ml-2 text-lg">{units === 'imperial' ? 'mi' : 'km'}</span>
+                        <div className="stat-label mt-1">from steps · keep the phone on you</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {ghostGap !== null && activeGhost && (() => {
+                  const g = gapText(ghostGap);
+                  const color = g.state === 'ahead' ? '#10B981' : g.state === 'behind' ? '#F43F5E' : '#A1A1AA';
+                  return (
+                    <div className="mt-3 flex justify-center">
+                      <span role="status" aria-label={`${g.state === 'level' ? 'Level with' : g.state === 'ahead' ? 'Ahead of' : 'Behind'} the ghost ${g.state === 'level' ? '' : g.text}`} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-black uppercase tracking-wider" style={{ borderColor: color, color, backgroundColor: 'var(--card)' }}>
+                        <span className="tabular-nums">{g.state === 'ahead' ? '+' : g.state === 'behind' ? '−' : ''}{g.state === 'level' ? 'Level' : g.text}</span>
+                        <span className="text-xs font-bold text-[#A1A1AA]">{g.state === 'ahead' ? 'ahead' : g.state === 'behind' ? 'behind' : 'with'} · {activeGhost.label}</span>
+                      </span>
+                    </div>
+                  );
+                })()}
+                {usesGps && !showMap && <SplitRuler fraction={dist % 1} label={`${units === 'imperial' ? 'Mile' : 'Km'} ${Math.floor(dist) + 1} split`} />}
+
+                {usesGps && geo.pointCount >= 1 && (followRoute || homeMode) && (
+                  <div className="mt-3">
+                    <FollowBanner state={follow} heading={heading} homeMode={homeMode || !followRoute} routeName={followRoute?.name} units={units} accent={theme.primary} />
+                  </div>
+                )}
+                {usesGps && geo.pointCount >= 1 && (
+                  <div className="mt-3 flex justify-center">
+                    <button type="button" onClick={() => setHomeMode((v) => !v)} aria-pressed={homeMode} className="min-h-11 rounded-full border px-4 text-xs font-bold text-[#E4E4E7]" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)' }}>
+                      {homeMode ? (followRoute ? 'Back to the route guide' : 'Hide the way back') : 'Way back to the start'}
+                    </button>
+                  </div>
+                )}
+
+                {activeSteps && activeSteps.length > 0 && (() => {
+                  const idx = Math.min(stepIdx, activeSteps.length - 1);
+                  const step = activeSteps[idx];
+                  const prog = stepProgress(step, elapsedSeconds - stepStart.current.sec, geo.distanceKm - stepStart.current.km);
+                  const color = intervalsDone ? theme.primary : step.kind === 'work' ? theme.primary : step.kind === 'recover' ? '#7dd3fc' : theme.secondary;
+                  const left = prog.remainingSec !== undefined ? formatTimer(Math.ceil(prog.remainingSec)) : `${kmToDisplay(prog.remainingKm ?? 0, units, 2)} ${distanceUnit(units)}`;
+                  const next = activeSteps[idx + 1];
+                  return (
+                    <div className="mt-4 rounded-2xl border p-4 text-left" style={{ borderColor: color, backgroundColor: 'var(--card)' }}>
+                      <div className="flex items-center justify-between">
+                        <span className="eyebrow-accent" style={{ color }}>
+                          {intervalsDone ? 'Workout complete' : step.label}
+                        </span>
+                        <span className="stat-label">
+                          Step {idx + 1} / {activeSteps.length}
+                        </span>
+                      </div>
+                      {!intervalsDone && (
+                        <>
+                          <div className="hero-num mt-2 text-[3.2rem]" style={{ color }}>
+                            {left}
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full" style={{ backgroundColor: 'var(--card-2)' }}>
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round(prog.fraction * 100)}%`, backgroundColor: color }} />
+                          </div>
+                          <div className="stat-label mt-2">{next ? `Next: ${next.label}` : 'Last step'}</div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+                {alertText && (
+                  <div role="status" className="mt-3 rounded-full px-4 py-2 text-center text-xs font-extrabold uppercase tracking-wider" style={{ backgroundColor: theme.secondary, color: '#09090B' }}>
+                    {alertText}
+                  </div>
+                )}
+                {activeGoal && goalProgress !== null && (
+                  <div className="mt-4">
+                    <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: 'var(--card-2)' }} role="progressbar" aria-valuenow={Math.round(Math.min(1, goalProgress) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Goal progress">
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round(Math.min(1, goalProgress) * 100)}%`, backgroundColor: theme.primary }} />
+                    </div>
+                    <div className="stat-label mt-2 flex items-center justify-between">
+                      <span style={{ color: goalReached ? theme.primary : undefined }}>{goalReached ? 'Goal reached' : `${Math.round(goalProgress * 100)}% of goal`}</span>
+                      <span>{goalSummary(activeGoal, imperial)}</span>
+                    </div>
+                  </div>
+                )}
+                {goalToast && (
+                  <div role="status" className="animate-fadeIn mt-3 rounded-full px-4 py-2 text-center text-xs font-extrabold uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: '#09090B' }}>
+                    Goal reached! Keep going or finish.
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <ZoneRibbon bpm={hrFromSensor ? liveBpm : null} zone={liveZone} name={ZONE_NAMES[liveZone]} live={hrFromSensor} />
+                </div>
+
+                <div className={`mt-3 grid gap-2.5 ${usesGps ? 'grid-cols-3' : cadence > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {usesGps ? (
                     <>
-                      <div className="hero-num text-[3.4rem] mt-2" style={{ color }}>
-                        {left}
-                      </div>
-                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-2">
-                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round(prog.fraction * 100)}%`, backgroundColor: color }} />
-                      </div>
-                      <div className="stat-label mt-2">{next ? `Next: ${next.label}` : 'Last step'}</div>
+                      <LiveStat label={swapPace ? 'Distance' : 'Avg pace'} value={swapPace ? dist.toFixed(2) : avgPace} sub={swapPace ? distanceUnit(units) : `/${distanceUnit(units)}`} />
+                      <LiveStat label="Time" value={formatTimer(elapsedSeconds)} />
+                      {cadence > 0 ? (
+                        <LiveStat label={selectedSport === 'Rowing' ? 'Strokes/min' : 'Cadence'} value={cadence} sub={selectedSport !== 'Rowing' && beatOn && !beatMuted ? `${cadence - beatBpm >= 0 ? '+' : ''}${cadence - beatBpm} vs beat` : 'spm'} />
+                      ) : (
+                        <LiveStat label="Calories" value={liveCalories} sub="kcal" />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <LiveStat label="Calories" value={liveCalories} sub="kcal" />
+                      <LiveStat label="Max HR" value={maxHr} sub="bpm" />
+                      {cadence > 0 && <LiveStat label={selectedSport === 'Rowing' ? 'Strokes/min' : 'Cadence'} value={cadence} sub="spm" />}
                     </>
                   )}
                 </div>
-              );
-            })()}
-            {alertText && (
-              <div role="status" className="mt-3 px-4 py-2 rounded-full text-xs font-extrabold uppercase tracking-wider" style={{ backgroundColor: theme.secondary, color: '#000' }}>
-                {alertText}
-              </div>
-            )}            {activeGoal && goalProgress !== null && (
-              <div className="w-full max-w-sm mt-5">
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={Math.round(Math.min(1, goalProgress) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Goal progress">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${Math.round(Math.min(1, goalProgress) * 100)}%`, backgroundColor: theme.primary }}
-                  />
-                </div>
-                <div className="flex items-center justify-between mt-2 stat-label">
-                  <span style={{ color: goalReached ? theme.primary : undefined }}>
-                    {goalReached ? 'Goal reached' : `${Math.round(goalProgress * 100)}% of goal`}
-                  </span>
-                  <span>{goalSummary(activeGoal, imperial)}</span>
-                </div>
-              </div>
-            )}
-            {goalToast && (
-              <div role="status" className="mt-3 px-4 py-2 rounded-full text-xs font-extrabold uppercase tracking-wider animate-fadeIn" style={{ backgroundColor: theme.primary, color: '#000' }}>
-                Goal reached! Keep going or finish.
-              </div>
-            )}
 
-            <div className="grid grid-cols-3 gap-4 w-full max-w-sm mt-7">
-              {usesGps ? (
-                <>
-                  <div>
-                    <div className="hero-num text-[2.4rem]">{formatPace(elapsedSeconds / 60, geo.distanceKm, units)}</div>
-                    <div className="stat-label mt-1">Pace /{distanceUnit(units)}</div>
-                  </div>
-                  <div>
-                    <div className="hero-num text-[2.4rem]">{formatTimer(elapsedSeconds)}</div>
-                    <div className="stat-label mt-1">Time</div>
-                  </div>
-                  <div>
-                    <div className="hero-num text-[2.4rem]">{hrFromSensor ? liveBpm : '--'}</div>
-                    <div className="stat-label mt-1">{hrFromSensor ? `Z${liveZone} ${ZONE_NAMES[liveZone]}` : 'Heart rate'}</div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <div className="hero-num text-[2.4rem]">{hrFromSensor ? liveBpm : '--'}</div>
-                    <div className="stat-label mt-1">{hrFromSensor ? `Z${liveZone} ${ZONE_NAMES[liveZone]}` : 'Heart rate'}</div>
-                  </div>
-                  <div>
-                    <div className="hero-num text-[2.4rem]">{liveCalories}</div>
-                    <div className="stat-label mt-1">Kcal</div>
-                  </div>
-                  <div>
-                    <div className="hero-num text-[2.4rem]">{maxHr}</div>
-                    <div className="stat-label mt-1">Max HR</div>
-                  </div>
-                </>
-              )}
-            </div>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm font-bold text-[#D4D4D8]">
+                  {usesGps && cadence > 0 && <span>{liveCalories} kcal</span>}
+                  {usesGps && geo.elevationGainM > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Mountain className="h-3 w-3" /> +{geo.elevationGainM} m
+                    </span>
+                  )}
+                  {cycling.live.powerW !== undefined && <span>{cycling.live.powerW} W</span>}
+                  {cycling.live.cadenceRpm !== undefined && <span>{cycling.live.cadenceRpm} rpm</span>}
+                  {cycling.live.speedKmh !== undefined && (
+                    <span>
+                      {units === 'imperial' ? Math.round((cycling.live.speedKmh / 1.609344) * 10) / 10 : cycling.live.speedKmh} {units === 'imperial' ? 'mph' : 'km/h'}
+                    </span>
+                  )}
+                </div>
 
-            <div className="flex items-center gap-4 mt-4 text-[11px] font-bold text-neutral-500 uppercase tracking-wider">
-              {usesGps && <span>{liveCalories} kcal</span>}
-              {cadence > 0 && (
-                <span>
-                  {cadence} {selectedSport === 'Rowing' ? 'strokes/min' : 'spm'}
-                  {selectedSport !== 'Rowing' && beatOn && !beatMuted ? ` · ${cadence - beatBpm >= 0 ? '+' : ''}${cadence - beatBpm} vs beat` : ''}
-                </span>
-              )}
-              {usesGps && geo.elevationGainM > 0 && (
-                <span className="flex items-center gap-1">
-                  <Mountain className="w-3 h-3" /> +{geo.elevationGainM} m
-                </span>
-              )}
-              {cycling.live.powerW !== undefined && <span>{cycling.live.powerW} W</span>}
-              {cycling.live.cadenceRpm !== undefined && <span>{cycling.live.cadenceRpm} rpm</span>}
-              {cycling.live.speedKmh !== undefined && <span>{units === 'imperial' ? Math.round((cycling.live.speedKmh / 1.609344) * 10) / 10 : cycling.live.speedKmh} {units === 'imperial' ? 'mph' : 'km/h'}</span>}
-            </div>
-            {usesGps && liveShare.enabled && (
-              <div className="mt-3 w-full max-w-sm rounded-2xl glass-inset px-3 py-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-neutral-300">
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <MessageSquare className="w-3.5 h-3.5 shrink-0" style={{ color: sharing ? theme.primary : undefined }} />
-                  <span className="truncate">{sharing ? `Texting ${liveShare.contacts.map((c) => c.name).join(', ')}` : 'Location not shared'}</span>
-                </span>
-                {confirmSos ? (
-                  <span className="flex items-center gap-2 shrink-0">
+                {usesGps && (
+                  <div className="mt-3">
                     <button
-                      onClick={async () => {
-                        setConfirmSos(false);
-                        const ok = await sendSos(liveShare);
-                        setLiveNote(ok ? 'Emergency text sent.' : 'Could not send the emergency text.');
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold"
+                      disabled={locked}
+                      onClick={() => void shareLocation()}
+                      className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-3 text-xs font-semibold text-[#E4E4E7] ${ctlDim}`}
+                      style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' }}
                     >
-                      Send help text
+                      <MapPin className="h-4 w-4" /> Share my location
                     </button>
-                    <button onClick={() => setConfirmSos(false)} className="text-neutral-400 underline">Cancel</button>
-                  </span>
-                ) : (
-                  <button onClick={() => setConfirmSos(true)} className="px-2.5 py-1 rounded-lg border border-rose-500/60 text-rose-300 font-bold shrink-0">SOS</button>
+                  </div>
+                )}
+                {liveNote && (
+                  <p role="status" className="mt-2 text-center text-xs text-amber-300">
+                    {liveNote}
+                  </p>
+                )}
+                {usesGps && geoMessage && (
+                  <p role="status" className="mt-2 text-center text-xs text-amber-300">
+                    {geoMessage}
+                  </p>
+                )}
+                {laps.length > 0 && (
+                  <div className="mt-3 space-y-0.5 rounded-2xl border px-3 py-2 text-xs font-semibold text-[#A1A1AA]" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' }}>
+                    {laps.slice(-2).map((l) => (
+                      <div key={l.n} className="flex justify-between">
+                        <span>Lap {l.n}</span>
+                        <span className="text-white">{formatDuration(l.splitSec)}</span>
+                        <span>{formatDistance(l.distanceKm, units)}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            )}
-            {liveNote && (
-              <p role="status" className="text-[11px] text-amber-300 mt-2">
-                {liveNote}
-              </p>
-            )}
-            {usesGps && geoMessage && (
-              <p role="status" className="text-[11px] text-amber-300 mt-2">
-                {geoMessage}
-              </p>
-            )}
-            {laps.length > 0 && (
-              <div className="mt-3 w-full max-w-sm rounded-2xl glass-inset px-3 py-2 text-[11px] font-semibold text-neutral-400 space-y-0.5">
-                {laps.slice(-2).map((l) => (
-                  <div key={l.n} className="flex justify-between">
-                    <span>Lap {l.n}</span>
-                    <span className="text-white">{formatDuration(l.splitSec)}</span>
-                    <span>{formatDistance(l.distanceKm, units)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {beatOn && (
-            <div className="flex items-center justify-center gap-3 pb-3">
-              <button onClick={() => setBeatBpm_((b) => clampBpm(b - 2))} aria-label="Slower beat" className="w-9 h-9 rounded-full glass-chip flex items-center justify-center text-white">
-                <Minus className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setBeatMuted((m) => !m)}
-                aria-pressed={!beatMuted}
-                aria-label={beatMuted ? 'Turn the beat on' : 'Mute the beat'}
-                className="px-4 py-2 rounded-full glass-chip text-xs font-extrabold uppercase tracking-wider"
-                style={{ color: beatMuted ? '#8a8a8a' : theme.primary }}
-              >
-                {beatMuted ? 'Beat off' : `Beat ${beatBpm}`}
-              </button>
-              <button onClick={() => setBeatBpm_((b) => clampBpm(b + 2))} aria-label="Faster beat" className="w-9 h-9 rounded-full glass-chip flex items-center justify-center text-white">
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-          <div className="px-6 pb-8 pt-2" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
-            <div className="flex items-end justify-center gap-6">
-              {usesGps && (
-                <div className="flex flex-col items-center gap-2">
-                  <button onClick={handleLap} aria-label="Lap" className="round-btn">
-                    <Flag className="w-6 h-6" />
+              {beatOn && (
+                <div className="flex items-center justify-center gap-3 pb-2">
+                  <button disabled={locked} onClick={() => setBeatBpm_((b) => clampBpm(b - 2))} aria-label="Slower beat" className="flex h-11 w-11 items-center justify-center rounded-full border text-white" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)' }}>
+                    <Minus className="h-4 w-4" />
                   </button>
-                  <span className="stat-label">Lap</span>
+                  <button
+                    disabled={locked}
+                    onClick={() => setBeatMuted((m) => !m)}
+                    aria-pressed={!beatMuted}
+                    aria-label={beatMuted ? 'Turn the beat on' : 'Mute the beat'}
+                    className="min-h-11 rounded-full border px-4 text-xs font-extrabold uppercase tracking-wider"
+                    style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)', color: beatMuted ? '#8a8a8a' : theme.primary }}
+                  >
+                    {beatMuted ? 'Beat off' : `Beat ${beatBpm}`}
+                  </button>
+                  <button disabled={locked} onClick={() => setBeatBpm_((b) => clampBpm(b + 2))} aria-label="Faster beat" className="flex h-11 w-11 items-center justify-center rounded-full border text-white" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)' }}>
+                    <Plus className="h-4 w-4" />
+                  </button>
                 </div>
               )}
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={handleTogglePause}
-                  aria-label={isPaused ? 'Resume' : 'Pause'}
-                  className="w-[104px] h-[104px] rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.primary, color: '#000' }}
-                >
-                  {isPaused ? <Play className="w-10 h-10 fill-black" /> : <Pause className="w-10 h-10 fill-black" />}
+
+              <div className="shrink-0 border-t px-5 pt-3" style={{ borderColor: 'var(--hairline)', backgroundColor: 'var(--page-bg)', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+                <div className="flex items-end justify-center gap-4">
+                  <div className="flex flex-col items-center gap-1.5">
+                    {locked ? (
+                      <HoldButton label="Unlock the controls (press and hold)" onHold={() => setLocked(false)} ringColor={theme.primary} className="flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)', color: theme.primary, boxShadow: `inset 0 0 0 2px ${theme.primary}` }}>
+                        <Lock className="h-5 w-5" />
+                      </HoldButton>
+                    ) : (
+                      <button type="button" onClick={() => setLocked(true)} aria-label="Lock the controls" className="flex h-14 w-14 items-center justify-center rounded-full border text-[#D4D4D8]" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)' }}>
+                        <Unlock className="h-5 w-5" />
+                      </button>
+                    )}
+                    <span className="stat-label !text-[0.65rem]">{locked ? 'Hold' : 'Lock'}</span>
+                  </div>
+                  {usesGps && (
+                    <div className="flex flex-col items-center gap-1.5">
+                      <button disabled={locked} onClick={handleLap} aria-label="Lap" className={`flex h-14 w-14 items-center justify-center rounded-full border text-[#D4D4D8] ${ctlDim}`} style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)' }}>
+                        <Flag className="h-5 w-5" />
+                      </button>
+                      <span className="stat-label !text-[0.65rem]">Lap</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col items-center gap-1.5">
+                    <button
+                      disabled={locked}
+                      onClick={handleTogglePause}
+                      aria-label={isPaused ? 'Resume' : 'Pause'}
+                      className={`flex h-[88px] w-[88px] items-center justify-center rounded-full ${ctlDim}`}
+                      style={{ backgroundColor: isPaused ? '#10B981' : theme.primary, color: '#09090B', boxShadow: 'inset 0 0 0 4px rgba(0,0,0,0.18)' }}
+                    >
+                      {isPaused ? <Play className="ml-1 h-9 w-9 fill-black" /> : <Pause className="h-9 w-9 fill-black" />}
+                    </button>
+                    <span className="stat-label !text-[0.65rem]">{isPaused ? 'Resume' : 'Pause'}</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <HoldButton
+                      label="Finish and save (press and hold)"
+                      ms={900}
+                      disabled={locked}
+                      onHold={() => void handleFinishWorkout()}
+                      ringColor="#F43F5E"
+                      className={`flex h-14 w-14 items-center justify-center rounded-full border ${ctlDim}`}
+                      style={{ backgroundColor: 'var(--card)', borderColor: '#F43F5E', color: '#F43F5E' }}
+                    >
+                      <Square className="h-5 w-5 fill-current" />
+                    </HoldButton>
+                    <span className="stat-label !text-[0.65rem]">Hold to finish</span>
+                  </div>
+                </div>
+                <button disabled={locked} onClick={handleDiscardWorkout} className={`mx-auto mt-3 block min-h-9 text-xs font-bold uppercase tracking-wider text-[#A1A1AA] ${ctlDim}`}>
+                  Discard session
                 </button>
-                <span className="stat-label">{isPaused ? 'Resume' : 'Pause'}</span>
               </div>
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={handleFinishWorkout}
-                  aria-label="Finish and save"
-                  className="round-btn"
-                  style={{ borderColor: '#ff4d4d', color: '#ff4d4d' }}
-                >
-                  <Square className="w-6 h-6 fill-current" />
-                </button>
-                <span className="stat-label">Finish</span>
-              </div>
-            </div>
-            <button onClick={handleDiscardWorkout} className="block mx-auto mt-5 text-[11px] font-bold uppercase tracking-wider text-neutral-600 hover:text-neutral-300">
-              Discard session
-            </button>
-          </div>
-        </section>
-      )}
+            </section>
+          );
+        })()}
 
       {/* START: sport picker, goal setup and the big GO button */}
       {!isSessionActive && runView === 'start' && (
@@ -1510,7 +1956,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                 {recoverable.sport} · {kmToDisplay(recoverable.geo.distanceKm, units)} {distanceUnit(units)} ·{' '}
                 {formatDuration(Math.max(0, Math.round((recoverable.savedAt - recoverable.sessionStart - recoverable.pausedTotal) / 1000)))}
               </p>
-              <p className="text-[11px] text-neutral-500 mt-1">The app closed before you finished. Pick it up where it left off, then finish and save it.</p>
+              <p className="text-xs text-neutral-400 mt-1">The app closed before you finished. Pick it up where it left off, then finish and save it.</p>
               <div className="flex gap-2 mt-3">
                 <button onClick={() => resumeRecovered(recoverable)} className="flex-1 py-2.5 rounded-full text-xs font-extrabold" style={{ backgroundColor: theme.primary, color: '#000' }}>
                   Resume run
@@ -1525,37 +1971,73 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
             <div className="mb-4 rounded-[26px] border p-4 flex items-center justify-between gap-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
               <div className="min-w-0">
                 <div className="text-sm font-bold text-white">Keep GPS alive on long runs</div>
-                <p className="text-[11px] text-neutral-500 mt-0.5">Android can stop apps to save battery mid-run. Allow Minimal Fitness to run in the background.</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Android can stop apps to save battery mid-run. Open battery settings and set Minimal Fitness to Unrestricted.</p>
               </div>
               <button
                 onClick={() => Launch.requestIgnoreBatteryOptimizations().catch(() => {})}
-                className="px-4 py-2 rounded-full text-xs font-extrabold shrink-0"
+                className="min-h-11 px-4 rounded-full text-xs font-extrabold shrink-0"
                 style={{ backgroundColor: theme.primary, color: '#000' }}
               >
-                Allow
+                Open settings
               </button>
             </div>
           )}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-1" role="group" aria-label="Choose an activity">
-            {([
-              ['Running', 'Run', Activity],
-              ['Walking', 'Walk', Footprints],
-              ['Hiking', 'Hike', MapPin],
-              ['Cycling', 'Cycle', Bike],
-              ['Strength', 'Strength', Dumbbell],
-              ['Treadmill', 'Treadmill', Activity],
-              ['IndoorCycling', 'Indoor bike', Bike],
-              ['Rowing', 'Row', Activity],
-              ['HIIT', 'HIIT', Flag],
-              ['Yoga', 'Yoga', Activity],
-              ['Elliptical', 'Elliptical', Activity],
-              ['Calisthenics', 'Bodyweight', Dumbbell],
-            ] as [WorkoutType, string, React.ElementType][]).map(([id, label, Icon]) => (
-              <button key={id} onClick={() => setSelectedSport(id)} aria-pressed={selectedSport === id} className="sport-pill">
-                <Icon className="w-4 h-4" />
-                {label}
-              </button>
-            ))}
+          {/* The few sports you actually do, then everything else behind More: fewer choices on the first screen */}
+          <div className="flex flex-wrap gap-2 pb-1" role="group" aria-label={t('run.chooseActivity')}>
+            {quickSports.map((id) => {
+              const def = SPORT_DEFS.find((s) => s.id === id)!;
+              const Icon = def.icon;
+              return (
+                <button key={id} onClick={() => setSelectedSport(id)} aria-pressed={selectedSport === id} className="sport-pill">
+                  <Icon className="w-4 h-4" />
+                  {t(`sport.${id}` as MessageKey)}
+                </button>
+              );
+            })}
+            <button onClick={() => setSportsOpen(true)} className="sport-pill" aria-haspopup="dialog">
+              <MoreHorizontal className="w-4 h-4" />
+              {t('common.more')}
+            </button>
+          </div>
+          <Modal isOpen={sportsOpen} onClose={() => setSportsOpen(false)} title={t('run.chooseActivity')}>
+            <div className="space-y-5">
+              {SPORT_GROUPS.map((g) => (
+                <div key={g.title}>
+                  <h3 className="mb-2 text-sm font-bold text-neutral-200">{t(GROUP_KEYS[g.title] ?? ('sportGroup.outdoors' as MessageKey))}</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {g.ids.map((id) => {
+                      const def = SPORT_DEFS.find((s) => s.id === id)!;
+                      const Icon = def.icon;
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => { setSelectedSport(id); setSportsOpen(false); }}
+                          aria-pressed={selectedSport === id}
+                          className="sport-pill !min-h-12 !justify-start"
+                        >
+                          <Icon className="w-4 h-4" />
+                          {t(`sport.${id}` as MessageKey)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Modal>
+
+          <div className="flex flex-col items-center pt-7 pb-2">
+            <button onClick={() => requestStart(selectedSport)} aria-label={`Start ${selectedSport}`} className="go-btn">
+              GO
+            </button>
+            <p className="stat-label mt-8">
+              {GPS_TYPES.includes(selectedSport) ? `Phone GPS${hrFromSensor ? ' · live heart rate' : ''}` : 'Timer & heart rate'}
+            </p>
+            {!hrFromSensor && (
+              <p className="text-xs text-neutral-400 mt-2 text-center max-w-xs leading-relaxed">
+                No heart-rate sensor connected, so average HR is estimated. Link your watch in Settings for real readings.
+              </p>
+            )}
           </div>
 
           {weather && GPS_TYPES.includes(selectedSport) && <WeatherCard state={weather} theme={theme} units={units} compact />}
@@ -1565,7 +2047,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
             <section className="mt-4 rounded-[22px] border px-4 py-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }} aria-label={sportGear === 'bike' ? 'Bike for this ride' : 'Shoes for this run'}>
               <div className="flex items-center justify-between">
                 <span className="stat-label">{sportGear === 'bike' ? 'Bike' : 'Shoes'}</span>
-                <button type="button" onClick={() => { setGearKind(sportGear); setRunView('gear'); }} className="text-[11px] font-bold" style={{ color: theme.primary }}>
+                <button type="button" onClick={() => { setGearKind(sportGear); setRunView('gear'); }} className="text-xs font-bold" style={{ color: theme.primary }}>
                   {gearOfKind(shoes, sportGear).some((s) => !s.retired) ? 'Manage' : sportGear === 'bike' ? 'Add a bike' : 'Add shoes'}
                 </button>
               </div>
@@ -1588,7 +2070,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                         >
                           <span className="min-w-0">
                             <span className="block text-sm font-bold text-white truncate">{s.name}</span>
-                            <span className="block text-[11px] text-neutral-400">
+                            <span className="block text-xs text-neutral-400">
                               {kmToDisplay(km, units, 0)} / {kmToDisplay(s.retireKm, units, 0)} {distanceUnit(units)}
                             </span>
                           </span>
@@ -1608,39 +2090,18 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                   </button>
                 </div>
               ) : (
-                <p className="text-[11px] text-neutral-400 mt-1.5">
-                  {sportGear === 'bike'
-                    ? 'Add the bike you ride and each ride counts toward its mileage, with a reminder when a service is due.'
-                    : 'Add the shoes you run in and each run counts toward their mileage, with a warning as they wear out.'}
+                <p className="text-xs text-neutral-400 mt-1">
+                  {sportGear === 'bike' ? 'Track mileage and service reminders.' : 'Track mileage and when to replace them.'}
                 </p>
               )}
             </section>
           )}
           {selectedShoe && sportGear && shoeState(shoeKm(selectedShoe, workouts), selectedShoe.retireKm) !== 'good' && (
-            <p className="mt-2 px-2 text-[11px] font-semibold" style={{ color: theme.secondary }}>
+            <p className="mt-2 px-2 text-xs font-semibold" style={{ color: theme.secondary }}>
               {selectedShoe.name}: {shoeMessage(shoeState(shoeKm(selectedShoe, workouts), selectedShoe.retireKm), sportGear)}
             </p>
           )}
           {(selectedSport === 'Cycling' || selectedSport === 'IndoorCycling') && <CyclingSensorsCard theme={theme} sensors={cycling} />}
-
-          {/* Safety live share */}
-          {liveShare.enabled && canShareLocation(selectedSport) && (
-            <div className="mt-4 rounded-[22px] border px-4 py-3" style={{ backgroundColor: theme.surface, borderColor: shareThisRun ? theme.primary : theme.surfaceBorder }}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="stat-label flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5" /> Text my location
-                </span>
-                <button type="button" onClick={() => setShareThisRun((v) => !v)} aria-pressed={shareThisRun} className="sport-pill">
-                  {shareThisRun ? 'On for this run' : 'Off for this run'}
-                </button>
-              </div>
-              <p className="text-[11px] text-neutral-400 mt-2">
-                {shareThisRun
-                  ? `A text with a map link goes to ${liveShare.contacts.map((c) => c.name).join(', ')} when you start, every ${liveShare.everyMin} minutes, and when you finish. It goes by SMS, not the internet.`
-                  : 'Nothing will be texted on this run.'}
-              </p>
-            </div>
-          )}
 
           {/* Route to follow */}
           {GPS_TYPES.includes(selectedSport) && (
@@ -1664,12 +2125,12 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                     ))}
                   </select>
                 ) : (
-                  <button type="button" onClick={() => setRunView('routes')} className="text-[11px] font-bold underline text-neutral-300">
+                  <button type="button" onClick={() => setRunView('routes')} className="text-xs font-bold underline text-neutral-300">
                     Add a route to follow
                   </button>
                 )}
               </div>
-              {followRoute && <p className="text-[11px] text-neutral-400 mt-2">The route shows on the live map. You get a buzz (and a spoken note when spoken updates are on) if you leave it. It works with just GPS, no signal needed.</p>}
+              {followRoute && <p className="text-xs text-neutral-400 mt-2">The route shows on the live map. You get a buzz (and a spoken note when spoken updates are on) if you leave it. It works with just GPS, no signal needed.</p>}
             </div>
           )}
 
@@ -1680,19 +2141,28 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                 <span className="stat-label flex items-center gap-1.5">
                   <Target className="w-3.5 h-3.5" /> Goal
                 </span>
-                <span className="text-[11px] font-semibold text-neutral-500">
+                <span className="text-xs font-semibold text-neutral-400">
                   {goalType === 'open' ? 'No target, just go' : goalType === 'intervals' ? 'Voice and buzz at each step' : 'Buzz when you reach it'}
                 </span>
               </div>
-              <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar" role="group" aria-label="Goal type">
-                {(['open', 'distance', 'time', 'calories', 'intervals'] as GoalType[])
-                  .filter((t) => t !== 'distance' || GPS_TYPES.includes(selectedSport))
-                  .map((t) => (
-                    <button key={t} onClick={() => chooseGoalType(t)} aria-pressed={goalType === t} className="sport-pill">
+              {/* Every goal is shown at once (they wrap instead of scrolling sideways), so none is hidden off the edge */}
+              <div className="flex flex-wrap gap-2 mt-3" role="group" aria-label="Goal type">
+                {(['open', 'distance', 'time', 'calories', 'intervals'] as GoalType[]).map((t) => {
+                  const unavailable = t === 'distance' && !GPS_TYPES.includes(selectedSport);
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => !unavailable && chooseGoalType(t)}
+                      aria-pressed={goalType === t}
+                      aria-disabled={unavailable}
+                      className={`sport-pill ${unavailable ? 'opacity-40' : ''}`}
+                    >
                       {GOAL_LABELS[t]}
                     </button>
-                  ))}
+                  );
+                })}
               </div>
+              {!GPS_TYPES.includes(selectedSport) && <p className="mt-2 text-xs text-neutral-400">Distance goals need GPS, so they are for run, walk, ride and hike.</p>}
 
               {(goalType === 'distance' || goalType === 'time' || goalType === 'calories') && (
                 <>
@@ -1729,31 +2199,68 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
           )}
 
           {/* Interval workouts */}
+          {usesGps && selectedSport !== 'Strength' && goalType !== 'intervals' && (
+            <GhostPicker theme={theme} units={units} choices={ghostOptions} mode={ghostMode} onMode={setGhostMode} pace={ghostPace} onPace={setGhostPace} />
+          )}
           {selectedSport !== 'Strength' && goalType === 'intervals' && (
             <div className="mt-3 rounded-[26px] border p-4 space-y-2" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
               <div className="flex items-center justify-between">
                 <span className="stat-label">Workout</span>
-                {!runOptions.voiceCues && <span className="text-[10px] text-neutral-500">Turn on Spoken updates in Settings for voice cues</span>}
+                {!prefs.intervalVoice && <span className="text-xs text-neutral-400">Voice for intervals is off in Settings</span>}
               </div>
               {INTERVAL_WORKOUTS.map((w) => {
                 const on = ivChoice === w.id;
                 const mins = Math.round(plannedSeconds(w.steps) / 60);
                 return (
-                  <button
-                    key={w.id}
-                    onClick={() => setIvChoice(w.id)}
-                    aria-pressed={on}
-                    className="w-full text-left rounded-2xl glass-inset px-4 py-3"
-                    style={on ? { borderColor: theme.primary } : undefined}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold text-white">{w.name}</span>
-                      <span className="text-[11px] font-bold text-neutral-400">{mins > 0 ? `${mins}+ min` : ''}</span>
-                    </div>
-                    <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">{w.description}</p>
-                  </button>
+                  <div key={w.id} className="flex items-stretch gap-2">
+                    <button
+                      onClick={() => setIvChoice(w.id)}
+                      aria-pressed={on}
+                      className="min-w-0 flex-1 text-left rounded-2xl glass-inset px-4 py-3"
+                      style={on ? { borderColor: theme.primary } : undefined}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-white">{w.name}</span>
+                        <span className="text-xs font-bold text-neutral-400">{mins > 0 ? `${mins}+ min` : ''}</span>
+                      </div>
+                      <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">{w.description}</p>
+                    </button>
+                    <button
+                      onClick={() =>
+                        setPreview({
+                          preset: { kind: 'intervals', name: w.name, description: w.description, steps: w.steps },
+                          actions: [{ label: 'Use this workout', primary: true, onClick: () => { setIvChoice(w.id); setPreview(null); } }],
+                        })
+                      }
+                      aria-label={`Preview ${w.name}`}
+                      className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl glass-inset px-3 text-neutral-300"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span className="text-xs font-bold">Preview</span>
+                    </button>
+                  </div>
                 );
               })}
+              <button
+                onClick={() => setIvChoice('runwalk')}
+                aria-pressed={ivChoice === 'runwalk'}
+                className="w-full text-left rounded-2xl glass-inset px-4 py-3"
+                style={ivChoice === 'runwalk' ? { borderColor: theme.primary } : undefined}
+              >
+                <span className="text-sm font-bold text-white">Run / walk: set your own timing</span>
+                <p className="text-xs text-neutral-400 mt-0.5">Choose how long to run, how long to walk and how many rounds.</p>
+              </button>
+              {ivChoice === 'runwalk' && (
+                <>
+                  <RunWalkBuilder value={runWalk} onChange={setRunWalk} theme={theme} />
+                  <button
+                    onClick={() => setPreview({ preset: { kind: 'intervals', name: 'Your run / walk', description: 'The workout as you have set it.', steps: buildRunWalk(runWalk) }, actions: [] })}
+                    className="sport-pill !py-2 !text-xs w-full justify-center"
+                  >
+                    <Eye className="w-4 h-4" /> Preview this workout
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => setIvChoice('custom')}
                 aria-pressed={ivChoice === 'custom'}
@@ -1761,7 +2268,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                 style={ivChoice === 'custom' ? { borderColor: theme.primary } : undefined}
               >
                 <span className="text-sm font-bold text-white">Build your own</span>
-                <p className="text-[11px] text-neutral-500 mt-0.5">Pick the reps, effort and rest.</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Pick the reps, effort and rest.</p>
               </button>
               {ivChoice === 'custom' && (
                 <div className="grid grid-cols-2 gap-3 pt-1">
@@ -1794,11 +2301,35 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                   >
                     Effort by {custom.workByDistance ? 'distance' : 'time'}: switch
                   </button>
+                  <button
+                    onClick={() => setPreview({ preset: { kind: 'intervals', name: 'Your workout', description: 'The workout as you have set it.', steps: buildCustomIntervals(custom) }, actions: [] })}
+                    className="sport-pill col-span-2 justify-center !py-2 !text-xs"
+                  >
+                    <Eye className="w-4 h-4" /> Preview this workout
+                  </button>
                 </div>
               )}
             </div>
           )}
 
+          {/* Advanced: the rarely changed settings stay folded away so the page is short */}
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="mt-4 flex min-h-12 w-full items-center justify-between gap-3 rounded-[22px] border px-4 py-3 text-left"
+            style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-white">Advanced</span>
+              <span className="block truncate text-xs text-neutral-400">
+                {[paceTargetOn && GPS_TYPES.includes(selectedSport) ? 'Pace target on' : '', zoneTarget > 0 ? `Zone ${zoneTarget}` : '', beatOn ? `Beat ${beatBpm}` : ''].filter(Boolean).join(' · ') || 'Pace and heart-rate targets, cadence beat'}
+              </span>
+            </span>
+            <ChevronDown className={`h-5 w-5 shrink-0 text-neutral-300 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {advancedOpen && (
+          <>
           {/* Pace and heart-rate targets */}
           {selectedSport !== 'Strength' && (
             <div className="mt-3 rounded-[26px] border p-4" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
@@ -1822,14 +2353,14 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                   </div>
                   {paceTargetOn && (
                     <div className="flex items-center justify-between mt-3">
-                      <button onClick={() => nudgePace(-1)} aria-label="Faster target" className="w-10 h-10 rounded-full glass-chip flex items-center justify-center text-white">
+                      <button onClick={() => nudgePace(-1)} aria-label="Faster target" className="w-11 h-11 rounded-full glass-chip flex items-center justify-center text-white">
                         <Minus className="w-4 h-4" />
                       </button>
                       <div className="text-center">
                         <div className="hero-num text-[2.6rem]">{formatPaceSec(paceShown)}</div>
                         <div className="stat-label mt-1">per {distanceUnit(units)}</div>
                       </div>
-                      <button onClick={() => nudgePace(1)} aria-label="Slower target" className="w-10 h-10 rounded-full glass-chip flex items-center justify-center text-white">
+                      <button onClick={() => nudgePace(1)} aria-label="Slower target" className="w-11 h-11 rounded-full glass-chip flex items-center justify-center text-white">
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
@@ -1846,7 +2377,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                   ))}
                 </div>
                 {zoneTarget > 0 && !hrFromSensor && (
-                  <p className="text-[10px] text-neutral-500 mt-2">Needs a live heart-rate sensor (your watch or a chest strap) to alert.</p>
+                  <p className="text-xs text-neutral-400 mt-2">Needs a live heart-rate sensor (your watch or a chest strap) to alert.</p>
                 )}
               </div>
             </div>
@@ -1856,7 +2387,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-sm font-semibold text-white">Cadence beat</span>
-                <p className="text-[11px] text-neutral-500 mt-0.5">A steady click to pace your steps. Plays while you run, even with the screen off.</p>
+                <p className="text-xs text-neutral-400 mt-0.5">A steady click to pace your steps. Plays while you run, even with the screen off.</p>
               </div>
               <button
                 role="switch"
@@ -1903,31 +2434,21 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                   <button onClick={() => setBeatPreview((v) => !v)} aria-pressed={beatPreview} className="sport-pill !py-2 !text-xs">
                     {beatPreview ? 'Stop preview' : 'Hear it'}
                   </button>
-                  <label className="flex items-center gap-2 text-[11px] text-neutral-400 font-semibold">
+                  <label className="flex items-center gap-2 text-xs text-neutral-400 font-semibold">
                     <input type="checkbox" checked={beatAlt} onChange={(e) => setBeatAlt(e.target.checked)} />
                     Different tone for each foot
                   </label>
                 </div>
-                <p className="text-[10px] text-neutral-600 mt-3 leading-relaxed">
+                <p className="text-xs text-neutral-400 mt-3 leading-relaxed">
                   Most runners land between 160 and 180 steps a minute. Change it by a few steps at a time. Use headphones for a quieter, clearer click.
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex flex-col items-center py-9">
-            <button onClick={() => requestStart(selectedSport)} aria-label={`Start ${selectedSport}`} className="go-btn">
-              GO
-            </button>
-            <p className="stat-label mt-9">
-              {GPS_TYPES.includes(selectedSport) ? `Phone GPS${hrFromSensor ? ' · live heart rate' : ''}` : 'Timer & heart rate'}
-            </p>
-            {!hrFromSensor && (
-              <p className="text-[11px] text-neutral-600 mt-2 text-center max-w-xs leading-relaxed">
-                No heart-rate sensor connected, so average HR is estimated. Link your watch in Settings for real readings.
-              </p>
-            )}
-          </div>
+          </>
+          )}
+
         </section>
       )}
 
@@ -1940,7 +2461,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
             activePlan={activePlan}
             routines={routines}
             onActivatePlan={onActivatePlan}
-            onStartStrength={(ids, title) => setStrength({ open: true, ids, title })}
+            onStartStrength={(ids, title) => beginStrength(ids, { title })}
             onStartCardio={handleStartCardio}
             onDeleteRoutine={onDeleteRoutine}
             onSaveRoutine={onSaveRoutine}
@@ -1950,9 +2471,9 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4" style={{ color: theme.primary }} />
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">Quick sessions</h3>
+                <h3 className="text-sm font-bold text-neutral-200">Quick sessions</h3>
               </div>
-              <span className="text-[11px] font-bold" style={{ color: theme.primary }}>
+              <span className="text-xs font-bold" style={{ color: theme.primary }}>
                 1-tap log
               </span>
             </div>
@@ -1972,12 +2493,24 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-white">{template.title}</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-300 whitespace-nowrap">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-300 whitespace-nowrap">
                           {template.durationMinutes} min
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#7E889B] leading-relaxed">{template.description}</p>
+                      <p className="text-xs text-[#9AA3B2] leading-relaxed">{template.description}</p>
                     </div>
+                    <button
+                      onClick={() =>
+                        setPreview({
+                          preset: { kind: 'quick', template },
+                          actions: isDone ? [] : [{ label: 'Log it', primary: true, onClick: () => { handleCompleteQuickWorkout(template); setPreview(null); } }],
+                        })
+                      }
+                      aria-label={`Preview ${template.title}`}
+                      className="flex h-11 w-11 items-center justify-center rounded-full glass-inset text-neutral-200 shrink-0"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
                     <button
                       disabled={isDone}
                       onClick={() => handleCompleteQuickWorkout(template)}
@@ -2037,12 +2570,12 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
                   <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-2">
                     <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
                   </div>
-                  {state !== 'good' && !s.retired && <p className="text-[11px] font-semibold mt-2" style={{ color }}>{shoeMessage(state, gearKind)}</p>}
-                  <div className="flex gap-4 mt-3 text-[11px] font-bold uppercase tracking-wider">
+                  {state !== 'good' && !s.retired && <p className="text-xs font-semibold mt-2" style={{ color }}>{shoeMessage(state, gearKind)}</p>}
+                  <div className="flex gap-4 mt-3 text-xs font-bold uppercase tracking-wider">
                     <button onClick={() => onShoesChange(shoes.map((x) => (x.id === s.id ? { ...x, retired: !x.retired } : x)))} className="text-neutral-400 hover:text-white">
                       {s.retired ? 'Bring back' : 'Retire'}
                     </button>
-                    <button onClick={() => onShoesChange(shoes.filter((x) => x.id !== s.id))} className="text-neutral-500 hover:text-rose-400">
+                    <button onClick={() => onShoesChange(shoes.filter((x) => x.id !== s.id))} className="text-neutral-400 hover:text-rose-400">
                       Delete
                     </button>
                   </div>
@@ -2113,7 +2646,7 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
             <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#111] p-6 text-center">
               <h2 className="text-xl font-extrabold italic text-white">Workout saved</h2>
               <p className="mt-2 text-sm text-gray-400">The detailed breakdown could not be shown. Your workout is in your history.</p>
-              <button onClick={() => setDetail(null)} className="mt-5 w-full rounded-2xl bg-[#cbff00] py-3 font-extrabold text-black">
+              <button onClick={() => setDetail(null)} className="mt-5 w-full rounded-2xl bg-[#FF5500] py-3 font-extrabold text-black">
                 Close
               </button>
             </div>
@@ -2134,27 +2667,16 @@ export const FitnessScreen: React.FC<ExerciseScreenProps> = ({
         />
       </ErrorBoundary>
 
-      {/* STRENGTH LOGGER */}
-      <StrengthLoggerModal
-        isOpen={strength.open}
-        onClose={() => setStrength((s) => ({ ...s, open: false }))}
-        theme={theme}
-        profile={profile}
-        workouts={workouts}
-        initialExerciseIds={strength.ids}
-        planDayTitle={strength.title}
-        liveBpm={liveBpm}
-        hrFromSensor={hrFromSensor}
-        watchKcal={watchKcal}
-        watchLaunch={watchStartedHere}
-        remoteStopToken={strengthStopToken}
-        onSave={onAddWorkout}
-        onSaveRoutine={onSaveRoutine}
-      />
 
+      <PresetPreview preset={preview?.preset ?? null} theme={theme} onClose={() => setPreview(null)} actions={preview?.actions} />
       {showManualModal && <ManualWorkoutModal initialType={manualType} profile={profile} onSave={onAddWorkout} onClose={() => setShowManualModal(false)} />}
     </div>
   );
 };
 
 export const ExerciseScreen = FitnessScreen;
+
+
+
+
+

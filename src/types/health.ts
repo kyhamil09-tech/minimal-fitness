@@ -8,6 +8,7 @@ export type TabId =
   | 'sleep'
   | 'fasting'
   | 'healthlog'
+  | 'breathe'
   | 'progress'
   /** Stands for Progress opened on its Vitals section (live heart rate and the daily fitness numbers). */
   | 'health'
@@ -42,7 +43,20 @@ export type WorkoutType =
   | 'Treadmill'
   | 'IndoorCycling'
   | 'Elliptical'
-  | 'Yoga';
+  | 'Yoga'
+  | 'Swimming'
+  | 'OpenWaterSwim'
+  | 'StairClimbing'
+  | 'Dance'
+  | 'Pilates'
+  | 'Stretching'
+  | 'AlpineSkiing'
+  | 'CrossCountrySkiing'
+  | 'Snowboarding'
+  | 'Snowshoeing'
+  | 'IceSkating'
+  | 'Kayaking'
+  | 'Paddleboarding';
 
 export interface WorkoutSession {
   id: string;
@@ -50,6 +64,10 @@ export interface WorkoutSession {
   timestamp: string;
   durationMinutes: number;
   distanceKm?: number;
+  /** True when the distance was worked out from counted steps (a treadmill), not measured by GPS. */
+  distanceEstimated?: boolean;
+  /** Steps the phone counted, when the distance came from them. */
+  stepCount?: number;
   avgHeartRate: number;
   caloriesBurned: number;
   isManualEntry?: boolean;
@@ -72,10 +90,14 @@ export interface WorkoutSession {
   laps?: Lap[];
   elevationLossM?: number;
   elevationGainM?: number;
-  /** Heart rate came from a live sensor (Pixel Watch or Bluetooth) rather than an estimate. */
+  /** Heart rate came from a live sensor (a linked watch or a Bluetooth sensor) rather than an estimate. */
   hrFromSensor?: boolean;
   exercises?: ExerciseLog[];
   planDayTitle?: string;
+  /** The program workout this was (Lift side): which program, and which workout in it. Finishing it moves the program on. */
+  program?: { id: string; index: number };
+  /** A name the person gave the workout (Lift side), shown in the history. */
+  title?: string;
   /** Steps per minute from the phone's step sensor (average and highest while moving). */
   cadenceAvg?: number;
   cadenceMax?: number;
@@ -173,6 +195,14 @@ export interface SleepLogEntry {
   efficiencyScore: number; // 0-100%
   /** The night's timeline and overnight readings, when a watch or the app's own sensors supplied them. */
   detail?: SleepDetail;
+  /** The app that saved this night in Health Connect (a package name), so you can tell which tracker it came from. */
+  originApp?: string;
+  /** What other trackers recorded for the same night, kept so you can switch to one. */
+  alternates?: SleepLogEntry[];
+  /** You picked this version of the night by hand, so a later sync does not swap it. */
+  pinned?: boolean;
+  /** Set when the night was stitched together from more than one tracker (the apps that saved the pieces). */
+  mergedFrom?: string[];
 }
 
 /** Sleep stage codes used in {@link SleepDetail.segments}. */
@@ -190,6 +220,8 @@ export interface SleepDetail {
   hrAvg?: number;
   hrMin?: number;
   hrMax?: number;
+  /** Heart rate through the night as five-minute averages: [epoch ms, bpm]. */
+  hrSeries?: [number, number][];
   /** Heart rate variability (RMSSD, ms). */
   hrvMs?: number;
   /** Breaths per minute. */
@@ -210,4 +242,5 @@ export interface SleepStage {
   percentage: number;
   color: string;
 }
+
 

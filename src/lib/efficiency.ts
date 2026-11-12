@@ -6,7 +6,7 @@ import { TrackPoint } from './geo';
  * means your aerobic base is solid for that effort; over about 8% means the run outpaced it.
  */
 
-/** Metres per minute per beat per minute: the higher the better. */
+/** Meters per minute per beat per minute: the higher the better. */
 export const efficiencyFactor = (speedMs: number, avgHr: number): number => (avgHr > 0 ? (speedMs * 60) / avgHr : 0);
 
 export interface Drift {

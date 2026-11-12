@@ -4,11 +4,13 @@ import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.drawable.Icon;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.wear.watchface.complications.data.ComplicationData;
 import androidx.wear.watchface.complications.data.ComplicationText;
 import androidx.wear.watchface.complications.data.ComplicationType;
+import androidx.wear.watchface.complications.data.MonochromaticImage;
 import androidx.wear.watchface.complications.data.NoDataComplicationData;
 import androidx.wear.watchface.complications.data.PlainComplicationText;
 import androidx.wear.watchface.complications.data.RangedValueComplicationData;
@@ -44,7 +46,8 @@ public abstract class GlanceComplicationService extends ComplicationDataSourceSe
 
     /** Asks the system to redraw every complication of this app that is on a watch face. */
     static void requestAll(Context ctx) {
-        Class<?>[] all = {ReadinessComplicationService.class, StepsComplicationService.class, MonthGoalComplicationService.class, FastingComplicationService.class};
+        Class<?>[] all = {ReadinessComplicationService.class, StepsComplicationService.class, MonthGoalComplicationService.class, FastingComplicationService.class, SleepComplicationService.class,
+            HeartComplicationService.class, CaloriesComplicationService.class, WaterComplicationService.class, FastingBarComplicationService.class, EatComplicationService.class, SleepDebtComplicationService.class};
         for (Class<?> cls : all) request(ctx, cls);
     }
 
@@ -75,6 +78,11 @@ public abstract class GlanceComplicationService extends ComplicationDataSourceSe
         return PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
+    /** A single-color icon for faces that draw one beside the number; 0 means none. */
+    protected int iconRes() {
+        return 0;
+    }
+
     /** The text a complication shows; fasting overrides this to count up on its own. */
     protected ComplicationText textFor(Reading r, boolean preview) {
         return new PlainComplicationText.Builder(r.text).build();
@@ -86,13 +94,16 @@ public abstract class GlanceComplicationService extends ComplicationDataSourceSe
         ComplicationText description = new PlainComplicationText.Builder(r.description).build();
         ComplicationText text = textFor(r, preview);
         ComplicationText title = new PlainComplicationText.Builder(r.title).build();
+        MonochromaticImage image = iconRes() != 0
+            ? new MonochromaticImage.Builder(Icon.createWithResource(this, iconRes())).build()
+            : null;
         if (type == ComplicationType.RANGED_VALUE) {
             float max = r.max > 0 ? r.max : 100f;
             float value = Math.max(0f, Math.min(max, r.value));
-            return new RangedValueComplicationData.Builder(value, 0f, max, description).setText(text).setTitle(title).setTapAction(tap).build();
+            return new RangedValueComplicationData.Builder(value, 0f, max, description).setText(text).setTitle(title).setMonochromaticImage(image).setTapAction(tap).build();
         }
         if (type == ComplicationType.SHORT_TEXT) {
-            return new ShortTextComplicationData.Builder(text, description).setTitle(title).setTapAction(tap).build();
+            return new ShortTextComplicationData.Builder(text, description).setTitle(title).setMonochromaticImage(image).setTapAction(tap).build();
         }
         return new NoDataComplicationData();
     }

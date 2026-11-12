@@ -1,6 +1,6 @@
 import type { Lap, WorkoutType } from '../types/health';
 import type { TrackPoint } from './geo';
-import type { CustomIntervalInput, IntervalStep } from '../data/intervals';
+import type { CustomIntervalInput, IntervalStep, RunWalkInput } from '../data/intervals';
 import { kmToDisplay } from './units';
 
 /**
@@ -8,7 +8,7 @@ import { kmToDisplay } from './units';
  * the run in progress saved every few seconds so a killed app does not lose it, and each activity's last goal.
  */
 
-export const GPS_TYPES: WorkoutType[] = ['Running', 'Walking', 'Cycling', 'Hiking'];
+export const GPS_TYPES: WorkoutType[] = ['Running', 'Walking', 'Cycling', 'Hiking', 'AlpineSkiing', 'CrossCountrySkiing', 'Snowboarding', 'Snowshoeing', 'Kayaking', 'Paddleboarding'];
 
 export type NumericGoal = 'distance' | 'time' | 'calories';
 export type GoalType = 'open' | NumericGoal | 'intervals';
@@ -39,8 +39,10 @@ export const DEFAULT_CUSTOM: CustomIntervalInput = { reps: 6, work: 2, workByDis
 export interface RunSetup {
   ivChoice?: string;
   custom?: CustomIntervalInput;
+  /** Your own run/walk timing (see data/intervals buildRunWalk). */
+  runWalk?: RunWalkInput;
   paceOn?: boolean;
-  /** Seconds per kilometre. */
+  /** Seconds per kilometer. */
   pace?: number;
   zone?: number;
   /** Cadence beat: on, steps per minute, and different tones for left and right foot. */

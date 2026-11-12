@@ -39,7 +39,7 @@ public class LaunchPlugin extends Plugin {
 
     /**
      * Asks the launcher to pin a home-screen shortcut that opens the app, drawn from a picture the page made. This is how a custom
-     * logo colour reaches the home screen: Android only lets the real app icon be one of the ready-made colours, but a shortcut can
+     * logo color reaches the home screen: Android only lets the real app icon be one of the ready-made colors, but a shortcut can
      * carry any picture. The launcher shows its own "add to home screen" confirmation.
      */
     @PluginMethod
@@ -127,12 +127,14 @@ public class LaunchPlugin extends Plugin {
         call.resolve(o);
     }
 
-    /** Opens Android's one-tap dialog to exempt the app from battery optimisation. */
+    /**
+     * Opens Android's battery-optimisation list, where the person switches this app to "Unrestricted" or "Not optimized". It uses the
+     * settings screen rather than the one-tap request, which needs a permission Google Play only allows for a few kinds of app.
+     */
     @PluginMethod
     public void requestIgnoreBatteryOptimizations(PluginCall call) {
         try {
-            android.content.Intent i = new android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                android.net.Uri.parse("package:" + getContext().getPackageName()));
+            android.content.Intent i = new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
             i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(i);
             call.resolve();
@@ -141,13 +143,13 @@ public class LaunchPlugin extends Plugin {
         }
     }
 
-    private static final String[] ICON_IDS = {"forest", "charcoal", "cream", "terracotta", "lavender", "ocean", "rose", "lime"};
+    private static final String[] ICON_IDS = {"runclub", "forest", "charcoal", "cream", "terracotta", "lavender", "ocean", "rose", "lime"};
 
     private static String iconAlias(Context c, String id) {
         return c.getPackageName().equals("com.kyfitness.app") ? "com.kyfitness.app.Icon" + Character.toUpperCase(id.charAt(0)) + id.substring(1) : null;
     }
 
-    /** Changes the home-screen icon colour by switching which launcher entry is enabled. */
+    /** Changes the home-screen icon color by switching which launcher entry is enabled. */
     @PluginMethod
     public void setLauncherIcon(PluginCall call) {
         String id = call.getString("id", "forest");
@@ -173,7 +175,7 @@ public class LaunchPlugin extends Plugin {
         }
     }
 
-    /** Which icon colour is on now. */
+    /** Which icon color is on now. */
     @PluginMethod
     public void getLauncherIcon(PluginCall call) {
         android.content.pm.PackageManager pm = getContext().getPackageManager();

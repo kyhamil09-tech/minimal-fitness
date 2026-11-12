@@ -10,8 +10,8 @@ import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
 /**
- * Sends the look chosen on the phone (accent palette and background, as a handful of colours) to the watch over the Bluetooth link,
- * so the watch app, tile and workout screens use the same colours. One small item is kept up to date; the watch stores it and
+ * Sends the look chosen on the phone (accent palette and background, as a handful of colors) to the watch over the Bluetooth link,
+ * so the watch app, tile and workout screens use the same colors. One small item is kept up to date; the watch stores it and
  * redraws. With no watch paired nothing happens.
  */
 @CapacitorPlugin(name = "Look")

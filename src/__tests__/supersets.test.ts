@@ -82,7 +82,7 @@ test('uneven set counts: an exercise with no set for that round is skipped', () 
   assert.deepEqual(afterGroupedSetDone(pending, 0, 2), { cursor: 2, rest: true });
 });
 
-test('an exercise on its own keeps the normal behaviour', () => {
+test('an exercise on its own keeps the normal behavior', () => {
   assert.equal(afterGroupedSetDone([item([true, false]), item([false])], 0, 0), null);
 });
 
@@ -105,7 +105,7 @@ test('the watch’s Done button follows the superset: partner exercise next with
   assert.deepEqual(second.rest, { kind: 'start' }); // rest after the round
 });
 
-test('the watch keeps its usual behaviour for an exercise on its own', async () => {
+test('the watch keeps its usual behavior for an exercise on its own', async () => {
   const { applyStrengthCommand } = await import('../lib/watchStrength');
   const state = { items: [{ exerciseId: 'squat', name: 'Squat', rows: [{ reps: '8', weight: '20', done: false }, { reps: '8', weight: '20', done: false }] }], cursor: 0 };
   const out = applyStrengthCommand(state, { action: 'done' }, 'metric');

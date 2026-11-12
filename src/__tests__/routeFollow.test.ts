@@ -37,7 +37,7 @@ test('bearings and turns', () => {
 test('staying on the route reports progress and no warning', () => {
   const f = new RouteFollower(lRoute());
   assert.ok(Math.abs(f.totalKm - 2) < 0.02);
-  const mid = f.update([north(51, 500), -0.1 + 3 * M]); // a few metres off the line
+  const mid = f.update([north(51, 500), -0.1 + 3 * M]); // a few meters off the line
   assert.equal(mid.isOff, false);
   assert.ok(Math.abs(mid.progressKm - 0.5) < 0.03);
   assert.ok(Math.abs(mid.remainingKm - 1.5) < 0.03);

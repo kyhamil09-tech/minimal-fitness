@@ -1,4 +1,5 @@
 import type { FoodRecord } from './foodDb';
+import { offMicros } from './micros';
 
 export interface BarcodeProduct {
   name: string;
@@ -57,7 +58,7 @@ export const mapSearchResults = (json: any): BarcodeProduct[] => {
   return out;
 };
 
-// ---- Packaged foods as full food records (fibre, sugar, sodium, serving size, brand) ----
+// ---- Packaged foods as full food records (fiber, sugar, sodium, serving size, brand) ----
 
 const FIELDS = 'code,product_name,brands,nutriments,serving_quantity,serving_size';
 
@@ -92,6 +93,7 @@ export const offRecord = (p: any): FoodRecord | null => {
     portions,
     brand: brand || undefined,
     barcode: p.code ? String(p.code) : undefined,
+    micros: offMicros(n),
   };
 };
 
@@ -124,15 +126,26 @@ export const searchPackaged = async (query: string, signal?: AbortSignal): Promi
   return mapPackagedResults(await res.json());
 };
 
+/**
+ * The numbers to try for a scanned or typed barcode, in order. US products carry a 12-digit UPC, which Open Food Facts keeps as a
+ * 13-digit code with a 0 in front, so that form goes first.
+ */
+export const barcodeCandidates = (code: string): string[] => {
+  const clean = code.replace(/\D/g, '');
+  return clean.length === 12 ? [`0${clean}`, clean] : [clean];
+};
+
 /** Looks a barcode up as a food record. Only the number is sent. */
 export const lookupPackaged = async (code: string, signal?: AbortSignal): Promise<FoodRecord | null> => {
   const clean = code.replace(/\D/g, '');
   if (clean.length < 6) throw new Error('Enter the digits printed under the barcode.');
-  const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${clean}.json?fields=${FIELDS}`, { signal });
-  if (!res.ok && res.status !== 404) throw new Error('The food service is unavailable right now.');
-  const json = await res.json();
-  if (!json || json.status === 0 || !json.product) return null;
-  return offRecord({ ...json.product, code: clean });
+  for (const candidate of barcodeCandidates(clean)) {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${candidate}.json?fields=${FIELDS}`, { signal });
+    if (!res.ok && res.status !== 404) throw new Error('The food service is unavailable right now.');
+    const json = await res.json();
+    if (json && json.status !== 0 && json.product) return offRecord({ ...json.product, code: candidate });
+  }
+  return null;
 };
 
 /** Searches Open Food Facts by name. Only the words you typed are sent, and only when you press Search. */

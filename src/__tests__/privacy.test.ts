@@ -29,7 +29,8 @@ test('only the listed services are allowed, and everything else is refused', () 
     assert.equal(v.allow, false, h);
     assert.equal(v.feature, 'other');
   }
-  assert.equal(featureForHost('TILE.OPENSTREETMAP.ORG'), 'maps');
+  assert.equal(featureForHost('SERVER.ARCGISONLINE.COM'), 'maps');
+  assert.equal(featureForHost('tile.openstreetmap.org'), null, 'the app no longer asks OpenStreetMap for tiles');
   assert.equal(featureForHost('evil.test'), null);
 });
 
@@ -69,7 +70,7 @@ test('the log keeps the newest requests and counts sent and blocked ones', () =>
 
 test('the security policy lists exactly the web-view services and nothing else', () => {
   const csp = contentSecurityPolicy();
-  assert.match(csp, /connect-src 'self' https:\/\/tile\.openstreetmap\.org https:\/\/server\.arcgisonline\.com https:\/\/api\.open-meteo\.com https:\/\/world\.openfoodfacts\.org(;|$)/);
+  assert.match(csp, /connect-src 'self' https:\/\/server\.arcgisonline\.com https:\/\/api\.open-meteo\.com https:\/\/world\.openfoodfacts\.org https:\/\/api\.nal\.usda\.gov(;|$)/);
   assert.ok(!csp.includes('strava'), 'Strava is called by native code, so the web view is not allowed to reach it');
   assert.match(csp, /script-src 'self'(;|$)/);
   assert.match(csp, /object-src 'none'/);
@@ -77,7 +78,7 @@ test('the security policy lists exactly the web-view services and nothing else',
   assert.ok(!/\*/.test(csp), 'no wildcards');
 });
 
-test('permissions are described in plain words and health permissions are summarised', () => {
+test('permissions are described in plain words and health permissions are summarized', () => {
   const groups = describePermissions([
     { name: 'android.permission.INTERNET', granted: true },
     { name: 'android.permission.ACCESS_FINE_LOCATION', granted: false },

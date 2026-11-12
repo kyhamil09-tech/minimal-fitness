@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { GrabHandle } from './ui/GrabHandle';
 import { Check, ChevronLeft, ChevronRight, Copy, Plus, ShoppingBasket, Trash2, Utensils, X } from 'lucide-react';
 import { ColorPalette } from '../types/theme';
 import { Goals, MealType, SavedMeal } from '../types/tracking';
 import { useMealPlan } from '../hooks/useMealPlan';
 import { MEAL_ORDER, groceryList, groceryText, mealTotals, plannedDayTotals, plannedIn, weekDates } from '../lib/mealPlan';
 import { addDays, parseDateKey, startOfWeek, toDateKey, todayKey } from '../lib/dates';
+import { Segmented } from './ui/Segmented';
 
 interface MealPlanSheetProps {
   theme: ColorPalette;
@@ -58,7 +60,7 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
     }
   };
 
-  const btn = 'rounded-lg border border-neutral-700 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-200 hover:text-white';
+  const btn = 'rounded-lg border border-neutral-700 px-2.5 py-1.5 text-xs font-semibold text-neutral-200 hover:text-white';
   const nav = 'rounded-full border border-neutral-800 p-2 text-neutral-300 hover:text-white';
   const totalItems = grocery.length + mp.extras.length;
   const doneItems = grocery.filter((g) => mp.checked[g.key]).length + mp.extras.filter((e) => mp.checked[`extra:${e.id}`]).length;
@@ -71,28 +73,27 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fadeIn"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-lg max-h-[94dvh] overflow-y-auto rounded-t-[32px] border border-b-0 border-[#1A1E26] bg-[#0B0D11] p-5 pb-8 text-white shadow-2xl">
+      <div className="w-full max-w-lg max-h-[94dvh] overflow-y-auto rounded-t-[32px] border border-b-0 border-[#1A1E26] bg-[#0B0D11] px-5 pb-8 pt-0 text-white shadow-2xl">
+        <GrabHandle onClose={onClose} />
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold">Meal plan</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-neutral-400 hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-full text-neutral-300 hover:text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="mt-3 flex gap-1 rounded-full bg-white/[0.06] p-0.5" role="group" aria-label="Meal plan view">
-          {([['plan', 'Plan', <Utensils key="p" className="h-3.5 w-3.5" />], ['groceries', 'Groceries', <ShoppingBasket key="g" className="h-3.5 w-3.5" />]] as const).map(([id, label, icon]) => (
-            <button
-              key={id}
-              onClick={() => setView(id)}
-              aria-pressed={view === id}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 text-[11px] font-bold"
-              style={{ background: view === id ? '#fff' : 'transparent', color: view === id ? '#000' : '#9AA3B2' }}
-            >
-              {icon}
-              {label}
-            </button>
-          ))}
-        </div>
+        <Segmented<'plan' | 'groceries'>
+          className="mt-3"
+          ariaLabel="Meal plan view"
+          size="sm"
+          semantics="group"
+          value={view}
+          onChange={setView}
+          options={[
+            { id: 'plan', label: 'Plan', icon: <Utensils className="h-3.5 w-3.5" /> },
+            { id: 'groceries', label: 'Groceries', icon: <ShoppingBasket className="h-3.5 w-3.5" /> },
+          ]}
+        />
 
         <div className="mt-3 flex items-center justify-between">
           <button onClick={() => setWeekStart(addDays(weekStart, -7))} className={nav} aria-label="Previous week">
@@ -100,7 +101,7 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
           </button>
           <div className="text-center">
             <div className="text-sm font-semibold">{isThisWeek ? 'This week' : range}</div>
-            {isThisWeek && <div className="text-[10px] text-[#7E889B]">{range}</div>}
+            {isThisWeek && <div className="text-xs text-[#9AA3B2]">{range}</div>}
           </div>
           <button onClick={() => setWeekStart(addDays(weekStart, 7))} className={nav} aria-label="Next week">
             <ChevronRight className="h-4 w-4" />
@@ -129,7 +130,7 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
                       {dayLabel(date, today)}
                     </h3>
                     {totals.calories > 0 && (
-                      <span className="text-[10px] tabular-nums" style={{ color: over ? '#F28B82' : '#7E889B' }}>
+                      <span className="text-xs tabular-nums" style={{ color: over ? '#F28B82' : '#7E889B' }}>
                         {Math.round(totals.calories).toLocaleString()} of {goals.dailyCalories.toLocaleString()} kcal · {Math.round(totals.proteinG)} g protein
                       </span>
                     )}
@@ -141,7 +142,7 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
                       return (
                         <div key={meal}>
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#7E889B]">{meal}</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-[#9AA3B2]">{meal}</span>
                             {savedMeals.length > 0 && (
                               <button onClick={() => setAdding(adding === key ? null : key)} className="rounded-full p-1 text-neutral-400 hover:text-white" aria-label={`Add a meal to ${meal} on ${dayLabel(date, today)}`}>
                                 <Plus className="h-4 w-4" />
@@ -154,10 +155,10 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
                               <div key={p.id} className="mt-1 flex items-center gap-2 rounded-xl bg-white/[0.04] px-2.5 py-2">
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-xs font-semibold">{m ? m.name : 'Deleted meal'}</div>
-                                  {m && <div className="text-[10px] text-[#7E889B]">{Math.round(mealTotals(m).calories)} kcal · {Math.round(mealTotals(m).proteinG)} g protein</div>}
+                                  {m && <div className="text-xs text-[#9AA3B2]">{Math.round(mealTotals(m).calories)} kcal · {Math.round(mealTotals(m).proteinG)} g protein</div>}
                                 </div>
                                 {m && (p.loggedAt ? (
-                                  <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: theme.primary }}>
+                                  <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: theme.primary }}>
                                     <Check className="h-3 w-3" /> Logged
                                   </span>
                                 ) : (
@@ -171,7 +172,7 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
                                     Log it
                                   </button>
                                 ))}
-                                <button onClick={() => mp.remove(p.id)} className="rounded-full p-1.5 text-neutral-500 hover:text-rose-300" aria-label={`Remove ${m ? m.name : 'meal'} from the plan`}>
+                                <button onClick={() => mp.remove(p.id)} className="rounded-full p-1.5 text-neutral-400 hover:text-rose-300" aria-label={`Remove ${m ? m.name : 'meal'} from the plan`}>
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               </div>
@@ -211,7 +212,7 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
                 Nothing to buy yet. Plan some meals for this week and the foods in them appear here. You can also add your own items below.
               </p>
             ) : (
-              <div className="flex items-center justify-between text-[11px] text-[#7E889B]">
+              <div className="flex items-center justify-between text-xs text-[#9AA3B2]">
                 <span>
                   {doneItems} of {totalItems} ticked
                 </span>
@@ -235,11 +236,11 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
                     <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5">
                       <input type="checkbox" checked={on} onChange={() => mp.toggle(g.key)} className="h-4 w-4 accent-[var(--accent)]" />
                       <span className="min-w-0 flex-1">
-                        <span className={`block text-xs font-semibold ${on ? 'text-neutral-500 line-through' : ''}`}>
+                        <span className={`block text-xs font-semibold ${on ? 'text-neutral-400 line-through' : ''}`}>
                           {g.name}
-                          {g.count > 1 && <span className="ml-1.5 font-normal text-[#7E889B]">x{g.count}</span>}
+                          {g.count > 1 && <span className="ml-1.5 font-normal text-[#9AA3B2]">x{g.count}</span>}
                         </span>
-                        <span className="block truncate text-[10px] text-neutral-500">{g.meals.join(', ')}</span>
+                        <span className="block truncate text-xs text-neutral-400">{g.meals.join(', ')}</span>
                       </span>
                     </label>
                   </li>
@@ -251,9 +252,9 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
                   <li key={e.id} className="flex items-center">
                     <label className="flex flex-1 cursor-pointer items-center gap-3 px-3 py-2.5">
                       <input type="checkbox" checked={on} onChange={() => mp.toggle(`extra:${e.id}`)} className="h-4 w-4 accent-[var(--accent)]" />
-                      <span className={`text-xs font-semibold ${on ? 'text-neutral-500 line-through' : ''}`}>{e.name}</span>
+                      <span className={`text-xs font-semibold ${on ? 'text-neutral-400 line-through' : ''}`}>{e.name}</span>
                     </label>
-                    <button onClick={() => mp.removeExtra(e.id)} className="mr-2 rounded-full p-1.5 text-neutral-500 hover:text-rose-300" aria-label={`Remove ${e.name}`}>
+                    <button onClick={() => mp.removeExtra(e.id)} className="mr-2 rounded-full p-1.5 text-neutral-400 hover:text-rose-300" aria-label={`Remove ${e.name}`}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </li>
@@ -280,7 +281,7 @@ export const MealPlanSheet: React.FC<MealPlanSheetProps> = ({ theme, goals, save
               </button>
             </form>
             {note && (
-              <p role="status" className="text-[11px]" style={{ color: theme.primary }}>
+              <p role="status" className="text-xs" style={{ color: theme.primary }}>
                 {note}
               </p>
             )}

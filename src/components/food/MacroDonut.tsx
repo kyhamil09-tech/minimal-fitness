@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ColorPalette } from '../../types/theme';
 
-/** Protein, carbs and fat colours: the palette's accent and data colours, so every screen shows them the same way. */
+/** Protein, carbs and fat colors: the palette's accent and data colors, so every screen shows them the same way. */
 export const macroColors = (theme: ColorPalette) => ({
   p: theme.primary,
   c: theme.data?.blue ?? '#38BDF8',

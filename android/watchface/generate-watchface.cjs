@@ -17,7 +17,7 @@ const DIM = '#ffd6d1c6';
 const scheme = (name, four, bg = CHAR, ink = CREAM, dim = DIM) => [name, `${four} ${bg} ${ink} ${dim}`];
 // The earlier colour themes keep their places (a saved choice keeps its meaning) and now sit on soft charcoal with cream text.
 const themes = [
-  scheme('Volt Run', '#ffcbff00 #ffff5a1f #ff00d4ff #ffffd23f'),
+  scheme('Kinetic', '#ffff5500 #ff00e5ff #ffffb300 #ff10b981', '#ff09090b'),
   scheme('Fire', '#ffff3b1f #ffffa000 #ffffd23f #ffff6a00'),
   scheme('Steel Blue', '#ff2f8cff #ff00e5ff #ff9ad1ff #ff5eead4'),
   scheme('Toxic', '#ff39ff14 #ffcbff00 #ff00e5ff #ffffe600'),
@@ -46,7 +46,7 @@ try {
     const l = looks.find((x) => x.id === id);
     if (l) add(clean(l.name) + ' AMOLED', l, '#ff000000');
   }
-  for (const l of looks) if (l.id !== 'volt' && !soft.includes(l.id)) add(clean(l.name), l);
+  for (const l of looks) if (l.id !== 'volt' && l.id !== 'kinetic' && !soft.includes(l.id)) add(clean(l.name), l);
 } catch (e) {
   console.warn('looks.json not found: only the built-in schemes are offered (run npm run watchface)');
 }

@@ -51,8 +51,13 @@ public class KyFuelTileService extends TileService {
         try {
             int which = Integer.parseInt(id.substring(0, colon));
             int nonce = Integer.parseInt(id.substring(colon + 1));
-            if ((which != 1 && which != 2) || nonce <= WaterStore.handledNonce(this)) return;
+            if ((which != 1 && which != 2 && which != 3) || nonce <= WaterStore.handledNonce(this)) return;
             WaterStore.markHandled(this, nonce);
+            if (which == 3) {
+                // Take the last drink back: shown at once, and the phone removes it from its log.
+                if (WaterStore.undoLocal(this) > 0) PhoneLink.send(this, "/ky/water/undo", "1");
+                return;
+            }
             int ml = WaterStore.stepMl(this, which);
             WaterStore.addLocal(this, ml);
             PhoneLink.send(this, "/ky/water/add", String.valueOf(ml));
@@ -107,6 +112,35 @@ public class KyFuelTileService extends TileService {
         return row.build();
     }
 
+    /** The total, with a small round button beside it that takes the last drink back (only while there is one to take back). */
+    private LayoutElementBuilders.LayoutElement valueRow(String total, boolean canUndo, int nonce) {
+        LayoutElementBuilders.Row.Builder row = new LayoutElementBuilders.Row.Builder()
+            .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+            .addContent(text(total, 32, Ui.INK, true));
+        if (canUndo) {
+            ModifiersBuilders.Clickable click = new ModifiersBuilders.Clickable.Builder()
+                .setId("3:" + nonce)
+                .setOnClick(new ActionBuilders.LoadAction.Builder().build())
+                .build();
+            row.addContent(spacer(8, 1));
+            row.addContent(new LayoutElementBuilders.Box.Builder()
+                .setWidth(dp(30))
+                .setHeight(dp(30))
+                .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
+                .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+                .setModifiers(new ModifiersBuilders.Modifiers.Builder()
+                    .setClickable(click)
+                    .setBackground(new ModifiersBuilders.Background.Builder()
+                        .setColor(argb(Ui.CARD))
+                        .setCorner(new ModifiersBuilders.Corner.Builder().setRadius(dp(15)).build())
+                        .build())
+                    .build())
+                .addContent(text("\u2212", 18, Ui.INK, true))
+                .build());
+        }
+        return row.build();
+    }
+
     private LayoutElementBuilders.LayoutElement addButton(String label, String id, int fill, int textColor) {
         ModifiersBuilders.Clickable click = new ModifiersBuilders.Clickable.Builder()
             .setId(id)
@@ -130,6 +164,7 @@ public class KyFuelTileService extends TileService {
 
     /** "Fasting 14h 20m of 16h", or "Not fasting". */
     private String fastLine() {
+        if (!WatchPrefs.fasting(this)) return "";
         if (!GlanceStore.fastActive(this)) return "Not fasting";
         long minutes = Math.max(0, (System.currentTimeMillis() - GlanceStore.fastStartMs(this)) / 60_000L);
         float goal = GlanceStore.fastGoalHours(this);
@@ -150,6 +185,7 @@ public class KyFuelTileService extends TileService {
             .addContent(spacer(8, 1))
             .addContent(addButton(l2, "2:" + nonce, Ui.CARD, Ui.INK))
             .build();
+        boolean canUndo = WaterStore.canUndo(this);
         return new LayoutElementBuilders.Box.Builder()
             .setWidth(expand())
             .setHeight(expand())
@@ -158,7 +194,7 @@ public class KyFuelTileService extends TileService {
             .addContent(new LayoutElementBuilders.Column.Builder()
                 .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
                 .addContent(text("WATER", 12, Ui.BLUE, true))
-                .addContent(text(WaterStore.format(total, imperial), 32, Ui.INK, true))
+                .addContent(valueRow(WaterStore.format(total, imperial), canUndo, nonce))
                 .addContent(text("of " + WaterStore.format(goal, imperial), 12, Ui.MUTED, false))
                 .addContent(spacer(1, 6))
                 .addContent(bar(total / (float) goal))

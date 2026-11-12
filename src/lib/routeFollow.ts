@@ -38,7 +38,7 @@ export const turnAdvice = (relative: number): TurnAdvice => {
 export const turnText = (t: TurnAdvice): string =>
   ({ straight: 'straight ahead', 'slight-left': 'bear left', left: 'turn left', 'slight-right': 'bear right', right: 'turn right', 'turn-around': 'turn around' })[t];
 
-/** Local flat coordinates in metres around the route's centre. */
+/** Local flat coordinates in meters around the route's center. */
 const makeProjector = (route: LatLng[]) => {
   const lat0 = route.reduce((s, p) => s + p[0], 0) / route.length;
   const k = Math.cos(rad(lat0));
@@ -46,7 +46,7 @@ const makeProjector = (route: LatLng[]) => {
 };
 
 export interface FollowState {
-  /** Straight-line distance from you to the nearest point of the route, metres. */
+  /** Straight-line distance from you to the nearest point of the route, meters. */
   offRouteM: number;
   /** Off the line for long enough to say so (it takes a few readings, and you have to come back closer to clear it). */
   isOff: boolean;
@@ -168,7 +168,7 @@ export class RouteFollower {
   }
 }
 
-/** Heading of travel from the last two positions that are at least {@code minM} metres apart, or null when you have barely moved. */
+/** Heading of travel from the last two positions that are at least {@code minM} meters apart, or null when you have barely moved. */
 export const headingFrom = (points: LatLng[], minM = 6): number | null => {
   if (points.length < 2) return null;
   const last = points[points.length - 1];

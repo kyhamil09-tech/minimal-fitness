@@ -28,7 +28,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
   const [selected, setSelected] = useState(today);
 
   const plan = useMemo(
-    () => (activePlan ? { plan: activePlan.plan ?? getPlan(activePlan.planId), startedAt: activePlan.startedAt } : null),
+    () => (activePlan ? { plan: activePlan.plan ?? getPlan(activePlan.planId), startedAt: activePlan.startedAt, moves: activePlan.moves } : null),
     [activePlan]
   );
   const m = useMemo(() => buildMonth(year, month, workouts, plan, today), [year, month, workouts, plan, today]);
@@ -62,7 +62,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
                 setMonth(now.getMonth());
                 setSelected(today);
               }}
-              className="rounded-full border border-neutral-800 px-2.5 py-1 text-[11px] font-semibold text-neutral-300 hover:text-white"
+              className="rounded-full border border-neutral-800 px-2.5 py-1 text-xs font-semibold text-neutral-300 hover:text-white"
             >
               Today
             </button>
@@ -76,7 +76,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
         </div>
       </div>
 
-      <p className="mt-2 text-[11px] text-[#7E889B]">
+      <p className="mt-2 text-xs text-[#9AA3B2]">
         {s.workouts === 0
           ? 'No workouts recorded this month.'
           : `${s.workouts} workout${s.workouts === 1 ? '' : 's'} on ${s.activeDays} day${s.activeDays === 1 ? '' : 's'} · ${Math.round(s.minutes)} min${
@@ -87,7 +87,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
 
       <div className="mt-3 grid grid-cols-7 gap-1 text-center" role="grid" aria-label={`${MONTHS[month]} ${year}`}>
         {m.cells.slice(0, 7).map((c) => (
-          <div key={`h-${c.date}`} className="py-1 text-[10px] font-semibold uppercase tracking-wide text-[#7E889B]" role="columnheader">
+          <div key={`h-${c.date}`} className="py-1 text-xs font-semibold uppercase tracking-wide text-[#9AA3B2]" role="columnheader">
             {shortWeekday(c.date).slice(0, 2)}
           </div>
         ))}
@@ -125,7 +125,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
         })}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[#7E889B]">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#9AA3B2]">
         <span className="flex items-center gap-1">
           <span className="h-1.5 w-1.5 rounded-full" style={{ background: theme.primary }} /> Workout
         </span>
@@ -147,7 +147,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
             {sel.isToday ? 'Today' : parseDateKey(sel.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
           {sel.planned && (
-            <div className="mt-1.5 text-[11px] text-neutral-300">
+            <div className="mt-1.5 text-xs text-neutral-300">
               <span className="font-semibold" style={{ color: sel.missed ? '#F28B82' : theme.primary }}>
                 {sel.missed ? 'Missed: ' : 'Planned: '}
               </span>
@@ -162,7 +162,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
                 <li key={w.id} className="flex items-baseline justify-between gap-2 text-xs text-neutral-200">
                   <span className="font-semibold">
                     {w.type}
-                    <span className="ml-1.5 font-normal text-[#7E889B]">{clock(w.startedAt)}</span>
+                    <span className="ml-1.5 font-normal text-[#9AA3B2]">{clock(w.startedAt)}</span>
                   </span>
                   <span className="tabular-nums text-neutral-300">
                     {w.minutes} min{w.distanceKm ? ` · ${kmToDisplay(w.distanceKm, units, 2)} ${distanceUnit(units)}` : ''}
@@ -171,7 +171,7 @@ export const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ theme, units, 
               ))}
             </ul>
           ) : (
-            <p className="mt-1.5 text-[11px] text-[#7E889B]">
+            <p className="mt-1.5 text-xs text-[#9AA3B2]">
               {sel.isFuture ? (sel.planned ? 'Still to come.' : 'Nothing planned.') : sel.planned ? 'Nothing recorded.' : 'Nothing recorded this day.'}
             </p>
           )}

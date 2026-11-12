@@ -26,6 +26,9 @@ export const EXERCISES: Exercise[] = [
   e('chest-press-machine', 'Machine Chest Press', 'Chest', 'Machine', 'seatedpress'),
   e('incline-machine-press', 'Incline Machine Press', 'Chest', 'Machine', 'seatedpress'),
   e('push-up', 'Push-Up', 'Chest', 'Bodyweight', 'pushup'),
+  e('hand-release-push-up', 'Hand-Release Push-Up', 'Chest', 'Bodyweight', 'pushup'),
+  e('clapping-push-up', 'Clapping Push-Up', 'Chest', 'Bodyweight', 'pushup'),
+  e('staggered-push-up', 'Staggered Push-Up', 'Chest', 'Bodyweight', 'pushup'),
   e('knee-push-up', 'Knee Push-Up', 'Chest', 'Bodyweight', 'pushup'),
   e('incline-push-up', 'Incline Push-Up', 'Chest', 'Bodyweight', 'pushup'),
   e('decline-push-up', 'Decline Push-Up', 'Chest', 'Bodyweight', 'pushup'),
@@ -133,6 +136,7 @@ export const EXERCISES: Exercise[] = [
   e('wall-sit', 'Wall Sit', 'Legs', 'Bodyweight', 'wallsit'),
   e('leg-press', 'Leg Press', 'Legs', 'Machine', 'legpress'),
   e('single-leg-press', 'Single-Leg Press', 'Legs', 'Machine', 'legpress'),
+  e('forward-lunge', 'Forward Lunge', 'Legs', 'Bodyweight', 'lunge'),
   e('lunge', 'Walking Lunge', 'Legs', 'Dumbbell', 'lunge'),
   e('reverse-lunge', 'Reverse Lunge', 'Legs', 'Dumbbell', 'lunge'),
   e('barbell-lunge', 'Barbell Lunge', 'Legs', 'Barbell', 'lunge'),
@@ -149,6 +153,7 @@ export const EXERCISES: Exercise[] = [
   e('seated-leg-curl', 'Seated Leg Curl', 'Legs', 'Machine', 'legcurl'),
   e('nordic-curl', 'Nordic Hamstring Curl', 'Legs', 'Bodyweight'),
   e('leg-extension', 'Leg Extension', 'Legs', 'Machine', 'legext'),
+  e('bodyweight-calf-raise', 'Calf Raise', 'Legs', 'Bodyweight', 'calf'),
   e('calf-raise', 'Standing Calf Raise', 'Legs', 'Machine', 'calf'),
   e('seated-calf-raise', 'Seated Calf Raise', 'Legs', 'Machine', 'calf'),
   e('db-calf-raise', 'Dumbbell Calf Raise', 'Legs', 'Dumbbell', 'calf'),
@@ -165,6 +170,7 @@ export const EXERCISES: Exercise[] = [
   e('kb-swing', 'Kettlebell Swing', 'Glutes', 'Kettlebell', 'swing'),
   e('db-swing', 'Dumbbell Swing', 'Glutes', 'Dumbbell', 'swing'),
   e('cable-pull-through', 'Cable Pull-Through', 'Glutes', 'Cable', 'rdl'),
+  e('hip-abduction-machine', 'Hip Abduction Machine', 'Glutes', 'Machine'),
   e('donkey-kick', 'Donkey Kick', 'Glutes', 'Bodyweight', 'donkey'),
   e('cable-kickback', 'Cable Glute Kickback', 'Glutes', 'Cable', 'donkey'),
   e('fire-hydrant', 'Fire Hydrant', 'Glutes', 'Bodyweight'),
@@ -173,7 +179,7 @@ export const EXERCISES: Exercise[] = [
   e('side-plank', 'Side Plank', 'Core', 'Bodyweight'),
   e('plank-shoulder-tap', 'Plank Shoulder Tap', 'Core', 'Bodyweight'),
   e('crunch', 'Crunch', 'Core', 'Bodyweight', 'crunch'),
-  e('sit-up', 'Sit-Up', 'Core', 'Bodyweight', 'crunch'),
+  e('sit-up', 'Sit-Up', 'Core', 'Bodyweight', 'situp'),
   e('bicycle-crunch', 'Bicycle Crunch', 'Core', 'Bodyweight', 'crunch'),
   e('reverse-crunch', 'Reverse Crunch', 'Core', 'Bodyweight', 'legraise'),
   e('weighted-crunch', 'Weighted Crunch', 'Core', 'Plate', 'crunch'),
@@ -191,8 +197,12 @@ export const EXERCISES: Exercise[] = [
   e('pallof-press', 'Pallof Press', 'Core', 'Cable', 'pallof'),
   e('mountain-climber', 'Mountain Climber', 'Core', 'Bodyweight', 'climber'),
   e('dead-bug', 'Dead Bug', 'Core', 'Bodyweight', 'deadbug'),
-  e('bird-dog', 'Bird Dog', 'Core', 'Bodyweight'),
-  e('hollow-hold', 'Hollow Body Hold', 'Core', 'Bodyweight'),
+  e('bird-dog', 'Bird Dog', 'Core', 'Bodyweight', 'birddog'),
+  e('butterfly-sit-up', 'Butterfly Sit-Up', 'Core', 'Bodyweight', 'situp'),
+  e('v-up', 'V-Up', 'Core', 'Bodyweight', 'vup'),
+  e('tuck-crunch', 'Tuck Crunch', 'Core', 'Bodyweight', 'tuck'),
+  e('oblique-crunch', 'Oblique Crunch', 'Core', 'Bodyweight', 'crunch'),
+  e('hollow-hold', 'Hollow Body Hold', 'Core', 'Bodyweight', 'hollow'),
   // Full body
   e('clean-press', 'Dumbbell Clean & Press', 'Full Body', 'Dumbbell', 'cleanpress'),
   e('barbell-clean', 'Barbell Power Clean', 'Full Body', 'Barbell', 'cleanpress'),
@@ -205,7 +215,38 @@ export const EXERCISES: Exercise[] = [
   e('farmer-carry', "Farmer's Carry", 'Full Body', 'Dumbbell', 'carry'),
   e('suitcase-carry', 'Suitcase Carry', 'Full Body', 'Dumbbell', 'carry'),
   e('trap-bar-carry', 'Trap Bar Carry', 'Full Body', 'Trap Bar', 'carry'),
+  // Warm-up
+  e('arm-circles', 'Arm Circles', 'Warm-up', 'Bodyweight', 'armcircle'),
+  e('leg-swings', 'Leg Swings', 'Warm-up', 'Bodyweight', 'legswing'),
+  e('torso-twists', 'Torso Twists', 'Warm-up', 'Bodyweight', 'torsotwist'),
+  e('inchworm', 'Inchworm', 'Warm-up', 'Bodyweight', 'inchworm'),
+  e('worlds-greatest-stretch', "World's Greatest Stretch", 'Warm-up', 'Bodyweight', 'wgs'),
+  e('cat-cow', 'Cat-Cow Stretch', 'Warm-up', 'Bodyweight', 'catcow'),
+  e('high-knees', 'High Knees', 'Warm-up', 'Bodyweight', 'highknees'),
+  e('butt-kicks', 'Butt Kicks', 'Warm-up', 'Bodyweight', 'buttkicks'),
+  // Cardio
+  e('jumping-jack', 'Jumping Jack', 'Cardio', 'Bodyweight', 'jack'),
+  e('seal-jack', 'Seal Jack', 'Cardio', 'Bodyweight', 'jack'),
+  e('star-jump', 'Star Jump', 'Cardio', 'Bodyweight', 'jack'),
+  e('step-jack', 'Step Jack', 'Cardio', 'Bodyweight', 'jack'),
+  e('cross-jack', 'Cross Jack', 'Cardio', 'Bodyweight', 'jack'),
+  // Stretch
+  e('hamstring-doorway-stretch', 'Hamstring Doorway Stretch', 'Stretch', 'Bodyweight', 'hamdoor'),
+  e('couch-stretch', 'Couch Stretch', 'Stretch', 'Bodyweight', 'couch'),
+  e('doorway-chest-stretch', 'Doorway Chest Stretch', 'Stretch', 'Bodyweight', 'chestdoor'),
+  e('childs-pose', "Child's Pose", 'Stretch', 'Bodyweight', 'child'),
+  e('pigeon-pose', 'Pigeon Pose', 'Stretch', 'Bodyweight', 'pigeon'),
+  e('seated-butterfly-stretch', 'Seated Butterfly Stretch', 'Stretch', 'Bodyweight', 'butterfly'),
+  e('calf-wall-stretch', 'Calf Wall Stretch', 'Stretch', 'Bodyweight', 'calfwall'),
+  e('overhead-triceps-stretch', 'Overhead Triceps Stretch', 'Stretch', 'Bodyweight', 'tricepstretch'),
+  e('cobra-stretch', 'Cobra Stretch', 'Stretch', 'Bodyweight', 'cobra'),
+  e('seated-forward-fold', 'Seated Forward Fold', 'Stretch', 'Bodyweight', 'seatedfold'),
+  e('figure-four-stretch', 'Figure-Four Stretch', 'Stretch', 'Bodyweight', 'figure4'),
+  e('standing-quad-stretch', 'Standing Quadriceps Stretch', 'Stretch', 'Bodyweight', 'quadstretch'),
+  e('thread-the-needle', 'Thread the Needle', 'Stretch', 'Bodyweight', 'needle'),
 ];
+
+/** The groups that count toward weekly sets and the volume charts. Warm-ups, cardio and stretches are in the library but not counted. */
 
 export const MUSCLE_GROUPS: MuscleGroup[] = [
   'Chest',
@@ -218,5 +259,30 @@ export const MUSCLE_GROUPS: MuscleGroup[] = [
   'Full Body',
 ];
 
+/** Every group the exercise picker can filter by. */
+export const LIBRARY_GROUPS: MuscleGroup[] = [...MUSCLE_GROUPS, 'Warm-up', 'Cardio', 'Stretch'];
+
 const byId = new Map(EXERCISES.map((x) => [x.id, x]));
-export const getExercise = (id: string) => byId.get(id);
+
+// Exercises the person made themselves. They are looked up by id like the built-in ones, so old workouts that used them keep their names.
+let custom: Exercise[] = [];
+let customById = new Map<string, Exercise>();
+
+export const setCustomExercises = (list: Exercise[]) => {
+  if (list === custom) return;
+  custom = list;
+  customById = new Map(list.map((x) => [x.id, x]));
+};
+
+export const customExercises = (): Exercise[] => custom;
+
+/** Every exercise: the person's own first, then the built-in library. */
+export const allExercises = (): Exercise[] => (custom.length ? [...custom, ...EXERCISES] : EXERCISES);
+
+export const getExercise = (id: string): Exercise | undefined => customById.get(id) ?? byId.get(id);
+
+/** Built-in exercises that are held for time rather than counted in reps. */
+const TIMED_NAME = /^(wall sit|plank|side plank)$|hold$/i;
+export const isTimedExercise = (e: Exercise | undefined): boolean => !!e && (e.timed ?? (e.muscle !== 'Stretch' && TIMED_NAME.test(e.name)));
+
+

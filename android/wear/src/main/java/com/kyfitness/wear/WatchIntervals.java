@@ -12,7 +12,7 @@ final class WatchIntervals {
         final String label;
         /** Milliseconds, or 0 when the step is measured by distance. */
         final long durMs;
-        /** Metres, or 0 when the step is measured by time. */
+        /** Meters, or 0 when the step is measured by time. */
         final double distM;
 
         Step(int kind, String label, long durMs, double distM) {

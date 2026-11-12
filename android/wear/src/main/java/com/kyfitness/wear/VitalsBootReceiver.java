@@ -14,5 +14,6 @@ public class VitalsBootReceiver extends BroadcastReceiver {
             WatchSteps.register(context);
         }
         WatchDetect.configure(context);
+        NudgeReceiver.schedule(context);
     }
 }

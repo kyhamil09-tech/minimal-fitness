@@ -98,6 +98,16 @@ const WWEIA_WORDS = [
 // SR Legacy rows use nutrient ids; the FNDDS survey rows use nutrient numbers (208 is energy, 203 protein, ...).
 const NUT_SR = { 1008: 'kcal', 1003: 'p', 1005: 'c', 1004: 'f', 1079: 'fiber', 2000: 'sugar', 1093: 'sodium', 1258: 'sat' };
 const NUT_FN = { 208: 'kcal', 203: 'p', 205: 'c', 204: 'f', 291: 'fiber', 269: 'sugar', 307: 'sodium', 606: 'sat' };
+// Vitamins and minerals, in the order the app reads them (MICRO_ORDER in src/lib/micros.ts): vitamin C, D, A, E, K, B6, B12, folate,
+// calcium, iron, magnesium, potassium, zinc. Amounts are mg or micrograms as the app's table says.
+const MICROS = [
+  ['vitC', 1162, 401], ['vitD', 1114, 328], ['vitA', 1106, 320], ['vitE', 1109, 323], ['vitK', 1185, 430], ['b6', 1175, 415], ['b12', 1178, 418],
+  ['folate', 1190, 435], ['calcium', 1087, 301], ['iron', 1089, 303], ['magnesium', 1090, 304], ['potassium', 1092, 306], ['zinc', 1095, 309],
+];
+for (const [id, srId, fnNo] of MICROS) {
+  NUT_SR[srId] = 'm_' + id;
+  NUT_FN[fnNo] = 'm_' + id;
+}
 
 const loadFoods = async (dir, type, NUT) => {
   const foods = new Map();
@@ -165,6 +175,15 @@ const tidy = (name) =>
     .replace(/^,\s*|,\s*$/g, '')
     .trim();
 
+/** The 13 vitamin and mineral amounts as one list (or nothing at all when the food has none), rounded to save space. */
+const microList = (f) => {
+  const list = MICROS.map(([id]) => {
+    const v = f.n['m_' + id];
+    return Number.isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : 0;
+  });
+  return list.some((v) => v > 0) ? [list] : [];
+};
+
 const push = (f, src, group) => {
   if (f.n.kcal === undefined) return;
   f.name = tidy(f.name);
@@ -173,7 +192,7 @@ const push = (f, src, group) => {
   if (seen.has(key)) return;
   seen.add(key);
   // FNDDS entries are the commonly eaten ones: they come first so search can prefer them.
-  list.push([f.name, group, src, Math.round(f.n.kcal), r1(f.n.p), r1(f.n.c), r1(f.n.f), r1(f.n.fiber), r1(f.n.sugar), Math.round(f.n.sodium ?? 0), f.portions.slice(0, 6).map((p) => [p[0], p[1]])]);
+  list.push([f.name, group, src, Math.round(f.n.kcal), r1(f.n.p), r1(f.n.c), r1(f.n.f), r1(f.n.fiber), r1(f.n.sugar), Math.round(f.n.sodium ?? 0), f.portions.slice(0, 6).map((p) => [p[0], p[1]]), ...microList(f)]);
 };
 for (const f of fn.values()) {
   const cat = fnCat.get(f.id) ?? '';

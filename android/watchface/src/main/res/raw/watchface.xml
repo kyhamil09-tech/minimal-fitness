@@ -11,7 +11,7 @@
 
   <UserConfigurations>
     <ColorConfiguration id="theme" displayName="@string/cfg_theme" defaultValue="0">
-      <ColorOption id="0" displayName="@string/theme_0" colors="#ffcbff00 #ffff5a1f #ff00d4ff #ffffd23f #ff17181b #fff2ede3 #ffd6d1c6"/>
+      <ColorOption id="0" displayName="@string/theme_0" colors="#ffff5500 #ff00e5ff #ffffb300 #ff10b981 #ff09090b #fff2ede3 #ffd6d1c6"/>
       <ColorOption id="1" displayName="@string/theme_1" colors="#ffff3b1f #ffffa000 #ffffd23f #ffff6a00 #ff17181b #fff2ede3 #ffd6d1c6"/>
       <ColorOption id="2" displayName="@string/theme_2" colors="#ff2f8cff #ff00e5ff #ff9ad1ff #ff5eead4 #ff17181b #fff2ede3 #ffd6d1c6"/>
       <ColorOption id="3" displayName="@string/theme_3" colors="#ff39ff14 #ffcbff00 #ff00e5ff #ffffe600 #ff17181b #fff2ede3 #ffd6d1c6"/>
@@ -41,6 +41,8 @@
       <ColorOption id="27" displayName="@string/theme_27" colors="#ffe11d48 #fffb7185 #fff59e0b #fffb7185 #ff17181b #fff2ede3 #ffa29e95"/>
       <ColorOption id="28" displayName="@string/theme_28" colors="#fff59e0b #fffb923c #ff10b981 #fffb923c #ff17181b #fff2ede3 #ffa29e95"/>
       <ColorOption id="29" displayName="@string/theme_29" colors="#fffb7185 #ffc084fc #fff472b6 #ffc084fc #ff17181b #fff2ede3 #ffa29e95"/>
+      <ColorOption id="30" displayName="@string/theme_30" colors="#ff4285f4 #ff34a853 #ffea4335 #fffbbc04 #ff17181b #fff2ede3 #ffa29e95"/>
+      <ColorOption id="31" displayName="@string/theme_31" colors="#ffffc46b #ffe58bc0 #ff7c9cff #ffffc46b #ff17181b #fff2ede3 #ffa29e95"/>
     </ColorConfiguration>
   </UserConfigurations>
   <Scene backgroundColor="#ff000000">

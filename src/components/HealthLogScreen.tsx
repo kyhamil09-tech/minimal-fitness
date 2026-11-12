@@ -1,14 +1,23 @@
 import React, { useState } from 'react';
 import { HeartPulse, Droplet, Pill, Stethoscope, Trash2 } from 'lucide-react';
-import { HealthLogEntry } from '../types/tracking';
+import { HealthLogEntry, Goals, UnitSystem } from '../types/tracking';
+import { MetricDetailSheet } from './MetricDetailSheet';
+import { MedReminders } from './MedReminders';
+import { DrinksLog } from './DrinksLog';
+import type { SleepLogEntry } from '../types/health';
+import type { MetricId } from '../lib/metricSeries';
+import { toDateKey } from '../lib/dates';
 import { ColorPalette } from '../types/theme';
 import { GlucoseRelation, Tone, classifyBp, classifyGlucose, mgdlToMmol, recentNames } from '../lib/healthLog';
 
 interface HealthLogScreenProps {
   theme: ColorPalette;
+  units: UnitSystem;
+  goals: Goals;
   entries: HealthLogEntry[];
   onAdd: (entry: Omit<HealthLogEntry, 'id'>) => void;
   onDelete: (id: string) => void;
+  sleepLogs?: SleepLogEntry[];
 }
 
 const TONE_COLOR: Record<Tone, string> = { good: '#4ade80', watch: '#ffd23f', high: '#ff4d4d', low: '#7dd3fc' };
@@ -26,7 +35,18 @@ const when = (at: number) =>
   new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 /** Blood pressure, glucose, medications and symptoms. Readings are a log for you and your doctor, not a diagnosis. */
-export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, entries, onAdd, onDelete }) => {
+export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, units, goals, entries, onAdd, onDelete, sleepLogs = [] }) => {
+  const [metric, setMetric] = useState<MetricId | null>(null);
+  const logInput = React.useMemo(
+    () => ({
+      days: [],
+      body: [],
+      food: [],
+      water: [],
+      log: entries.filter((e) => e.kind === 'bp' || e.kind === 'glucose').map((e) => ({ date: toDateKey(e.at), systolic: e.systolic, diastolic: e.diastolic, mgdl: e.mgdl })),
+    }),
+    [entries]
+  );
   const [sys, setSys] = useState('');
   const [dia, setDia] = useState('');
   const [pulse, setPulse] = useState('');
@@ -82,10 +102,11 @@ export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, entries
   return (
     <div className="space-y-4 max-w-lg mx-auto">
       <section className={card} style={cardStyle}>
-        <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setMetric('systolic')} aria-label="Blood pressure, open history" className="flex w-full items-center gap-2 text-left">
           <HeartPulse className="w-4 h-4 text-rose-400" />
           <span className="stat-label">Blood pressure</span>
-        </div>
+          <span className="ml-auto text-xs text-neutral-400">History ›</span>
+        </button>
         <div className="grid grid-cols-3 gap-2">
           <input aria-label="Systolic" inputMode="numeric" placeholder="Top" value={sys} onChange={(e) => setSys(e.target.value)} className={field} />
           <input aria-label="Diastolic" inputMode="numeric" placeholder="Bottom" value={dia} onChange={(e) => setDia(e.target.value)} className={field} />
@@ -102,10 +123,11 @@ export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, entries
       </section>
 
       <section className={card} style={cardStyle}>
-        <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setMetric('glucose')} aria-label="Blood glucose, open history" className="flex w-full items-center gap-2 text-left">
           <Droplet className="w-4 h-4 text-sky-300" />
           <span className="stat-label">Blood glucose</span>
-        </div>
+          <span className="ml-auto text-xs text-neutral-400">History ›</span>
+        </button>
         <div className="flex gap-2 overflow-x-auto no-scrollbar" role="group" aria-label="When was it taken">
           {RELATIONS.map((r) => (
             <button key={r.id} onClick={() => setRelation(r.id)} aria-pressed={relation === r.id} className="sport-pill !py-2 !text-xs">
@@ -150,6 +172,11 @@ export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, entries
         <button onClick={() => saveMed()} disabled={!medName.trim()} className={saveBtn} style={{ backgroundColor: theme.primary, color: '#000' }}>
           Log as taken now
         </button>
+        <MedReminders suggestions={meds} primary={theme.primary} />
+      </section>
+
+      <section className={card} style={cardStyle}>
+        <DrinksLog primary={theme.primary} sleepLogs={sleepLogs} />
       </section>
 
       <section className={card} style={cardStyle}>
@@ -185,7 +212,7 @@ export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, entries
 
       <section className="space-y-2">
         <div className="px-1 stat-label">History · {sorted.length}</div>
-        {sorted.length === 0 && <p className="text-center text-xs text-[#7E889B] py-6">Nothing logged yet. Readings you save above show up here.</p>}
+        {sorted.length === 0 && <p className="text-center text-xs text-[#9AA3B2] py-6">Nothing logged yet. Readings you save above show up here.</p>}
         <ul className="space-y-2">
           {sorted.slice(0, shown).map((e) => {
             const reading =
@@ -206,18 +233,18 @@ export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, entries
               <li key={e.id} className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3" style={cardStyle}>
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{title}</div>
-                  <div className="text-[11px] text-neutral-500">
+                  <div className="text-xs text-neutral-400">
                     {when(e.at)}
                     {e.imported ? ' · Health Connect' : ''}
                     {e.note ? ` · ${e.note}` : ''}
                   </div>
                   {reading && (
-                    <div className="text-[11px] font-semibold mt-0.5" style={{ color: TONE_COLOR[reading.tone] }}>
+                    <div className="text-xs font-semibold mt-0.5" style={{ color: TONE_COLOR[reading.tone] }}>
                       {reading.label}
                     </div>
                   )}
                 </div>
-                <button onClick={() => onDelete(e.id)} aria-label="Delete entry" className="text-neutral-600 hover:text-rose-400 shrink-0">
+                <button onClick={() => onDelete(e.id)} aria-label="Delete entry" className="text-neutral-400 hover:text-rose-400 shrink-0">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </li>
@@ -231,10 +258,12 @@ export const HealthLogScreen: React.FC<HealthLogScreenProps> = ({ theme, entries
         )}
       </section>
 
-      <p className="text-[10px] text-neutral-600 text-center px-4 leading-relaxed">
+      <p className="text-xs text-neutral-400 text-center px-4 leading-relaxed">
         This is a personal log, not medical advice. The labels are general guides for adults. Talk to your doctor about your own targets.
         If you feel unwell, get medical help.
       </p>
+
+      {metric && <MetricDetailSheet metric={metric} theme={theme} units={units} goals={goals} input={logInput} onClose={() => setMetric(null)} />}
     </div>
   );
 };

@@ -1,11 +1,11 @@
 /**
- * Spoken milestones toward a distance or time goal: halfway, a quarter to go, the last kilometre or the last five minutes. Each
+ * Spoken milestones toward a distance or time goal: halfway, a quarter to go, the last kilometer or the last five minutes. Each
  * one is said once. The live screen calls {@link nextMilestone} every second with how far along the goal you are.
  */
 
 export interface MilestoneInput {
   type: 'distance' | 'time';
-  /** Goal in kilometres (distance) or minutes (time). */
+  /** Goal in kilometers (distance) or minutes (time). */
   goal: number;
   /** Done so far, in the same unit as the goal. */
   done: number;
@@ -22,8 +22,8 @@ const KM_PER_MI = 1.609344;
 
 const spokenDist = (km: number, miles: boolean): string => {
   const v = miles ? km / KM_PER_MI : km;
-  const unit = miles ? 'mile' : 'kilometre';
-  if (v < 0.95) return `${Math.round((v * (miles ? 1760 : 1000)) / 50) * 50} ${miles ? 'yards' : 'metres'}`;
+  const unit = miles ? 'mile' : 'kilometer';
+  if (v < 0.95) return `${Math.round((v * (miles ? 1760 : 1000)) / 50) * 50} ${miles ? 'yards' : 'meters'}`;
   const r = Math.round(v * 10) / 10;
   return `${r} ${unit}${r === 1 ? '' : 's'}`;
 };
@@ -47,7 +47,7 @@ export const nextMilestone = (i: MilestoneInput): Milestone | null => {
   }
   if (i.type === 'distance') {
     const lastUnit = miles ? KM_PER_MI : 1;
-    if (i.goal > lastUnit * 2) cues.push({ id: 'last-unit', reached: remaining <= lastUnit, text: `Last ${miles ? 'mile' : 'kilometre'}.` });
+    if (i.goal > lastUnit * 2) cues.push({ id: 'last-unit', reached: remaining <= lastUnit, text: `Last ${miles ? 'mile' : 'kilometer'}.` });
     cues.push({ id: 'last-500', reached: remaining <= 0.5 && i.goal > 1, text: `${spokenDist(Math.max(remaining, 0.05), miles)} to go.` });
   } else {
     if (i.goal > 15) cues.push({ id: 'last-5', reached: remaining <= 5, text: 'Five minutes to go.' });

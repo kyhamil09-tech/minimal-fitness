@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { CalendarDays, Check, ChevronDown, ChevronUp, Dumbbell, Play, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronUp, Dumbbell, Eye, Play, Plus, Trash2 } from 'lucide-react';
 import { LiftingBuilder } from './LiftingBuilder';
+import { CalendarSheet } from './CalendarSheet';
+import { Preset, PresetPreview, PreviewAction } from './PresetPreview';
 import { WorkoutSession, WorkoutType } from '../types/health';
 import { ActivePlan, PlanDay, Routine, WorkoutPlan } from '../types/tracking';
 import { STRENGTH_TEMPLATES } from '../data/templates';
 import { ColorPalette } from '../types/theme';
-import { BUILT_IN_PLANS, getPlan } from '../data/plans';
+import { BUILT_IN_PLANS, FOCUS_LABELS, PlanFocus, getPlan, planHasFocus } from '../data/plans';
 import { getExercise } from '../data/exercises';
 import { addDays, startOfMondayWeek as startOfWeek, toDateKey, weekdayIndex } from '../lib/dates';
 import { workoutsOnDay } from '../lib/calc';
@@ -39,13 +41,19 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
   const [open, setOpen] = useState(true);
   const [choosing, setChoosing] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [focus, setFocus] = useState<PlanFocus | 'all'>('all');
   const [raceGoal, setRaceGoal] = useState<RaceGoal>('10k');
   const [level, setLevel] = useState<PlanLevel>('Intermediate');
   const [perWeek, setPerWeek] = useState<3 | 4 | 5>(4);
   const [weeks, setWeeks] = useState(12);
   // The lifting plan and routine maker: which tab it opens on, and a hand-made plan being edited.
   const [builder, setBuilder] = useState<{ open: boolean; mode: 'quick' | 'design' | 'routine'; editing: WorkoutPlan | null }>({ open: false, mode: 'quick', editing: null });
+  const [calOpen, setCalOpen] = useState(false);
   const plan = activePlan ? (activePlan.plan ?? getPlan(activePlan.planId)) : undefined;
+  // A read-through of a plan, day, template or routine before starting it.
+  const [preview, setPreview] = useState<{ preset: Preset; actions: PreviewAction[] } | null>(null);
+  const closePreview = () => setPreview(null);
 
   const now = Date.now();
   const weekStart = toDateKey(startOfWeek(now));
@@ -94,11 +102,11 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
         aria-expanded={open}
         className="w-full flex items-center justify-between"
       >
-        <span className="text-xs font-semibold text-[#7E889B] tracking-wider uppercase flex items-center gap-1.5">
+        <span className="text-xs font-semibold text-[#9AA3B2] tracking-wider uppercase flex items-center gap-1.5">
           <CalendarDays className="w-3.5 h-3.5" style={{ color: theme.primary }} />
           Plans & Routines
         </span>
-        {open ? <ChevronUp className="w-4 h-4 text-neutral-500" /> : <ChevronDown className="w-4 h-4 text-neutral-500" />}
+        {open ? <ChevronUp className="w-4 h-4 text-neutral-400" /> : <ChevronDown className="w-4 h-4 text-neutral-400" />}
       </button>
 
       {open && (
@@ -109,10 +117,10 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
                 <Dumbbell className="w-4 h-4 mt-0.5 shrink-0" style={{ color: theme.primary }} />
                 <div className="min-w-0">
                   <h3 className="text-xs font-bold text-white">Build a lifting plan</h3>
-                  <p className="text-[11px] text-[#7E889B] mt-0.5">Pick a split and goal, or design every day yourself.</p>
+                  <p className="text-xs text-[#9AA3B2] mt-0.5">Pick a split and goal, or design every day yourself.</p>
                 </div>
               </div>
-              <button onClick={() => setBuilder({ open: true, mode: 'quick', editing: null })} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-black shrink-0" style={{ backgroundColor: theme.primary }}>
+              <button onClick={() => setBuilder({ open: true, mode: 'quick', editing: null })} className="min-h-11 px-4 rounded-xl text-xs font-bold text-black shrink-0" style={{ backgroundColor: theme.primary }}>
                 Build
               </button>
             </div>
@@ -122,20 +130,23 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-white">{plan.name}</h3>
-                  <p className="text-[11px] font-mono text-[#7E889B]">
+                  <p className="text-xs font-mono text-[#9AA3B2]">
                     {finished ? `Completed ${plan.weeks} weeks` : `Week ${weekNumber} of ${plan.weeks}`} · {plan.level}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {plan.id.startsWith('plan-lift') && (
-                    <button onClick={() => setBuilder({ open: true, mode: 'design', editing: plan })} className="text-[11px] underline text-neutral-400 hover:text-white">
+                    <button onClick={() => setBuilder({ open: true, mode: 'design', editing: plan })} className="text-xs underline text-neutral-400 hover:text-white">
                       Edit
                     </button>
                   )}
-                  <button onClick={() => setChoosing(true)} className="text-[11px] underline text-neutral-400 hover:text-white">
+                  <button onClick={() => setCalOpen(true)} className="text-xs underline text-neutral-400 hover:text-white">
+                    Calendar
+                  </button>
+                  <button onClick={() => setChoosing(true)} className="text-xs underline text-neutral-400 hover:text-white">
                     Change
                   </button>
-                  <button onClick={() => onActivatePlan(null)} className="text-[11px] underline text-neutral-400 hover:text-white">
+                  <button onClick={() => onActivatePlan(null)} className="text-xs underline text-neutral-400 hover:text-white">
                     Stop
                   </button>
                 </div>
@@ -152,25 +163,34 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
                       className="flex items-center justify-between gap-2 px-3 py-2.5 bg-black/40"
                       style={{ boxShadow: isToday ? `inset 2px 0 0 ${theme.primary}` : undefined }}
                     >
-                      <div className="min-w-0">
+                      <button
+                        className="min-w-0 text-left"
+                        aria-label={`Preview ${d.title}`}
+                        onClick={() =>
+                          setPreview({
+                            preset: { kind: 'day', day: d },
+                            actions: d.kind !== 'rest' && !finished && !done ? [{ label: 'Start', primary: true, onClick: () => { closePreview(); startDay(d); } }] : [],
+                          })
+                        }
+                      >
                         <div className="text-xs font-semibold text-white flex items-center gap-2">
-                          <span className="font-mono text-neutral-500 w-7">{DAY_NAMES[d.day]}</span>
+                          <span className="font-mono text-neutral-400 w-7">{DAY_NAMES[d.day]}</span>
                           <span className="truncate">{d.title}</span>
                           {isToday && (
-                            <span className="text-[9px] font-mono px-1.5 rounded" style={{ color: theme.primary, backgroundColor: `${theme.primary}20` }}>
+                            <span className="text-xs font-mono px-1.5 rounded" style={{ color: theme.primary, backgroundColor: `${theme.primary}20` }}>
                               TODAY
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-[#7E889B] ml-9 truncate">{dayDetail(d)}</div>
-                      </div>
+                        <div className="text-xs text-[#9AA3B2] ml-9 truncate">{dayDetail(d)}</div>
+                      </button>
                       {done ? (
                         <Check className="w-4 h-4 shrink-0" style={{ color: theme.primary }} aria-label="Completed" />
                       ) : d.kind !== 'rest' && !finished ? (
                         <button
                           onClick={() => startDay(d)}
                           aria-label={`Start ${d.title}`}
-                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-black flex items-center gap-1 shrink-0"
+                          className="min-h-11 px-3 rounded-xl text-xs font-bold text-black flex items-center gap-1 shrink-0"
                           style={{ backgroundColor: isToday ? theme.primary : '#CBD5E1' }}
                         >
                           <Play className="w-3 h-3 fill-black" /> Start
@@ -183,7 +203,7 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
             </div>
           ) : building ? (
             <div className="space-y-3">
-              <p className="text-[11px] text-[#7E889B]">
+              <p className="text-xs text-[#9AA3B2]">
                 Build a plan for a race: long runs grow week by week, with a lighter week now and then, a taper and race day on the last Sunday.
               </p>
               <div>
@@ -227,15 +247,15 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
               <div>
                 <span className="stat-label">Weeks to race</span>
                 <div className="flex items-center gap-4 mt-1.5">
-                  <button onClick={() => setWeeks(Math.max(info.minWeeks, clampedWeeks - 1))} aria-label="Fewer weeks" className="w-10 h-10 rounded-full glass-chip text-white text-lg font-bold">
+                  <button onClick={() => setWeeks(Math.max(info.minWeeks, clampedWeeks - 1))} aria-label="Fewer weeks" className="w-11 h-11 rounded-full glass-chip text-white text-lg font-bold">
                     −
                   </button>
                   <span className="hero-num text-[2.4rem]">{clampedWeeks}</span>
-                  <button onClick={() => setWeeks(Math.min(info.maxWeeks, clampedWeeks + 1))} aria-label="More weeks" className="w-10 h-10 rounded-full glass-chip text-white text-lg font-bold">
+                  <button onClick={() => setWeeks(Math.min(info.maxWeeks, clampedWeeks + 1))} aria-label="More weeks" className="w-11 h-11 rounded-full glass-chip text-white text-lg font-bold">
                     +
                   </button>
                 </div>
-                <p className="text-[11px] text-neutral-500 mt-1.5">
+                <p className="text-xs text-neutral-400 mt-1.5">
                   Race day: {raceDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
               </div>
@@ -250,71 +270,117 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-[11px] text-[#7E889B]">
+              <p className="text-xs text-[#9AA3B2]">
                 {choosing ? 'Pick a new program:' : 'Follow a structured program with a weekly schedule:'}
               </p>
               <div className="rounded-2xl border p-3 flex items-start justify-between gap-3" style={{ borderColor: theme.primary, backgroundColor: 'rgba(255,255,255,0.03)' }}>
                 <div>
                   <h3 className="text-xs font-bold text-white">Build a race plan</h3>
-                  <p className="text-[11px] text-[#7E889B] mt-0.5">5K, 10K or half marathon, with progressing long runs, intervals and a taper.</p>
+                  <p className="text-xs text-[#9AA3B2] mt-0.5">5K, 10K or half marathon, with progressing long runs, intervals and a taper.</p>
                 </div>
                 <button
                   onClick={() => setBuilding(true)}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-black shrink-0"
+                  className="min-h-11 px-4 rounded-xl text-xs font-bold text-black shrink-0"
                   style={{ backgroundColor: theme.primary }}
                 >
                   Build
                 </button>
               </div>
-              {BUILT_IN_PLANS.map((p) => (
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Plan type">
+                {(['all', 'walk', 'strength', 'run', 'cycle', 'mobility'] as const).map((f) => (
+                  <button key={f} type="button" aria-pressed={focus === f} onClick={() => setFocus(f)} className="sport-pill !py-1.5 !px-3.5 !text-xs whitespace-nowrap">
+                    {f === 'all' ? 'All plans' : FOCUS_LABELS[f]}
+                  </button>
+                ))}
+              </div>
+              {BUILT_IN_PLANS.filter((p) => focus === 'all' || planHasFocus(p, focus)).map((p) => (
                 <div key={p.id} className="rounded-2xl border border-[#1A1E26] bg-black/40 p-3 flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-xs font-bold text-white">{p.name}</h3>
-                    <p className="text-[11px] text-[#7E889B] mt-0.5">{p.description}</p>
-                    <p className="text-[10px] font-mono text-neutral-500 mt-1">
+                    <p className="text-xs text-[#9AA3B2] mt-0.5">{p.description}</p>
+                    <p className="text-xs font-mono text-neutral-400 mt-1">
                       {p.weeks} weeks · {p.level} · {p.days.filter((d) => d.kind !== 'rest').length} days/week
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      onActivatePlan(p.id);
-                      setChoosing(false);
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-black shrink-0"
-                    style={{ backgroundColor: theme.primary }}
-                  >
-                    Start plan
-                  </button>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <button
+                      onClick={() => {
+                        onActivatePlan(p.id);
+                        setChoosing(false);
+                      }}
+                      className="min-h-11 px-3 rounded-xl text-xs font-bold text-black"
+                      style={{ backgroundColor: theme.primary }}
+                    >
+                      Start plan
+                    </button>
+                    <button
+                      onClick={() =>
+                        setPreview({
+                          preset: { kind: 'plan', plan: p },
+                          actions: [{ label: 'Start plan', primary: true, onClick: () => { closePreview(); onActivatePlan(p.id); setChoosing(false); } }],
+                        })
+                      }
+                      aria-label={`Preview ${p.name}`}
+                      className="min-h-11 px-3 rounded-xl text-xs font-bold text-neutral-200 border border-[#2A3040] flex items-center justify-center gap-1.5"
+                    >
+                      <Eye className="w-4 h-4" /> Preview
+                    </button>
+                  </div>
                 </div>
               ))}
               {choosing && (
-                <button onClick={() => setChoosing(false)} className="text-[11px] underline text-neutral-400">
+                <button onClick={() => setChoosing(false)} className="text-xs underline text-neutral-400">
                   Cancel
                 </button>
               )}
             </div>
           )}
 
-          <div className="space-y-2 pt-2 border-t border-[#1A1E26]">
-            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B]">Starter templates</h4>
-            {STRENGTH_TEMPLATES.map((t) => {
+          <div className="space-y-2 pt-3 border-t border-[#1A1E26]">
+            <button
+              onClick={() => setShowTemplates((v) => !v)}
+              aria-expanded={showTemplates}
+              className="flex min-h-11 w-full items-center justify-between text-left"
+            >
+              <span>
+                <span className="block text-sm font-bold text-white">Starter workouts</span>
+                <span className="block text-xs text-[#9AA3B2]">{STRENGTH_TEMPLATES.length} ready-made strength sessions</span>
+              </span>
+              {showTemplates ? <ChevronUp className="w-5 h-5 text-neutral-300" /> : <ChevronDown className="w-5 h-5 text-neutral-300" />}
+            </button>
+            {showTemplates && STRENGTH_TEMPLATES.map((t) => {
               const saved = routines.some((r) => r.name === t.name);
               return (
                 <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-[#1A1E26] bg-black/40 px-3 py-2">
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white truncate">{t.name}</div>
-                    <div className="text-[10px] text-[#7E889B]">
+                    <div className="text-xs text-[#9AA3B2]">
                       {t.exerciseIds.map((id) => getExercise(id)?.name).filter(Boolean).slice(0, 3).join(', ')}
                       {t.exerciseIds.length > 3 ? ` +${t.exerciseIds.length - 3}` : ''}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() =>
+                        setPreview({
+                          preset: { kind: 'strength', title: t.name, blurb: t.blurb, exerciseIds: t.exerciseIds },
+                          actions: [
+                            ...(onSaveRoutine && !saved ? [{ label: 'Save as routine', onClick: () => { onSaveRoutine(t.name, t.exerciseIds); closePreview(); } }] : []),
+                            { label: 'Start', primary: true, onClick: () => { closePreview(); onStartStrength(t.exerciseIds, t.name); } },
+                          ],
+                        })
+                      }
+                      aria-label={`Preview ${t.name}`}
+                      className="min-h-11 px-3 rounded-xl text-xs font-bold text-neutral-200 border border-[#2A3040] flex items-center gap-1.5"
+                    >
+                      <Eye className="w-4 h-4" /> Preview
+                    </button>
                     {onSaveRoutine && !saved && (
-                      <button onClick={() => onSaveRoutine(t.name, t.exerciseIds)} className="px-2 py-1.5 rounded-lg text-[11px] font-bold text-neutral-300 border border-[#2A3040]">
+                      <button onClick={() => onSaveRoutine(t.name, t.exerciseIds)} className="min-h-11 px-3 rounded-xl text-xs font-bold text-neutral-200 border border-[#2A3040]">
                         Save
                       </button>
                     )}
-                    <button onClick={() => onStartStrength(t.exerciseIds, t.name)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-black" style={{ backgroundColor: theme.primary }}>
+                    <button onClick={() => onStartStrength(t.exerciseIds, t.name)} className="min-h-11 px-3.5 rounded-xl text-xs font-bold text-black" style={{ backgroundColor: theme.primary }}>
                       Start
                     </button>
                   </div>
@@ -323,15 +389,15 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
             })}
           </div>
 
-          <div className="space-y-2 pt-2 border-t border-[#1A1E26]">
+          <div className="space-y-2 pt-3 border-t border-[#1A1E26]">
             <div className="flex items-center justify-between">
-              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B]">My routines</h4>
-              <button onClick={() => setBuilder({ open: true, mode: 'routine', editing: null })} className="text-[11px] font-bold flex items-center gap-1" style={{ color: theme.primary }}>
+              <h4 className="text-sm font-bold text-white">My routines</h4>
+              <button onClick={() => setBuilder({ open: true, mode: 'routine', editing: null })} className="min-h-11 px-2 text-xs font-bold flex items-center gap-1" style={{ color: theme.primary }}>
                 <Plus className="w-3.5 h-3.5" /> New routine
               </button>
             </div>
             {routines.length === 0 ? (
-              <p className="text-[11px] text-neutral-500">
+              <p className="text-xs text-neutral-400">
                 No routines yet. Build a strength workout and use “Save these exercises as a routine”.
               </p>
             ) : (
@@ -339,12 +405,24 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
                 <div key={r.id} className="flex items-center justify-between gap-2 rounded-xl border border-[#1A1E26] bg-black/40 px-3 py-2">
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white truncate">{r.name}</div>
-                    <div className="text-[10px] text-[#7E889B]">{r.exerciseIds.length} exercises</div>
+                    <div className="text-xs text-[#9AA3B2]">{r.exerciseIds.length} exercises</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
+                      onClick={() =>
+                        setPreview({
+                          preset: { kind: 'strength', title: r.name, exerciseIds: r.exerciseIds },
+                          actions: [{ label: 'Start', primary: true, onClick: () => { closePreview(); onStartStrength(r.exerciseIds, r.name); } }],
+                        })
+                      }
+                      aria-label={`Preview ${r.name}`}
+                      className="min-h-11 px-3 rounded-xl text-xs font-bold text-neutral-200 border border-[#2A3040] flex items-center gap-1.5"
+                    >
+                      <Eye className="w-4 h-4" /> Preview
+                    </button>
+                    <button
                       onClick={() => onStartStrength(r.exerciseIds, r.name)}
-                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-black"
+                      className="min-h-11 px-3.5 rounded-xl text-xs font-bold text-black"
                       style={{ backgroundColor: theme.primary }}
                     >
                       Start
@@ -352,7 +430,7 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
                     <button
                       onClick={() => onDeleteRoutine(r.id)}
                       aria-label={`Delete routine ${r.name}`}
-                      className="text-neutral-500 hover:text-rose-400"
+                      className="flex h-11 w-11 items-center justify-center text-neutral-400 hover:text-rose-400"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -363,6 +441,7 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
           </div>
         </div>
       )}
+      <PresetPreview preset={preview?.preset ?? null} theme={theme} onClose={closePreview} actions={preview?.actions} />
       <LiftingBuilder
         isOpen={builder.open}
         onClose={() => setBuilder((b) => ({ ...b, open: false }))}
@@ -375,6 +454,7 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
         }}
         onSaveRoutine={(name, ids) => onSaveRoutine?.(name, ids)}
       />
+      <CalendarSheet isOpen={calOpen} onClose={() => setCalOpen(false)} theme={theme} />
     </section>
   );
 };

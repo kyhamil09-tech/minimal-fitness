@@ -99,7 +99,7 @@ export const MonthlyGoalCard: React.FC<Props> = ({ theme, workouts, units, goal,
           </button>
         </div>
         {goal && (
-          <button type="button" onClick={() => { onChange(null); setEditing(false); }} className="text-[11px] text-neutral-500 hover:text-rose-400">
+          <button type="button" onClick={() => { onChange(null); setEditing(false); }} className="text-xs text-neutral-400 hover:text-rose-400">
             Remove this goal
           </button>
         )}
@@ -142,7 +142,7 @@ export const MonthlyGoalCard: React.FC<Props> = ({ theme, workouts, units, goal,
         <span className="text-neutral-400">{p.daysLeft} day{p.daysLeft === 1 ? '' : 's'} left</span>
       </div>
       {p.state !== 'done' && (
-        <p className="text-[11px] text-neutral-500 mt-1">
+        <p className="text-xs text-neutral-400 mt-1">
           About {show(goal.kind, p.perDayNeeded, units)} {u} a day from here.
           {p.projected > 0 && ` At this pace you finish near ${show(goal.kind, p.projected, units)} ${u}.`}
         </p>

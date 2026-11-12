@@ -7,7 +7,7 @@ import { RecordsCard } from './RecordsCard';
 import { workoutDateKeys, workoutsOnDay, workoutVolumeKg } from '../lib/calc';
 import { formatTimestamp, toDateKey, todayKey, weekStartsOnSunday } from '../lib/dates';
 import { distanceUnit, formatDistance, formatPace, formatWeight, kmToDisplay } from '../lib/units';
-import { routeToSvgPoints } from '../lib/geo';
+import { RouteThumb } from './RouteThumb';
 
 interface ActivitiesPanelProps {
   workouts: WorkoutSession[];
@@ -17,16 +17,6 @@ interface ActivitiesPanelProps {
   onOpenDetail: (workout: WorkoutSession) => void;
   onDeleteWorkout: (id: string) => void;
 }
-
-const RouteMini: React.FC<{ route: [number, number][]; color: string }> = ({ route, color }) => {
-  const pts = routeToSvgPoints(route, 280, 110);
-  if (!pts) return null;
-  return (
-    <svg viewBox="0 0 280 110" className="w-full h-24 rounded-xl bg-black/60 border border-neutral-900" role="img" aria-label="Route map">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-};
 
 /** Run > Activities: your records, a month calendar that filters the list to a day, and every workout with its details. */
 export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, units, theme, onOpenDetail, onDeleteWorkout }) => {
@@ -118,7 +108,7 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                 onClick={() => setDayFilter((cur) => (cur === key ? null : key))}
                 aria-pressed={dayFilter === key}
                 aria-label={key}
-                className="week-dot !text-[11px]"
+                className="week-dot !text-xs"
                 data-done={doneKeys.has(key)}
                 data-today={key === todayKey()}
                 style={dayFilter === key ? { outline: `2px solid ${theme.primary}`, outlineOffset: 2 } : undefined}
@@ -129,7 +119,7 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
           )}
         </div>
         {dayFilter && (
-          <button onClick={() => setDayFilter(null)} className="mt-3 text-[11px] font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
+          <button onClick={() => setDayFilter(null)} className="mt-3 text-xs font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
             Showing {dayFilter} · clear
           </button>
         )}
@@ -138,10 +128,10 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
       {/* WORKOUT HISTORY FEED WITH FILTER CHIPS */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-semibold text-[#7E889B] tracking-wider uppercase">
+          <span className="text-xs font-semibold text-[#9AA3B2] tracking-wider uppercase">
             Activities · {filteredWorkouts.length}
           </span>
-          <span className="text-[11px] font-semibold text-[#7E889B]">Saved on this device</span>
+          <span className="text-xs font-semibold text-[#9AA3B2]">Saved on this device</span>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
@@ -158,13 +148,13 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
         </div>
 
         {shareNote && (
-          <p role="status" className="text-[11px] text-emerald-400 px-1">
+          <p role="status" className="text-xs text-emerald-400 px-1">
             {shareNote}
           </p>
         )}
 
         {filteredWorkouts.length === 0 && (
-          <p className="text-center text-xs text-[#7E889B] py-6">
+          <p className="text-center text-xs text-[#9AA3B2] py-6">
             {workouts.length === 0 ? 'No activities yet. Open the Start tab and press GO.' : 'Nothing matches this filter.'}
           </p>
         )}
@@ -180,6 +170,7 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                 className="rounded-3xl border p-4 space-y-3 transition-colors hover:border-neutral-700"
                 style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
               >
+                {workout.route && workout.route.length > 1 && <RouteThumb route={workout.route} color={theme.primary} />}
                 <button
                   onClick={() => setExpandedWorkoutId(isExpanded ? null : workout.id)}
                   aria-expanded={isExpanded}
@@ -189,25 +180,25 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-white">{workout.type}</span>
                       {workout.planDayTitle && (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
+                        <span className="text-xs font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
                           {workout.planDayTitle}
                         </span>
                       )}
                       {workout.isManualEntry ? (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400">
+                        <span className="text-xs font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400">
                           Manual Log
                         </span>
                       ) : workout.gpsTracked ? (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-900">
+                        <span className="text-xs font-mono px-1.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-900">
                           GPS Tracked
                         </span>
                       ) : (
-                        <span className="text-[9px] font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400">
+                        <span className="text-xs font-mono px-1.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400">
                           Timed
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-[#7E889B] block font-mono">
+                    <span className="text-xs text-[#9AA3B2] block font-mono">
                       {workout.startedAt ? formatTimestamp(workout.startedAt) : workout.timestamp}
                     </span>
                   </div>
@@ -225,29 +216,29 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                           <span className="hero-unit text-base"> min</span>
                         </span>
                       )}
-                      <span className="text-[11px] font-semibold text-[#7E889B]">
+                      <span className="text-xs font-semibold text-[#9AA3B2]">
                         {workout.distanceKm ? `${workout.durationMinutes} min · ` : ''}
                         {workout.caloriesBurned} kcal
                       </span>
                     </div>
                     {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-neutral-500" />
+                      <ChevronUp className="w-4 h-4 text-neutral-400" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-neutral-500" />
+                      <ChevronDown className="w-4 h-4 text-neutral-400" />
                     )}
                   </div>
                 </button>
 
                 <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-2 border-t border-[#1A1E26]">
                   <div className="bg-black/50 p-2 rounded-xl border border-neutral-900">
-                    <span className="text-[10px] text-neutral-400 block">
+                    <span className="text-xs text-neutral-400 block">
                       Avg HR{workout.hrFromSensor ? '' : ' (est.)'}
                     </span>
                     <span className="text-white font-bold block mt-0.5">{workout.avgHeartRate} bpm</span>
                   </div>
 
                   <div className="bg-black/50 p-2 rounded-xl border border-neutral-900">
-                    <span className="text-[10px] text-neutral-400 block">{volume > 0 ? 'Volume' : 'Distance'}</span>
+                    <span className="text-xs text-neutral-400 block">{volume > 0 ? 'Volume' : 'Distance'}</span>
                     <span className="text-white font-bold block mt-0.5">
                       {volume > 0
                         ? formatWeight(volume, units, 0)
@@ -258,7 +249,7 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                   </div>
 
                   <div className="bg-black/50 p-2 rounded-xl border border-neutral-900">
-                    <span className="text-[10px] text-neutral-400 block">Exertion (RPE)</span>
+                    <span className="text-xs text-neutral-400 block">Exertion (RPE)</span>
                     <span className="font-bold block mt-0.5" style={{ color: theme.primary }}>
                       {workout.perceivedExertion ? `${workout.perceivedExertion}/10` : '—'}
                     </span>
@@ -275,9 +266,8 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
 
                 {isExpanded && (
                   <div className="space-y-2 pt-1 text-xs">
-                    {workout.route && workout.route.length > 1 && <RouteMini route={workout.route} color={theme.primary} />}
                     {workout.distanceKm && workout.durationMinutes > 0 && (
-                      <p className="text-[11px] font-mono text-neutral-300 px-1">
+                      <p className="text-xs font-mono text-neutral-300 px-1">
                         Pace {formatPace(workout.durationMinutes, workout.distanceKm, units)} /{distanceUnit(units)}
                         {workout.elevationGainM ? ` · +${workout.elevationGainM} m climbed` : ''}
                       </p>
@@ -286,11 +276,11 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                       <ul className="space-y-1.5">
                         {workout.exercises.map((ex) => (
                           <li key={ex.exerciseId} className="bg-black/50 border border-neutral-900 rounded-xl p-2.5">
-                            <div className="text-[11px] font-semibold text-white flex items-center gap-1.5">
-                              <Trophy className="w-3 h-3 text-neutral-600" />
+                            <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                              <Trophy className="w-3 h-3 text-neutral-400" />
                               {ex.name}
                             </div>
-                            <div className="text-[10px] font-mono text-[#7E889B] mt-0.5">
+                            <div className="text-xs font-mono text-[#9AA3B2] mt-0.5">
                               {ex.sets.map((s) => `${formatWeight(s.weightKg, units, 1)}×${s.reps}`).join(' · ')}
                             </div>
                           </li>
@@ -298,22 +288,22 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                       </ul>
                     )}
                     {workout.notes && (
-                      <p className="text-[11px] text-neutral-300 bg-neutral-950 p-2.5 rounded-xl border border-neutral-900">
+                      <p className="text-xs text-neutral-300 bg-neutral-950 p-2.5 rounded-xl border border-neutral-900">
                         “{workout.notes}”
                       </p>
                     )}
-                    <div className="flex items-center justify-between text-[11px] text-[#7E889B] font-mono px-1">
+                    <div className="flex items-center justify-between text-xs text-[#9AA3B2] font-mono px-1">
                       <span>Cardio Load: {workout.cardioLoadPoints ?? Math.round(workout.durationMinutes * 1.3)} TRIMP</span>
                     </div>
                     <div className="flex items-center justify-end gap-3 pt-1">
                       <button
                         onClick={() => handleShare(workout)}
-                        className="text-[11px] flex items-center gap-1 text-neutral-300 hover:text-white"
+                        className="text-xs flex items-center gap-1 text-neutral-300 hover:text-white"
                       >
                         <Share2 className="w-3.5 h-3.5" /> Share
                       </button>
                       {confirmDeleteId === workout.id ? (
-                        <span className="flex items-center gap-2 text-[11px]">
+                        <span className="flex items-center gap-2 text-xs">
                           <span className="text-neutral-400">Delete?</span>
                           <button
                             onClick={() => {
@@ -331,7 +321,7 @@ export const ActivitiesPanel: React.FC<ActivitiesPanelProps> = ({ workouts, unit
                       ) : (
                         <button
                           onClick={() => setConfirmDeleteId(workout.id)}
-                          className="text-[11px] flex items-center gap-1 text-neutral-500 hover:text-rose-400"
+                          className="text-xs flex items-center gap-1 text-neutral-400 hover:text-rose-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Delete
                         </button>

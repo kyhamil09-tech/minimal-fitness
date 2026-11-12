@@ -24,6 +24,9 @@ import java.util.List;
  * phone, no account, no internet) reports when you start and stop moving in one of those ways. After you have kept it up for a
  * few minutes (so a stroll to the kitchen does not count), one notification offers to record it; tapping it opens the Start
  * screen for that activity. It never starts recording by itself, and it stays quiet while a workout is already recording.
+ *
+ * The same recognition also says when you get into a vehicle and out again (kept by {@link DriveLog}), so the steps a car shakes into
+ * the step counter can be taken off the day. That has its own switch, and either switch alone keeps the recognition registered.
  */
 final class ActivityDetect {
     static final String PREFS = "ky_autodetect";
@@ -76,23 +79,55 @@ final class ActivityDetect {
         return activity != DetectedActivity.WALKING || p.getBoolean("walks", false);
     }
 
-    /** Turns detection on or off to match the settings. Safe to call every time the app opens. */
+    /** Turns the workout suggestions on or off to match the settings. Safe to call every time the app opens. */
     static void configure(Context c, boolean enabled, boolean walks) {
         Context app = c.getApplicationContext();
         prefs(app).edit().putBoolean("enabled", enabled).putBoolean("walks", walks).apply();
-        if (enabled) register(app, walks);
-        else unregister(app);
+        if (!enabled) {
+            cancelCheck(app);
+            prefs(app).edit().remove("curType").remove("curEnterMs").apply();
+        }
+        refresh(app);
     }
 
-    static void register(Context c, boolean walks) {
+    /** Turns the noticing of drives on or off to match the setting. */
+    static void configureDrive(Context c, boolean on) {
+        Context app = c.getApplicationContext();
+        prefs(app).edit().putBoolean("drive", on).apply();
+        refresh(app);
+    }
+
+    /** Registers for whatever the settings ask for, or for nothing at all when both are off. */
+    static void refresh(Context c) {
+        Context app = c.getApplicationContext();
+        SharedPreferences p = prefs(app);
+        boolean suggest = p.getBoolean("enabled", false);
+        boolean drive = p.getBoolean("drive", false);
+        if (!suggest && !drive) unregister(app);
+        else register(app, suggest, suggest && p.getBoolean("walks", false), drive);
+    }
+
+    static void register(Context c, boolean suggest, boolean walks, boolean drive) {
+        // Asking without the permission would only throw, so check first; the next app start tries again once it is granted.
+        if (android.os.Build.VERSION.SDK_INT >= 29
+            && c.checkSelfPermission(android.Manifest.permission.ACTIVITY_RECOGNITION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
         List<ActivityTransition> list = new ArrayList<>();
-        int[] types = walks
-            ? new int[] {DetectedActivity.RUNNING, DetectedActivity.ON_BICYCLE, DetectedActivity.WALKING}
-            : new int[] {DetectedActivity.RUNNING, DetectedActivity.ON_BICYCLE};
+        int[] types = !suggest
+            ? new int[0]
+            : walks
+                ? new int[] {DetectedActivity.RUNNING, DetectedActivity.ON_BICYCLE, DetectedActivity.WALKING}
+                : new int[] {DetectedActivity.RUNNING, DetectedActivity.ON_BICYCLE};
         for (int t : types) {
             list.add(new ActivityTransition.Builder().setActivityType(t).setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER).build());
             list.add(new ActivityTransition.Builder().setActivityType(t).setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT).build());
         }
+        if (drive) {
+            list.add(new ActivityTransition.Builder().setActivityType(DetectedActivity.IN_VEHICLE).setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER).build());
+            list.add(new ActivityTransition.Builder().setActivityType(DetectedActivity.IN_VEHICLE).setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT).build());
+        }
+        if (list.isEmpty()) return;
         try {
             ActivityRecognition.getClient(c).requestActivityTransitionUpdates(new ActivityTransitionRequest(list), transitionIntent(c));
         } catch (RuntimeException ignored) {
@@ -103,6 +138,8 @@ final class ActivityDetect {
     static void unregister(Context c) {
         try {
             ActivityRecognition.getClient(c).removeActivityTransitionUpdates(transitionIntent(c));
+        } catch (SecurityException ignored) {
+            // permission was taken away: nothing is registered
         } catch (RuntimeException ignored) {
             // not registered
         }
@@ -118,6 +155,12 @@ final class ActivityDetect {
     /** You started (or stopped) moving in a way we watch for. {@code enteredMs} is when, in wall-clock time. */
     static void onTransition(Context c, int activity, boolean enter, long enteredMs) {
         SharedPreferences p = prefs(c);
+        if (activity == DetectedActivity.IN_VEHICLE) {
+            if (!p.getBoolean("drive", false)) return;
+            if (enter) DriveLog.onEnter(c, enteredMs);
+            else DriveLog.onExit(c, enteredMs);
+            return;
+        }
         if (sportFor(activity) == null) return;
         if (enter) {
             if (!wanted(p, activity)) return;

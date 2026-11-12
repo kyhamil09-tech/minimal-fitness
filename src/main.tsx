@@ -12,8 +12,10 @@ import './index.css';
 import {removeLegacySeedData} from './lib/legacy';
 import {installErrorLog} from './lib/diagnostics';
 import {installNetGuard} from './lib/netGuard';
+import {stampBuild} from './lib/buildMarks';
 
 installErrorLog();
+console.debug('DB_INIT', stampBuild());
 // Every request the app makes is checked against the allowed services and logged (Settings > Privacy & data).
 installNetGuard();
 

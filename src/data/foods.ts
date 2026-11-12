@@ -1,4 +1,5 @@
 import { MORE_FOODS } from './foodsMore';
+import { GLOBAL_FOODS } from './foodsGlobal';
 
 export interface FoodItem {
   name: string;
@@ -55,4 +56,4 @@ const BASE_FOODS: FoodItem[] = [
   { name: 'Red wine', serving: '150 ml', calories: 125, proteinG: 0.1, carbsG: 3.8, fatG: 0 },
 ];
 
-export const FOOD_DATABASE: FoodItem[] = [...BASE_FOODS, ...MORE_FOODS];
+export const FOOD_DATABASE: FoodItem[] = [...BASE_FOODS, ...MORE_FOODS, ...GLOBAL_FOODS];

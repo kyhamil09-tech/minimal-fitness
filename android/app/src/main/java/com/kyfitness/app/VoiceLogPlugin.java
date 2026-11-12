@@ -52,6 +52,8 @@ public class VoiceLogPlugin extends Plugin {
         else call.reject("Microphone permission was not given.");
     }
 
+    // Only reached after listen() has checked for Android 13 or newer, which has the on-device recogniser.
+    @android.annotation.SuppressLint("NewApi")
     private void start(final PluginCall call) {
         getActivity().runOnUiThread(() -> {
             try {

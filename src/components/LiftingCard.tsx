@@ -34,7 +34,7 @@ export const LiftingCard: React.FC<Props> = ({ theme, workouts, units }) => {
   if (lifts.length === 0) {
     return (
       <section className="rounded-3xl border p-4 space-y-2" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5" /> Lifting</h3>
+        <h3 className="text-sm font-bold text-neutral-200 flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5" /> Lifting</h3>
         <p className="text-xs text-neutral-400">Log a strength workout with weights and this fills in: estimated one-rep max over time, what to lift next, and sets per muscle each week.</p>
       </section>
     );
@@ -42,7 +42,7 @@ export const LiftingCard: React.FC<Props> = ({ theme, workouts, units }) => {
 
   return (
     <section className="rounded-3xl border p-4 space-y-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5" /> Lifting</h3>
+      <h3 className="text-sm font-bold text-neutral-200 flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5" /> Lifting</h3>
       <select
         aria-label="Lift"
         value={id}
@@ -56,7 +56,7 @@ export const LiftingCard: React.FC<Props> = ({ theme, workouts, units }) => {
 
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-[10px] text-neutral-500">Estimated one-rep max</div>
+          <div className="text-xs text-neutral-400">Estimated one-rep max</div>
           <div className="text-2xl font-bold font-mono text-white">{series.length ? formatWeight(series[series.length - 1].e1rm, units, 0) : '-'}</div>
         </div>
         {change !== null && (
@@ -73,19 +73,19 @@ export const LiftingCard: React.FC<Props> = ({ theme, workouts, units }) => {
           ariaLabel={`Estimated one-rep max over time`}
         />
       ) : (
-        <p className="text-[11px] text-neutral-500">Two sessions of this lift draw the chart.</p>
+        <p className="text-xs text-neutral-400">Two sessions of this lift draw the chart.</p>
       )}
-      {next && <p className="text-[11px] text-neutral-300 rounded-xl border border-[#1A1E26] bg-black/40 px-3 py-2">Next time: {next.reason}</p>}
+      {next && <p className="text-xs text-neutral-300 rounded-xl border border-[#1A1E26] bg-black/40 px-3 py-2">Next time: {next.reason}</p>}
 
       <div className="pt-1">
-        <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1.5">Sets this week by muscle</div>
+        <div className="text-sm text-neutral-200 mb-1.5">Sets this week by muscle</div>
         <ul className="space-y-1.5">
-          {shown.length === 0 && <li className="text-[11px] text-neutral-500">No sets in the last 6 weeks.</li>}
+          {shown.length === 0 && <li className="text-xs text-neutral-400">No sets in the last 6 weeks.</li>}
           {shown.map((m) => {
             const n = thisWeek.sets[m];
             const band = volumeBand(n);
             return (
-              <li key={m} className="flex items-center gap-2 text-[11px]">
+              <li key={m} className="flex items-center gap-2 text-xs">
                 <span className="w-20 text-neutral-300">{m}</span>
                 <div className="flex-1 h-2 rounded-full bg-black/60 overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${Math.min(100, (n / 24) * 100)}%`, backgroundColor: n === 0 ? 'transparent' : BAND_COLOR[band] }} />
@@ -95,7 +95,7 @@ export const LiftingCard: React.FC<Props> = ({ theme, workouts, units }) => {
             );
           })}
         </ul>
-        <p className="text-[10px] text-neutral-500 mt-2">About 10 to 20 hard sets a week per muscle is where most lifters make progress. It is a guide, not a rule.</p>
+        <p className="text-xs text-neutral-400 mt-2">About 10 to 20 hard sets a week per muscle is where most lifters make progress. It is a guide, not a rule.</p>
       </div>
     </section>
   );

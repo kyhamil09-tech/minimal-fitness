@@ -9,9 +9,10 @@ import { DayFitness, OwnDay, buildFitnessDays, summarize } from '../lib/fitnessM
 import { distanceUnit, kmToDisplay } from '../lib/units';
 import { currentRestingHr, getMaxHr } from '../lib/calc';
 import { trainingLoadStatus } from '../lib/trainingLoad';
-import { EfficiencyCard, FormCard, RacePredictionsCard } from './TrainingModelCards';
+import { EfficiencyCard, FormCard, RacePredictionsCard, RecoveryNowCard } from './TrainingModelCards';
 import { estimateVo2Max } from '../lib/vo2Estimate';
 import { shortMonthDay, shortWeekday, toDateKey, todayKey } from '../lib/dates';
+import { Segmented } from './ui/Segmented';
 
 interface FitnessMetricsScreenProps {
   theme: ColorPalette;
@@ -53,11 +54,11 @@ const MetricCard: React.FC<MetricCardProps> = ({ theme, icon, title, color, valu
           <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: `${color}22`, color }}>
             {icon}
           </span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">{title}</span>
+          <span className="text-sm font-bold text-neutral-200">{title}</span>
         </div>
         {trendPct !== undefined && trendPct !== 0 && (
           <span
-            className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold"
+            className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold"
             style={{ background: trendGood ? '#81C99524' : '#F28B8224', color: trendGood ? '#81C995' : '#F28B82' }}
             title="Last 7 days compared with the days before"
           >
@@ -68,10 +69,10 @@ const MetricCard: React.FC<MetricCardProps> = ({ theme, icon, title, color, valu
       </div>
       <div className="mt-3 flex items-baseline gap-1.5">
         <span className="hero-num text-[2.6rem] leading-none text-white">{value}</span>
-        <span className="text-sm text-[#7E889B]">{unit}</span>
-        <span className="ml-auto text-[11px] text-[#7E889B]">{caption}</span>
+        <span className="text-sm text-[#9AA3B2]">{unit}</span>
+        <span className="ml-auto text-xs text-[#9AA3B2]">{caption}</span>
       </div>
-      <p className="mt-1 text-[11px] text-neutral-400">{stats}</p>
+      <p className="mt-1 text-xs text-neutral-400">{stats}</p>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -137,21 +138,17 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
       <div className="flex items-center justify-between">
         <div>
           <h2 className="gh-title">Fitness metrics</h2>
-          <p className="mt-0.5 text-xs text-[#7E889B]">From Health Connect, your watch and this app's own sensors.</p>
+          <p className="mt-0.5 text-xs text-[#9AA3B2]">From Health Connect, your watch and this app's own sensors.</p>
         </div>
-        <div className="flex gap-1 rounded-full bg-white/[0.06] p-0.5" role="group" aria-label="Time range">
-          {([7, 14, 30] as const).map((n) => (
-            <button
-              key={n}
-              onClick={() => setRange(n)}
-              aria-pressed={range === n}
-              className="rounded-full px-2.5 py-1 text-[11px] font-bold"
-              style={{ background: range === n ? '#fff' : 'transparent', color: range === n ? '#000' : '#9AA3B2' }}
-            >
-              {n}d
-            </button>
-          ))}
-        </div>
+        <Segmented<string>
+          ariaLabel="Time range"
+          size="sm"
+          semantics="group"
+          fill={false}
+          value={String(range)}
+          onChange={(id) => setRange(Number(id) as typeof range)}
+          options={['7', '14', '30'].map((n) => ({ id: n, label: `${n}d` }))}
+        />
       </div>
 
       {!anyData && (
@@ -228,7 +225,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
           trendPct={exS.trendPct}
         >
           <BarChart data={bars((d) => d.exerciseMin)} color={theme.primary} goal={30} ariaLabel="Exercise minutes per day" />
-          <p className="mt-1 text-[10px] text-neutral-500">Workout time from your watch, other apps and this app. Dashed line is 30 minutes.</p>
+          <p className="mt-1 text-xs text-neutral-400">Workout time from your watch, other apps and this app. Dashed line is 30 minutes.</p>
         </MetricCard>
       )}
 
@@ -244,7 +241,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
           stats={`Your usual week is about ${int(load.chronicWeekly)} · ${load.label}`}
         >
           <div className="mb-2 flex items-center gap-2">
-            <span className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: `${loadColor}26`, color: loadColor }}>
+            <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: `${loadColor}26`, color: loadColor }}>
               {load.label}
             </span>
           </div>
@@ -254,13 +251,14 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
             format={(v) => String(Math.round(v))}
             ariaLabel="Training load per day over the last four weeks"
           />
-          <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-300">{load.message}</p>
-          <p className="mt-1 text-[10px] text-neutral-500">
+          <p className="mt-1.5 text-xs leading-relaxed text-neutral-300">{load.message}</p>
+          <p className="mt-1 text-xs text-neutral-400">
             Load is each workout's score from its length and heart rate (TRIMP). The last seven days are compared with your usual week over the past four. General guidance, not medical advice.
           </p>
         </MetricCard>
       )}
 
+      <RecoveryNowCard theme={theme} workouts={workouts} />
       <FormCard theme={theme} workouts={workouts} />
       <EfficiencyCard theme={theme} workouts={workouts} units={units} />
       <RacePredictionsCard theme={theme} workouts={workouts} units={units} />
@@ -295,7 +293,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
           upIsGood={false}
         >
           <LineChart points={points((d) => d.restingHr)} color="#F28B82" unit="" ariaLabel="Resting heart rate per day" />
-          <p className="mt-1 text-[10px] text-neutral-500">A steadily falling resting heart rate usually means your fitness is improving.</p>
+          <p className="mt-1 text-xs text-neutral-400">A steadily falling resting heart rate usually means your fitness is improving.</p>
         </MetricCard>
       )}
 
@@ -311,7 +309,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
           stats={hrS.count > 0 ? `Daily average ${int(hrS.avg ?? 0)} bpm` : 'Lowest to highest reading each day'}
         >
           <RangeChart data={days.map((d) => ({ label: label(d), min: d.hrMin, max: d.hrMax, avg: d.hrAvg }))} color="#F28B82" ariaLabel="Heart rate range per day" />
-          <p className="mt-1 text-[10px] text-neutral-500">Each bar runs from the day's lowest to highest reading; the white tick is the average.</p>
+          <p className="mt-1 text-xs text-neutral-400">Each bar runs from the day's lowest to highest reading; the white tick is the average.</p>
         </MetricCard>
       )}
 
@@ -328,7 +326,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
           trendPct={hrvS.trendPct}
         >
           <LineChart points={points((d) => d.hrvMs)} color="#81C995" unit="" ariaLabel="Heart rate variability per day" />
-          <p className="mt-1 text-[10px] text-neutral-500">HRV is personal: watch your own trend, not other people's numbers.</p>
+          <p className="mt-1 text-xs text-neutral-400">HRV is personal: watch your own trend, not other people's numbers.</p>
         </MetricCard>
       )}
 
@@ -344,7 +342,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
           stats={vo2.length > 1 ? `${vo2.length} readings · first ${vo2[0][1].toFixed(1)} · best ${Math.max(...vo2.map((r) => r[1])).toFixed(1)}` : 'First reading'}
         >
           <LineChart points={vo2Points} color="#FDD663" unit="" ariaLabel="VO2 max over time" />
-          <p className="mt-1 text-[10px] text-neutral-500">Estimated by your watch from outdoor runs and walks; higher is fitter.</p>
+          <p className="mt-1 text-xs text-neutral-400">Estimated by your watch from outdoor runs and walks; higher is fitter.</p>
         </MetricCard>
       )}
 
@@ -359,7 +357,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
           caption={shortMonthDay(toDateKey(vo2Own.at))}
           stats={`Estimated from your last ${vo2Own.runs} run${vo2Own.runs === 1 ? '' : 's'} with a heart-rate sensor`}
         >
-          <p className="text-[10px] leading-relaxed text-neutral-500">
+          <p className="text-xs leading-relaxed text-neutral-400">
             Your watch has not shared a VO2 max, so this is the app's own estimate from your running pace against how hard your heart worked. It assumes steady, flat runs, so treat it as a rough guide; a watch's own figure or a lab test is more accurate.
           </p>
         </MetricCard>
@@ -367,9 +365,9 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
 
       {anyData && missing.length > 0 && (
         <section className="rounded-3xl border p-5" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-          <div className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">Not available yet</div>
+          <div className="text-sm font-bold text-neutral-200">Not available yet</div>
           <p className="mt-2 text-xs leading-relaxed text-neutral-300">{missing.join(' · ')}</p>
-          <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+          <p className="mt-2 text-xs leading-relaxed text-neutral-400">
             {hcConnected
               ? 'Health Connect has no readings for these. Your watch records them over time, and some need a recent outdoor workout or a night of wear.'
               : 'Connect Health Connect in Settings to read these from your watch.'}
@@ -377,7 +375,7 @@ export const FitnessMetricsScreen: React.FC<FitnessMetricsScreenProps> = ({ them
         </section>
       )}
 
-      <p className="px-4 text-center text-[10px] leading-relaxed text-neutral-600">
+      <p className="px-4 text-center text-xs leading-relaxed text-neutral-400">
         Google's own scores such as Daily Readiness, Cardio Load and Active Zone Minutes are not shared with other apps, so they are not shown here. Fitness numbers are
         for general information, not medical advice.
       </p>

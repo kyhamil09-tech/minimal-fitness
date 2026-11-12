@@ -11,8 +11,10 @@ import { Row, Toggle } from './ui/SettingsParts';
 import { clearTileCache, tileCacheCount } from '../lib/tileCache';
 import { setSleepDetectEnabled, sleepDetectEnabled, startSleepDetect, stopSleepDetect } from '../lib/sleepDetect';
 import { ownSensorsEnabled, setOwnSensorsEnabled } from '../lib/ownSensors';
+import { autoEncryptionOn, enableAutoEncryption } from '../lib/cryptoBackup';
 import { usePrefs } from '../lib/prefs';
 import { StepsSettings } from './StepsSettings';
+import { HealthShareChecklist } from './HealthShareChecklist';
 
 interface AutomationSettingsProps {
   theme: ColorPalette;
@@ -39,22 +41,40 @@ const ago = (ms: number) => {
   return `${Math.round(h / 24)} days ago`;
 };
 
+/** The kinds of Health Connect data the app can use, each asked for on its own so you only share what you want. */
+const HC_GROUPS: { id: string; label: string; sub: string }[] = [
+  { id: 'activity', label: 'Workouts and steps', sub: 'Steps, distance, calories and workouts, in and out' },
+  { id: 'heart', label: 'Heart rate', sub: 'Heart rate, resting rate and VO2 max' },
+  { id: 'sleep', label: 'Sleep and recovery', sub: 'Sleep stages, HRV, breathing and oxygen' },
+  { id: 'body', label: 'Body', sub: 'Weight, body fat and height' },
+  { id: 'nutrition', label: 'Food and water', sub: 'Meals and drinks you log, saved to Health Connect' },
+  { id: 'vitals', label: 'Blood pressure and glucose', sub: 'Readings you log, saved to Health Connect' },
+];
+
 export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, automation, backup, runOptions, onRunOptionsChange, part, hideTitles = false, hcWaiting = 0, onSendUnsynced }) => {
   const android = isAndroidApp();
   const { prefs, setPrefs } = usePrefs();
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [logText, setLogText] = useState<string | null>(null);
   const { hc } = automation;
+  // Receiving is the default. What counts as "all granted" depends on whether saving to Health Connect is also on.
+  const hcWrite = prefs.writeHealthConnect;
+  const hcAll = !!hc && (hcWrite ? !!hc.allGranted : !!hc.allReadGranted);
+  const hcHave = hc ? (hcWrite ? (hc.grantedCount ?? 0) : (hc.readGrantedCount ?? 0)) : 0;
+  const hcTotal = hc ? (hcWrite ? (hc.total ?? 0) : (hc.readTotal ?? 0)) : 0;
   const [tiles, setTiles] = useState<number | null>(null);
   const [sleepOn, setSleepOn] = useState<boolean>(sleepDetectEnabled);
   const [ownOn, setOwnOn] = useState<boolean>(ownSensorsEnabled);
   const [sending, setSending] = useState(false);
   const [sendNote, setSendNote] = useState('');
+  const [drivePass, setDrivePass] = useState('');
+  const [driveEnc, setDriveEnc] = useState<boolean>(() => autoEncryptionOn());
+  const [confirmDriveRestore, setConfirmDriveRestore] = useState(false);
   React.useEffect(() => {
     void tileCacheCount().then(setTiles);
   }, []);
 
-  const btn = 'px-3 py-1.5 rounded-lg border border-neutral-700 text-xs font-semibold text-neutral-200 hover:text-white shrink-0';
+  const btn = 'min-h-11 px-4 rounded-xl border border-neutral-700 text-xs font-semibold text-neutral-200 hover:text-white shrink-0';
   const primary = 'px-3 py-1.5 rounded-lg text-xs font-bold text-black shrink-0 disabled:opacity-40';
 
   const openLog = async () => {
@@ -81,7 +101,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
       {/* AUTOMATIC DATA */}
       {part === 'data' && (
       <div className="space-y-2.5">
-        {!hideTitles && (<div className="px-1 text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5">
+        {!hideTitles && (<div className="px-1 text-sm font-bold text-neutral-200 flex items-center gap-1.5">
           <Activity className="w-3.5 h-3.5" style={{ color: theme.primary }} />
           Automatic data
         </div>)}
@@ -137,7 +157,9 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
             title="Use Health Connect"
             sub={
               prefs.useHealthConnect
-                ? 'On. Your watch’s sleep stages, HRV and other apps’ data come in, and what you log can be saved back.'
+                ? prefs.writeHealthConnect
+                  ? 'On. Other apps’ data comes in, and what you log is saved back to Health Connect.'
+                  : 'On, receive only. Your watch’s sleep stages, HRV and other trackers’ data (a band, a ring, a Fitbit) come in. Nothing you log is sent out.'
                 : 'Off. The app does not read from or write to Health Connect and never asks for its permissions. Steps, heart rate and sleep still come from your watch and phone. Data already imported stays.'
             }
             action={
@@ -153,8 +175,27 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
           />
           {prefs.useHealthConnect && (<>
           <Row
+            icon={<UploadCloud className="w-5 h-5 text-sky-300" />}
+            title="Send my data to Health Connect"
+            sub={
+              prefs.writeHealthConnect
+                ? 'On. Only the kinds of data you tick below are saved to Health Connect, where other apps you allow can read them.'
+                : 'Off. The app only receives. Nothing you log or record here is saved to Health Connect.'
+            }
+            action={<Toggle on={prefs.writeHealthConnect} onChange={(v) => setPrefs({ writeHealthConnect: v })} label="Send my data to Health Connect" />}
+          />
+          {prefs.writeHealthConnect && (
+            <HealthShareChecklist
+              share={prefs.hcShare}
+              onChange={(hcShare) => setPrefs({ hcShare })}
+              hc={hc}
+              askFor={(g) => automation.connectHealthConnect(g)}
+              accent={theme.primary}
+            />
+          )}
+          <Row
             icon={<BedDouble className="w-5 h-5 text-violet-300" />}
-            title="Health Connect (read and write)"
+            title={prefs.writeHealthConnect ? 'Health Connect (read and write)' : 'Health Connect (receive only)'}
             sub={
               !android
                 ? 'Available in the Android app.'
@@ -162,21 +203,23 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
                   ? 'Update Health Connect from Google Play to use it.'
                   : hc && !hc.available
                     ? 'Health Connect is not installed on this phone.'
-                    : hc?.allGranted
-                      ? `All ${hc.total} permissions the app asks for are granted. Sleep, steps and heart rate come in; your workouts, meals, water, weight and sleep go out. Last sync ${ago(automation.hcLastSyncAt)}${automation.hcNightsImported ? ` · ${automation.hcNightsImported} nights found` : ''}.`
-                      : hc && (hc.grantedCount ?? 0) > 0
-                        ? `${hc.grantedCount} of ${hc.total} permissions granted${hc.canWrite ? '' : ' (writing is off)'}. Grant the rest so everything can sync.`
-                        : 'Read your watch’s sleep, steps and heart rate from Health Connect and save your workouts, meals, water, weight and sleep back to it. Stays on this phone.'
+                    : hcAll
+                      ? `All ${hcTotal} permissions the app asks for are granted. Sleep, steps and heart rate come in${hcWrite ? '; your workouts, meals, water, weight and sleep go out' : '; nothing goes out'}. Last sync ${ago(automation.hcLastSyncAt)}${automation.hcNightsImported ? ` · ${automation.hcNightsImported} nights found` : ''}.`
+                      : hc && hcHave > 0
+                        ? `${hcHave} of ${hcTotal} permissions granted. Grant the rest so everything can come in.`
+                        : hcWrite
+                          ? 'Read your watch’s sleep, steps and heart rate from Health Connect and save your workouts, meals, water, weight and sleep back to it. Stays on this phone.'
+                          : 'Read your watch’s sleep, steps and heart rate, and other trackers’ data, from Health Connect. The app asks only to read, and sends nothing back. Stays on this phone.'
             }
             action={
               android && hc?.available ? (
                 <div className="flex flex-col gap-1.5 items-end">
-                  {!hc.allGranted && (
-                    <button onClick={automation.connectHealthConnect} className={primary} style={{ backgroundColor: theme.primary }}>
+                  {!hcAll && (
+                    <button onClick={() => automation.connectHealthConnect()} className={primary} style={{ backgroundColor: theme.primary }}>
                       Grant all
                     </button>
                   )}
-                  {(hc.grantedCount ?? 0) > 0 && (
+                  {hcHave > 0 && (
                     <button onClick={automation.syncNow} className={btn} aria-label="Sync now">
                       <RefreshCw className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />
                       Sync
@@ -186,6 +229,34 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
               ) : undefined
             }
           />
+          {android && hc?.available && hc.groups && !hcAll && (
+            <div className="px-4 pb-3 space-y-2" role="group" aria-label="Health Connect access by feature">
+              <div className="text-sm font-bold text-neutral-200">Choose what to share</div>
+              {HC_GROUPS.map((g) => {
+                const st = hc.groups?.[g.id];
+                if (!st) return null;
+                const total = hcWrite ? st.total : (st.readTotal ?? st.total);
+                const got = hcWrite ? st.granted : (st.readGranted ?? st.granted);
+                if (total === 0) return null; // nothing in this group to read
+                const done = got >= total;
+                return (
+                  <div key={g.id} className="flex min-h-11 items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-white">{g.label}</div>
+                      <div className="text-xs text-neutral-400">{g.sub}</div>
+                    </div>
+                    {done ? (
+                      <span className="text-xs font-bold text-emerald-300">On</span>
+                    ) : (
+                      <button onClick={() => automation.connectHealthConnect([g.id])} className={btn}>
+                        {got > 0 ? 'Finish' : 'Allow'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {android && hc?.available && (
             <Row
               icon={<Activity className="w-5 h-5 text-emerald-300" />}
@@ -194,7 +265,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
               action={<Toggle on={prefs.importHcWorkouts} onChange={(v) => setPrefs({ importHcWorkouts: v })} label="Bring in workouts from Health Connect" />}
             />
           )}
-          {android && hc?.available && !hc.allGranted && (hc.grantedCount ?? 0) > 0 && (
+          {android && hc?.available && !hcAll && hcHave > 0 && (
             <Row
               icon={<RefreshCw className="w-5 h-5 text-neutral-300" />}
               title="Still missing some permissions?"
@@ -206,7 +277,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
               }
             />
           )}
-          {android && hc?.available && hc.canWrite && hcWaiting > 0 && onSendUnsynced && (
+          {android && hc?.available && hcWrite && hc.canWrite && hcWaiting > 0 && onSendUnsynced && (
             <Row
               icon={<UploadCloud className="w-5 h-5 text-emerald-300" />}
               title={`${hcWaiting} workout${hcWaiting === 1 ? '' : 's'} not saved to Health Connect`}
@@ -229,7 +300,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
             />
           )}
           {automation.hcError && (
-            <p role="alert" className="px-4 py-2 text-[11px] text-rose-400">
+            <p role="alert" className="px-4 py-2 text-xs text-rose-400">
               {automation.hcError}
             </p>
           )}
@@ -241,7 +312,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
       {/* RUN OPTIONS */}
       {part === 'run' && (
       <div className="space-y-2.5">
-        {!hideTitles && (<div className="px-1 text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5">
+        {!hideTitles && (<div className="px-1 text-sm font-bold text-neutral-200 flex items-center gap-1.5">
           <MapIcon className="w-3.5 h-3.5" style={{ color: theme.primary }} />
           Run options
         </div>)}
@@ -255,7 +326,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
           <Row
             icon={<Volume2 className="w-5 h-5 text-sky-300" />}
             title="Spoken updates"
-            sub="Every kilometre or mile: lap time and pace, and a lap-button announcement. Keeps working with the screen off (Android app)."
+            sub="Every kilometer or mile: lap time and pace, and a lap-button announcement. Keeps working with the screen off (Android app)."
             action={<Toggle on={runOptions.voiceCues} onChange={(v) => onRunOptionsChange({ ...runOptions, voiceCues: v })} label="Spoken updates" />}
           />
           {runOptions.voiceCues && (
@@ -297,11 +368,12 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
       {/* BACKUP */}
       {part === 'backup' && (
       <div className="space-y-2.5">
-        {!hideTitles && (<div className="px-1 text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5">
+        {!hideTitles && (<div className="px-1 text-sm font-bold text-neutral-200 flex items-center gap-1.5">
           <CloudUpload className="w-3.5 h-3.5" style={{ color: theme.primary }} />
           Automatic backup
         </div>)}
         <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] divide-y divide-[#1A1E26] overflow-hidden">
+          <div data-setting="drive-backup" data-hint="Pick your Google Drive folder here" className="setting-target">
           <Row
             icon={<FolderOpen className="w-5 h-5 text-emerald-300" />}
             title={backup.status?.folder ? `Backing up to “${backup.status.folder}”` : 'Back up to a folder'}
@@ -328,6 +400,101 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
               ) : undefined
             }
           />
+          </div>
+          <div data-setting="google-drive-backup" className="setting-target">
+          <Row
+            icon={<CloudUpload className="w-5 h-5 text-sky-300" />}
+            title={backup.drive.on && backup.drive.connected ? 'Backing up to Google Drive' : 'Back up to Google Drive'}
+            sub={
+              !android
+                ? 'Google Drive backup works in the Android app.'
+                : !backup.drive.available
+                  ? 'Needs Google Play services, which is not on this phone. The folder backup above still works.'
+                  : backup.drive.on && backup.drive.connected
+                    ? `Google only. Saved in a hidden folder in your own Google Drive that only this app can see, encrypted on your phone first. Once a day and after each new workout while the app is open; the last 7 copies are kept. Last backup ${ago(backup.drive.lastAt)}.`
+                    : backup.drive.on
+                      ? 'Google needs your permission again. Tap Connect Google Drive.'
+                      : 'Google only. Google gives this app one permission: a hidden folder in your own Google Drive that only this app can see, and nothing else in your account. The backup is encrypted on your phone first, so Google stores a file it cannot read. It runs once a day and after each new workout, while the app is open.'
+            }
+            action={
+              android && backup.drive.available ? (
+                backup.drive.on && backup.drive.connected ? (
+                  <button onClick={backup.backupNow} disabled={backup.working} className={btn}>
+                    {backup.working ? 'Saving…' : 'Back up now'}
+                  </button>
+                ) : driveEnc ? (
+                  <button onClick={backup.connectGoogleDrive} className={primary} style={{ backgroundColor: theme.primary }}>
+                    Connect Google Drive
+                  </button>
+                ) : undefined
+              ) : undefined
+            }
+          />
+          </div>
+          {android && backup.drive.available && !(backup.drive.on && backup.drive.connected) && !driveEnc && (
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-xs leading-relaxed text-[#9AA3B2]">
+                Choose a backup passphrase first. It locks the backup on your phone before it leaves, so only you can open it. If you forget it, the
+                backups cannot be opened, and it is not stored anywhere you can recover it from.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={drivePass}
+                  onChange={(e) => setDrivePass(e.target.value)}
+                  placeholder="At least 8 characters"
+                  aria-label="Backup passphrase"
+                  className="min-h-11 flex-1 rounded-xl border border-neutral-700 bg-black/60 px-3 text-sm text-white"
+                />
+                <button
+                  disabled={drivePass.length < 8}
+                  onClick={async () => {
+                    try {
+                      await enableAutoEncryption(drivePass);
+                      setDrivePass('');
+                      setDriveEnc(true);
+                      await backup.connectGoogleDrive();
+                    } catch {
+                      // the hook shows what went wrong under the card
+                    }
+                  }}
+                  className={primary}
+                  style={{ backgroundColor: theme.primary }}
+                >
+                  Set and connect
+                </button>
+              </div>
+            </div>
+          )}
+          {android && backup.drive.available && backup.drive.on && backup.drive.connected && (
+            <div className="px-4 py-3 flex flex-wrap items-center gap-2">
+              {!confirmDriveRestore ? (
+                <button onClick={() => setConfirmDriveRestore(true)} className={btn}>
+                  <History className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />
+                  Restore latest from Drive
+                </button>
+              ) : (
+                <span className="flex items-center gap-2 text-xs">
+                  <span className="text-amber-200">Replace everything with the newest Drive backup?</span>
+                  <button onClick={backup.restoreFromGoogleDrive} className="text-rose-400 font-bold">
+                    Yes
+                  </button>
+                  <button onClick={() => setConfirmDriveRestore(false)} className="text-neutral-400">
+                    No
+                  </button>
+                </span>
+              )}
+              <button onClick={backup.disconnectGoogleDrive} className="text-xs text-neutral-400 hover:text-rose-400 ml-auto">
+                Turn off
+              </button>
+            </div>
+          )}
+          {backup.drive.error && (
+            <p role="alert" className="px-4 py-2 text-xs text-rose-400">
+              {backup.drive.error}
+            </p>
+          )}
           {android && backup.status?.folder && (
             <div className="px-4 py-3 flex flex-wrap items-center gap-2">
               <button onClick={backup.chooseFolder} className={btn}>
@@ -339,7 +506,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
                   Restore latest
                 </button>
               ) : (
-                <span className="flex items-center gap-2 text-[11px]">
+                <span className="flex items-center gap-2 text-xs">
                   <span className="text-amber-200">Replace everything with the newest backup?</span>
                   <button onClick={backup.restoreLatest} className="text-rose-400 font-bold">
                     Yes
@@ -349,13 +516,13 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
                   </button>
                 </span>
               )}
-              <button onClick={backup.stop} className="text-[11px] text-neutral-500 hover:text-rose-400 ml-auto">
+              <button onClick={backup.stop} className="text-xs text-neutral-400 hover:text-rose-400 ml-auto">
                 Turn off
               </button>
             </div>
           )}
           {backup.error && (
-            <p role="alert" className="px-4 py-2 text-[11px] text-rose-400">
+            <p role="alert" className="px-4 py-2 text-xs text-rose-400">
               {backup.error}
             </p>
           )}
@@ -366,7 +533,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
       {/* DIAGNOSTICS */}
       {part === 'diagnostics' && (
       <div className="space-y-2.5">
-        {!hideTitles && (<div className="px-1 text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5">
+        {!hideTitles && (<div className="px-1 text-sm font-bold text-neutral-200 flex items-center gap-1.5">
           <Bug className="w-3.5 h-3.5" style={{ color: theme.primary }} />
           Diagnostics
         </div>)}
@@ -383,7 +550,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({ theme, a
           />
           {logText !== null && (
             <div className="px-4 pb-4 space-y-2">
-              <pre className="max-h-56 overflow-auto text-[10px] leading-snug text-neutral-300 bg-black/50 border border-white/10 rounded-xl p-3 whitespace-pre-wrap break-words">
+              <pre className="max-h-56 overflow-auto text-xs leading-snug text-neutral-300 bg-black/50 border border-white/10 rounded-xl p-3 whitespace-pre-wrap break-words">
                 {logText}
               </pre>
               <div className="flex gap-2">

@@ -22,6 +22,14 @@ export function useNutritionLog() {
     setFood((prev) => prev.filter((f) => f.id !== id));
     void deleteFromHc('nutrition', [id]);
   };
+  /** Changes a logged food in place (its amount, meal or numbers) and rewrites it in Health Connect. */
+  const updateFood = (id: string, patch: Partial<FoodEntry>) => {
+    const cur = food.find((f) => f.id === id);
+    if (!cur) return;
+    const updated: FoodEntry = { ...cur, ...patch, id: cur.id, date: cur.date };
+    setFood((prev) => prev.map((f) => (f.id === id ? updated : f)));
+    void writeFoodToHc(updated);
+  };
   const addWater = (date: string, ml: number) => {
     const entry: WaterEntry = { id: makeId('wt'), date, ml };
     setWater((prev) => [...prev, entry]);
@@ -34,5 +42,5 @@ export function useNutritionLog() {
   const saveMeal = (name: string, items: SavedMeal['items']) => setSavedMeals((prev) => [...prev, { id: makeId('meal'), name, items }]);
   const deleteMeal = (id: string) => setSavedMeals((prev) => prev.filter((m) => m.id !== id));
 
-  return { food, water, savedMeals, addFood, deleteFood, addWater, deleteWater, saveMeal, deleteMeal };
+  return { food, water, savedMeals, addFood, deleteFood, updateFood, addWater, deleteWater, saveMeal, deleteMeal };
 }

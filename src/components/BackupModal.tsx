@@ -89,7 +89,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, theme
       icon={<DatabaseBackup className="w-4 h-4" style={{ color: theme.primary }} />}
     >
       <div className="space-y-4">
-        <p className="text-xs text-[#7E889B] leading-relaxed">
+        <p className="text-xs text-[#9AA3B2] leading-relaxed">
           Your data lives only in this browser. Export a backup to keep it safe or move it to another device.
         </p>
 
@@ -139,7 +139,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, theme
           <div className="flex items-center gap-2 text-xs font-semibold text-white">
             <Lock className="w-4 h-4" style={{ color: theme.primary }} /> Encrypt backups {encOn ? '(on)' : '(off)'}
           </div>
-          <p className="text-[11px] text-[#7E889B] leading-relaxed">
+          <p className="text-xs text-[#9AA3B2] leading-relaxed">
             Seals backup files with a passphrase (AES-256) so a file sitting in Drive is unreadable to anyone else. The passphrase is not stored: keep it safe, because without it a backup cannot be opened. The daily folder backup follows this setting.
           </p>
           {encOn ? (

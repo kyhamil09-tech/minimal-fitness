@@ -88,7 +88,7 @@ export const nextPending = (items: GroupableItem[], from: number): number => {
 /**
  * After set `ri` of exercise `ei` is ticked off. For an exercise in a group: go to the next exercise of the group that has the
  * same set still to do, with no rest; at the end of the round rest, and then start the next round at the top of the group.
- * Returns null for an exercise on its own, which keeps the usual behaviour (rest, stay put).
+ * Returns null for an exercise on its own, which keeps the usual behavior (rest, stay put).
  * `items` must already show the set as done.
  */
 export const afterGroupedSetDone = (items: GroupableItem[], ei: number, ri: number): { cursor: number; rest: boolean } | null => {

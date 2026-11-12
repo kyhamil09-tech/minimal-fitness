@@ -59,7 +59,8 @@ final class WaterStore {
         try {
             JSONArray log = new JSONArray(prefs.getString("pending", "[]"));
             int sum = 0;
-            for (int i = 0; i < log.length(); i++) sum += log.getJSONArray(i).getInt(1);
+            // Requests to take a drink back ([time, -1]) are not water.
+            for (int i = 0; i < log.length(); i++) sum += Math.max(0, log.getJSONArray(i).getInt(1));
             return sum;
         } catch (JSONException e) {
             return 0;
@@ -75,18 +76,68 @@ final class WaterStore {
             JSONArray log = new JSONArray(prefs.getString("pending", "[]"));
             if (log.length() >= MAX_PENDING) return;
             log.put(new JSONArray().put(System.currentTimeMillis()).put(ml));
-            prefs.edit().putString("pending", log.toString()).putInt("ml", prefs.getInt("ml", 0) + ml).apply();
+            prefs.edit().putString("pending", log.toString()).putInt("ml", prefs.getInt("ml", 0) + ml).putInt("lastMl", ml).apply();
         } catch (JSONException e) {
             // a damaged list is dropped; the total from the app corrects the display on its next report
             prefs.edit().remove("pending").apply();
         }
     }
 
+    /** The amount of the most recent drink today (the app's last entry or the last one added from the widget or watch), 0 if unknown. */
+    static int lastMl(Context c) {
+        SharedPreferences prefs = p(c);
+        return today().equals(prefs.getString("day", "")) ? prefs.getInt("lastMl", 0) : 0;
+    }
+
+    /**
+     * Takes back the last drink, from the watch. A drink still waiting for the app is simply removed from the waiting list. One the
+     * app has already logged cannot be changed from here, so a request ({@code [time, -1]}) is left for the app, which removes its
+     * latest entry for today the next time it looks; the shown total drops by the last drink's amount at once.
+     */
+    static synchronized void undoLast(Context c) {
+        SharedPreferences prefs = p(c);
+        rollDay(prefs);
+        try {
+            JSONArray log = new JSONArray(prefs.getString("pending", "[]"));
+            int total = prefs.getInt("ml", 0);
+            int last = prefs.getInt("lastMl", 0);
+            // The newest waiting drink, if there is one, is the one to take back.
+            int idx = -1;
+            for (int i = log.length() - 1; i >= 0; i--) {
+                if (log.getJSONArray(i).getInt(1) > 0) {
+                    idx = i;
+                    break;
+                }
+            }
+            if (idx >= 0) {
+                int ml = log.getJSONArray(idx).getInt(1);
+                JSONArray kept = new JSONArray();
+                for (int i = 0; i < log.length(); i++) if (i != idx) kept.put(log.get(i));
+                // What is now the newest waiting drink becomes the "last" one; with none waiting the app's own is unknown until it reports.
+                int newLast = 0;
+                for (int i = kept.length() - 1; i >= 0; i--) {
+                    int v = kept.getJSONArray(i).getInt(1);
+                    if (v > 0) {
+                        newLast = v;
+                        break;
+                    }
+                }
+                prefs.edit().putString("pending", kept.toString()).putInt("ml", Math.max(0, total - ml)).putInt("lastMl", newLast).apply();
+            } else if (log.length() < MAX_PENDING) {
+                log.put(new JSONArray().put(System.currentTimeMillis()).put(-1));
+                prefs.edit().putString("pending", log.toString()).putInt("ml", Math.max(0, total - Math.max(0, last))).putInt("lastMl", 0).apply();
+            }
+        } catch (JSONException e) {
+            prefs.edit().remove("pending").apply();
+        }
+    }
+
     /** The app reports today's total (its own log, without what is still waiting) with the goal and how amounts are shown. */
-    static synchronized void setFromApp(Context c, int totalMl, int goalMl, boolean imperial, int step1Ml, int step2Ml) {
+    static synchronized void setFromApp(Context c, int totalMl, int goalMl, boolean imperial, int step1Ml, int step2Ml, int lastMl) {
         SharedPreferences prefs = p(c);
         prefs.edit()
             .putString("day", today())
+            .putInt("lastMl", Math.max(0, lastMl))
             .putInt("ml", Math.max(0, totalMl) + pendingSum(prefs))
             .putInt("goal", Math.max(1, goalMl))
             .putBoolean("imperial", imperial)
@@ -120,6 +171,7 @@ final class WaterStore {
             m.putBoolean("imperial", imperial(c));
             m.putInt("step1", stepMl(c, 1));
             m.putInt("step2", stepMl(c, 2));
+            m.putInt("lastMl", lastMl(c));
             m.putLong("at", System.currentTimeMillis());
             PutDataRequest put = req.asPutDataRequest();
             put.setUrgent();

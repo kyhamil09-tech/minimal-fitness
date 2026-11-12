@@ -21,26 +21,29 @@ import android.widget.TextView;
 
 /** Shared look for the watch app: the phone app's liquid-glass style on a round display. */
 final class Ui {
-    // The colours of the watch app. They start as the standard look and are replaced by apply() with the look chosen on the phone
+    // The colors of the watch app. They start as the standard look and are replaced by apply() with the look chosen on the phone
     // (palette and background), so every screen, the tile and the workout view match the phone app.
     static int INK = Color.parseColor("#F2EDE3");
     static int MUTED = Color.parseColor("#A29E95");
-    static int ACCENT = Color.parseColor("#CBFF00");
+    static int ACCENT = Color.parseColor("#FF5500");
     static int BLUE = Color.parseColor("#7DD3FC");
     static int GREEN = Color.parseColor("#4ADE80");
     static int YELLOW = Color.parseColor("#FFD23F");
     static int ORANGE = Color.parseColor("#FF5A1F");
     static int RED = Color.parseColor("#FF4D4D");
     static int PURPLE = Color.parseColor("#B794FF");
-    /** The window background, the card colour and its edge, and the text colour used on an accent-coloured button. */
+    /** The window background, the card color and its edge, and the text color used on an accent-colored button. */
     static int BG = Color.parseColor("#17181B");
     static int CARD = Color.parseColor("#212226");
     static int EDGE = Color.parseColor("#34353B");
     static int ON_ACCENT = Color.parseColor("#14130F");
 
+    /** True while a lifting session is on screen: the screens then use the phone's Lift look (charcoal, white numbers, one amber accent). */
+    static boolean lift = false;
+
     private Ui() {}
 
-    /** Reads the look the phone sent (if any) into the colours above. Call before building any view. */
+    /** Reads the look the phone sent (if any) into the colors above. Call before building any view. */
     static void apply(Context c) {
         INK = LookStore.color(c, "ink", INK);
         MUTED = LookStore.color(c, "muted", MUTED);
@@ -55,9 +58,18 @@ final class Ui {
         CARD = LookStore.color(c, "card", CARD);
         EDGE = LookStore.color(c, "edge", EDGE);
         ON_ACCENT = LookStore.color(c, "onAccent", ON_ACCENT);
+        if (lift) {
+            INK = Color.WHITE;
+            MUTED = Color.parseColor("#8E8E93");
+            ACCENT = Color.parseColor("#FFB300");
+            BG = Color.parseColor("#121214");
+            CARD = Color.parseColor("#26262B");
+            EDGE = Color.parseColor("#3A3A41");
+            ON_ACCENT = Color.parseColor("#1A1200");
+        }
     }
 
-    /** Colour for a sport's icon: 0 accent, 1 blue, 2 orange, 3 yellow, 4 purple, 5 red. Resolved when drawn so a new look shows. */
+    /** Color for a sport's icon: 0 accent, 1 blue, 2 orange, 3 yellow, 4 purple, 5 red. Resolved when drawn so a new look shows. */
     static int byKey(int key) {
         switch (key) {
             case 1: return BLUE;
@@ -90,7 +102,7 @@ final class Ui {
         return d;
     }
 
-    /** Card tinted toward a colour (secondary and destructive actions). */
+    /** Card tinted toward a color (secondary and destructive actions). */
     static Drawable tinted(Context c, int color, float radiusDp, int topAlpha, int bottomAlpha) {
         GradientDrawable d = new GradientDrawable();
         d.setColor((color & 0x00FFFFFF) | (bottomAlpha << 24));
@@ -99,7 +111,7 @@ final class Ui {
         return d;
     }
 
-    /** Solid pill or card in one colour: the primary action. */
+    /** Solid pill or card in one color: the primary action. */
     static Drawable solid(Context c, int color, float radiusDp) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
@@ -109,7 +121,8 @@ final class Ui {
 
     /** Big numbers: condensed, heavy and slanted like the phone app. */
     static Typeface display() {
-        return Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC);
+        // The Lift look uses plain bold numbers, like the phone's Lift screens.
+        return lift ? Typeface.create("sans-serif", Typeface.BOLD) : Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC);
     }
 
     static TextView num(Context c, String s, float sp, int color) {
@@ -147,7 +160,7 @@ final class Ui {
         @Override public void setColorFilter(ColorFilter cf) {}
         @Override public int getOpacity() { return PixelFormat.OPAQUE; }
     }
-    /** Heart-rate ring: soft track plus a rounded progress arc in the zone colour. */
+    /** Heart-rate ring: soft track plus a rounded progress arc in the zone color. */
     static final class RingView extends View {
         private final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint arc = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -193,7 +206,7 @@ final class Ui {
         }
     }
 
-    /** Colour of zone `index` (0 = Z1 ... 4 = Z5). */
+    /** Color of zone `index` (0 = Z1 ... 4 = Z5). */
     static int zoneColor(int index) {
         int[] colors = {BLUE, GREEN, YELLOW, ORANGE, RED};
         return colors[Math.max(0, Math.min(4, index))];

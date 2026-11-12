@@ -209,7 +209,7 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
       <div className="flex items-center justify-between">
         <div>
           {hideHeader ? <h2 className="gh-title">Fasting timer</h2> : <h1 className="text-xl font-bold text-white tracking-tight">Intermittent Fasting</h1>}
-          <p className="text-xs text-[#7E889B] mt-0.5">
+          <p className="text-xs text-[#9AA3B2] mt-0.5">
             Metabolic switching, lipolysis, and on-device cellular cleanup tracking.
           </p>
         </div>
@@ -240,12 +240,12 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
             <span className="text-xs font-bold font-mono text-white group-hover:text-[#00E676] transition-colors">
               {protocolName}
             </span>
-            <ChevronRight className="w-3.5 h-3.5 text-neutral-500" />
+            <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
           </button>
 
           <button
             onClick={() => setShowStageInfoModal(true)}
-            className="text-[11px] font-mono text-[#7E889B] hover:text-white flex items-center gap-1 transition-colors"
+            className="text-xs font-mono text-[#9AA3B2] hover:text-white flex items-center gap-1 transition-colors"
           >
             <Info className="w-3.5 h-3.5" />
             <span>Stages</span>
@@ -286,14 +286,14 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
 
             {/* Center Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-widest text-[#7E889B]">
+              <span className="text-xs font-mono font-semibold uppercase tracking-widest text-[#9AA3B2]">
                 {isFastActive ? (isOvertime ? 'Goal Exceeded' : 'Fasting Time') : 'Timer Paused'}
               </span>
 
               {/* Big Elapsed Timer */}
               <div className="text-[2rem] leading-none font-bold font-mono tracking-tight text-white mt-1.5 tabular-nums">
                 {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}:
-                <span className="text-xl text-[#7E889B]">{String(seconds).padStart(2, '0')}</span>
+                <span className="text-xl text-[#9AA3B2]">{String(seconds).padStart(2, '0')}</span>
               </div>
 
               {/* Target / Progress text */}
@@ -301,11 +301,11 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
                 <span className="text-xs font-mono font-semibold" style={{ color: theme.primary }}>
                   {progressPct}%
                 </span>
-                <span className="text-xs text-[#7E889B]">of {targetHours}h goal</span>
+                <span className="text-xs text-[#9AA3B2]">of {targetHours}h goal</span>
               </div>
 
               {isFastActive && (
-                <span className="text-[11px] font-mono text-neutral-400 mt-1">
+                <span className="text-xs font-mono text-neutral-400 mt-1">
                   {isOvertime
                     ? `+${hours - targetHours}h ${minutes}m overtime`
                     : `${remHours}h ${remMinutes}m remaining`}
@@ -335,7 +335,7 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-white">{currentStage.name}</span>
                   <span
-                    className="text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold"
+                    className="text-xs font-mono px-1.5 py-0.2 rounded font-semibold"
                     style={{
                       backgroundColor: `${theme.primary}25`,
                       color: theme.primary,
@@ -344,10 +344,10 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
                     {currentStage.hourRange}
                   </span>
                 </div>
-                <p className="text-[11px] text-[#7E889B] mt-0.5 line-clamp-1">{currentStage.description}</p>
+                <p className="text-xs text-[#9AA3B2] mt-0.5 line-clamp-1">{currentStage.description}</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-neutral-500 group-hover:text-white transition-colors" />
+            <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
           </div>
         )}
 
@@ -407,10 +407,10 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
         }}
       >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">
+          <span className="text-sm font-bold text-neutral-200">
             Metabolic Progression (16:8)
           </span>
-          <span className="text-[11px] font-mono text-[#00E676]">Auto-Calculated</span>
+          <span className="text-xs font-mono text-[#00E676]">Auto-Calculated</span>
         </div>
 
         <div className="space-y-2 pt-1">
@@ -432,29 +432,29 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
             >
               <div className="flex items-center gap-2.5">
                 <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-mono font-bold ${
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono font-bold ${
                     stage.status === 'Active'
                       ? 'bg-emerald-500 text-black'
                       : stage.status === 'Complete'
                       ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                      : 'bg-neutral-900 text-neutral-500'
+                      : 'bg-neutral-900 text-neutral-400'
                   }`}
                 >
                   {stage.status === 'Complete' ? '✓' : idx + 1}
                 </div>
                 <div>
                   <span className="text-xs font-bold text-white block">{stage.title}</span>
-                  <span className="text-[10px] font-mono text-[#7E889B]">{stage.hours}</span>
+                  <span className="text-xs font-mono text-[#9AA3B2]">{stage.hours}</span>
                 </div>
               </div>
 
               <span
-                className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold ${
+                className={`text-xs font-mono px-2 py-0.5 rounded-full font-semibold ${
                   stage.status === 'Active'
                     ? 'bg-emerald-500/20 text-emerald-400'
                     : stage.status === 'Complete'
                     ? 'text-neutral-400'
-                    : 'text-neutral-600'
+                    : 'text-neutral-400'
                 }`}
               >
                 {stage.status}
@@ -475,13 +475,13 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
       {/* Target Selector Modal */}
       {showTargetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-label="Select fasting protocol" className="w-full max-w-sm bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26]">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-emerald-400" />
                 Select Fasting Protocol
               </h3>
-              <button onClick={() => setShowTargetModal(false)} className="text-neutral-400 hover:text-white">
+              <button onClick={() => setShowTargetModal(false)} aria-label="Close" className="text-neutral-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -499,7 +499,7 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
                 >
                   <div>
                     <span className="text-xs font-bold text-white block">{p.name}</span>
-                    <span className="text-[11px] text-[#7E889B]">{p.desc}</span>
+                    <span className="text-xs text-[#9AA3B2]">{p.desc}</span>
                   </div>
                   {targetHours === p.hours && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
                 </button>
@@ -512,20 +512,20 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
       {/* Manual Fast Logger Modal */}
       {showManualModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-label="Log a fast manually" className="w-full max-w-sm bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26]">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Plus className="w-4 h-4 text-emerald-400" />
                 Manually Log Fast
               </h3>
-              <button onClick={() => setShowManualModal(false)} className="text-neutral-400 hover:text-white">
+              <button onClick={() => setShowManualModal(false)} aria-label="Close" className="text-neutral-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleSaveManualFast} className="space-y-3 mt-3">
               <div className="space-y-1">
-                <label className="text-[11px] text-neutral-400">Hours Fasted</label>
+                <label className="text-xs text-neutral-400">Hours Fasted</label>
                 <input
                   type="number"
                   step="0.5"
@@ -538,7 +538,7 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-neutral-400">Protocol</label>
+                <label className="text-xs text-neutral-400">Protocol</label>
                 <select
                   value={manualProtocol}
                   onChange={(e) => setManualProtocol(e.target.value)}
@@ -553,7 +553,7 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-neutral-400">Notes (Optional)</label>
+                <label className="text-xs text-neutral-400">Notes (Optional)</label>
                 <input
                   type="text"
                   value={manualNotes}
@@ -577,13 +577,13 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
       {/* Fasting Stage Info Explainer Modal */}
       {showStageInfoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-md bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl max-h-[85vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-label="Fasting stages" className="w-full max-w-md bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 text-white shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26]">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 Intermittent Fasting Biological Stages
               </h3>
-              <button onClick={() => setShowStageInfoModal(false)} className="text-neutral-400 hover:text-white">
+              <button onClick={() => setShowStageInfoModal(false)} aria-label="Close" className="text-neutral-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -591,35 +591,35 @@ export const FastingScreen: React.FC<FastingScreenProps & { hideHeader?: boolean
             <div className="space-y-3 mt-3 text-xs text-[#CBD5E1]">
               <div className="p-3 rounded-2xl bg-black/50 border border-neutral-800">
                 <span className="text-emerald-400 font-bold font-mono">0 - 4 Hours · Fed State</span>
-                <p className="text-[11px] text-[#7E889B] mt-1">
+                <p className="text-xs text-[#9AA3B2] mt-1">
                   Digestion of your last meal. Pancreatic insulin is elevated, facilitating glucose uptake into skeletal muscles and glycogen synthesis in the liver.
                 </p>
               </div>
 
               <div className="p-3 rounded-2xl bg-black/50 border border-neutral-800">
                 <span className="text-emerald-400 font-bold font-mono">4 - 12 Hours · Early Fasting</span>
-                <p className="text-[11px] text-[#7E889B] mt-1">
+                <p className="text-xs text-[#9AA3B2] mt-1">
                   Insulin drops back to baseline. The body begins glycogenolysis (breaking down stored glycogen into glucose) to sustain euglycemia.
                 </p>
               </div>
 
               <div className="p-3 rounded-2xl bg-black/50 border border-neutral-800">
                 <span className="text-emerald-400 font-bold font-mono">12 - 16 Hours · Fat Burning Phase</span>
-                <p className="text-[11px] text-[#7E889B] mt-1">
+                <p className="text-xs text-[#9AA3B2] mt-1">
                   Liver glycogen is mostly depleted. Adipose tissue accelerates lipolysis, releasing free fatty acids. The liver converts fats into acetoacetate and beta-hydroxybutyrate ketones.
                 </p>
               </div>
 
               <div className="p-3 rounded-2xl bg-black/50 border border-neutral-800">
                 <span className="text-emerald-400 font-bold font-mono">16 - 20 Hours · Ketosis & Autophagy Entry</span>
-                <p className="text-[11px] text-[#7E889B] mt-1">
+                <p className="text-xs text-[#9AA3B2] mt-1">
                   Autophagy begins degrading dysfunctional cellular organelles and misfolded proteins. Autonomic hormone balance resets hunger signaling.
                 </p>
               </div>
 
               <div className="p-3 rounded-2xl bg-black/50 border border-neutral-800">
                 <span className="text-emerald-400 font-bold font-mono">20+ Hours · Deep Autophagy</span>
-                <p className="text-[11px] text-[#7E889B] mt-1">
+                <p className="text-xs text-[#9AA3B2] mt-1">
                   Peak cellular recycling, stem cell activation signaling, and profound systemic insulin sensitivity restoration.
                 </p>
               </div>

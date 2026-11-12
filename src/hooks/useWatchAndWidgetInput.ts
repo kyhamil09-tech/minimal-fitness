@@ -1,8 +1,9 @@
-import { Dispatch, MutableRefObject, SetStateAction, useEffect } from 'react';
+import { Dispatch, MutableRefObject, SetStateAction, useEffect, useRef } from 'react';
 import { FastingSession, TabId, WorkoutSession, WorkoutType } from '../types/health';
 import { UserProfile } from '../types/tracking';
 import { Launch, isAndroidApp } from '../lib/native';
 import { endFast, lastProtocol, startFast } from '../lib/fasting';
+import { WatchHeartRate } from '../lib/watch';
 import { WatchWorkoutPayload, fillTrackFromWatch, mergeWatchWorkouts, watchWorkoutToSession } from '../lib/watchImport';
 
 /**
@@ -13,8 +14,50 @@ export function useWidgetLaunchActions(opts: {
   setCurrentTab: (tab: TabId) => void;
   setLaunchRequest: (r: { type: WorkoutType; nonce: number }) => void;
   setFastingSessions: Dispatch<SetStateAction<FastingSession[]>>;
+  /** A launcher shortcut asked for a lifting workout: "lift:empty" or "lift:routine:<id>". */
+  onLiftAction?: (action: string) => void;
+  /** The Breathe tile, widget or shortcut: 'open', 'start' (your usual session) or 'drift' (the sleep one). */
+  onBreathe?: (action: string) => void;
+  /** The Fasting tile: 'toggle' starts your usual fast or ends the one running. */
+  onFasting?: (action: string) => void;
+  /** The Eat widget and tile: 'open:eat' opens Eat, 'eat:add' opens the food finder, 'eat:scan' the barcode scanner. */
+  onEat?: (action: string) => void;
 }) {
   const { setCurrentTab, setLaunchRequest, setFastingSessions } = opts;
+  const liftAction = useRef(opts.onLiftAction);
+  liftAction.current = opts.onLiftAction;
+  const breatheAction = useRef(opts.onBreathe);
+  breatheAction.current = opts.onBreathe;
+  const fastingAction = useRef(opts.onFasting);
+  fastingAction.current = opts.onFasting;
+  const eatAction = useRef(opts.onEat);
+  eatAction.current = opts.onEat;
+  // Start or end a fast from the watch's home screen. The time is when it was pressed, not when the phone heard about it.
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    let handle: { remove: () => Promise<void> } | undefined;
+    let cancelled = false;
+    WatchHeartRate.addListener('watchCommand', (c) => {
+      if (c.cmd !== 'fast') return;
+      const at = c.at && c.at > 0 && Math.abs(Date.now() - c.at) < 10 * 60_000 ? c.at : Date.now();
+      if (c.action === 'start') {
+        setFastingSessions((prev) => {
+          if (prev.some((s) => !s.isCompleted)) return prev;
+          const next = lastProtocol(prev);
+          return startFast(prev, { targetHours: next.hours, protocolName: next.name, now: at });
+        });
+      } else if (c.action === 'end') {
+        setFastingSessions((prev) => endFast(prev, at));
+      }
+    })
+      .then((h) => (cancelled ? h.remove() : void (handle = h)))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      void handle?.remove();
+    };
+  }, [setFastingSessions]);
+
   // A home-screen widget button can open the app straight into a workout.
   useEffect(() => {
     if (!isAndroidApp()) return;
@@ -25,6 +68,19 @@ export function useWidgetLaunchActions(opts: {
         if (type) {
           setCurrentTab('exercise');
           setLaunchRequest({ type, nonce: Date.now() });
+        } else if (action?.startsWith('lift:')) {
+          liftAction.current?.(action);
+        } else if (action === 'open:run' || action === 'run:toggle') {
+          // The Quick Settings tile while a run is recording opens the live screen; the notification's Pause / resume button also lands
+          // here and is passed on to the Run screen once it has opened.
+          setCurrentTab('exercise');
+          if (action === 'run:toggle') window.setTimeout(() => window.dispatchEvent(new CustomEvent('kyfit-run-command', { detail: 'toggle' })), 400);
+        } else if (action === 'fast:toggle') {
+          fastingAction.current?.('toggle');
+        } else if (action === 'open:breathe' || action === 'breathe:start' || action === 'breathe:drift') {
+          breatheAction.current?.(action === 'open:breathe' ? 'open' : action === 'breathe:start' ? 'start' : 'drift');
+        } else if (action === 'open:eat' || action === 'eat:add' || action === 'eat:scan') {
+          eatAction.current?.(action);
         } else if (action === 'open:water') {
           // The water widget: open Food & water.
           setCurrentTab('nutrition');

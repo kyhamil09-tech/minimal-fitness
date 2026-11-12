@@ -4,7 +4,7 @@
  * Strava client (NativeHttpPlugin.java) all follow it. Adding a service means adding it here on purpose, and nothing outside
  * this list can be reached.
  */
-export type NetFeature = 'maps' | 'weather' | 'food' | 'strava';
+export type NetFeature = 'maps' | 'weather' | 'food' | 'usda' | 'recipes' | 'strava' | 'drive';
 
 export interface NetFeatureInfo {
   id: NetFeature;
@@ -23,7 +23,7 @@ export const NET_FEATURES: NetFeatureInfo[] = [
   {
     id: 'maps',
     label: 'Street and satellite maps',
-    hosts: ['tile.openstreetmap.org', 'server.arcgisonline.com'],
+    hosts: ['server.arcgisonline.com'],
     sends:
       'The tile numbers (zoom, x, y) of the map area on screen, so the map server can tell roughly where you are looking. Tiles you have seen are kept on the phone and still draw offline. Never your route.',
     viaWebView: true,
@@ -46,10 +46,36 @@ export const NET_FEATURES: NetFeatureInfo[] = [
     optIn: false,
   },
   {
+    id: 'usda',
+    label: 'USDA branded-food lookup',
+    hosts: ['api.nal.usda.gov'],
+    sends: 'The barcode digits, only when you tap to search the USDA list after Open Food Facts had no answer, and (if you added one) your own free USDA key. Nothing else.',
+    viaWebView: true,
+    optIn: true,
+  },
+  {
+    id: 'recipes',
+    label: 'Recipe import from a web address',
+    hosts: [],
+    sends:
+      'A plain request for the one recipe page whose address you typed or pasted, only when you tap Import. Native code makes it with no cookies or sign-in, and it never reaches your own network. Nothing about you is added, and the page is read on the phone and not kept.',
+    viaWebView: false,
+    optIn: true,
+  },
+  {
     id: 'strava',
     label: 'Strava',
     hosts: ['www.strava.com'],
     sends: 'The workouts you choose to upload, using the Client ID and Secret you entered. Does nothing until you connect it.',
+    viaWebView: false,
+    optIn: true,
+  },
+  {
+    id: 'drive',
+    label: 'Google Drive backup (Google only)',
+    hosts: ['www.googleapis.com'],
+    sends:
+      'Your backup file, encrypted on your phone first, into a hidden folder in your own Google Drive that only this app can see, plus requests to list and delete its older copies. Google gives the app one permission for that folder and nothing else in your account. Does nothing until you connect it.',
     viaWebView: false,
     optIn: true,
   },

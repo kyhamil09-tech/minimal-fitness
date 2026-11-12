@@ -1,0 +1,246 @@
+{
+ "looks": [
+  {
+   "id": "grounded",
+   "name": "Grounded Sage",
+   "accent": "#8FB287",
+   "secondary": "#D9784F",
+   "cyan": "#86C4B2",
+   "red": "#D9674F",
+   "purple": "#B49BC4",
+   "blue": "#8FB6C9",
+   "yellow": "#E3B565"
+  },
+  {
+   "id": "high_energy",
+   "name": "High-Energy Slate",
+   "accent": "#C8F135",
+   "secondary": "#FF4A1C",
+   "cyan": "#5EEAD4",
+   "red": "#FF4A1C",
+   "purple": "#B794FF",
+   "blue": "#7DD3FC",
+   "yellow": "#FFD23F"
+  },
+  {
+   "id": "mind_body",
+   "name": "Mind & Body",
+   "accent": "#D9A5A8",
+   "secondary": "#B8A9D9",
+   "cyan": "#8EC5C9",
+   "red": "#D98C8F",
+   "purple": "#B8A9D9",
+   "blue": "#7FA3C7",
+   "yellow": "#D9B66F"
+  },
+  {
+   "id": "ocean_calm",
+   "name": "Calm Ocean",
+   "accent": "#7FA8C9",
+   "secondary": "#D9C49A",
+   "cyan": "#86C8CC",
+   "red": "#D98B7F",
+   "purple": "#B0A4D6",
+   "blue": "#7FA8C9",
+   "yellow": "#D9B66F"
+  },
+  {
+   "id": "kinetic",
+   "name": "Kinetic Orange",
+   "accent": "#FF5500",
+   "secondary": "#00E5FF",
+   "cyan": "#00E5FF",
+   "red": "#F43F5E",
+   "purple": "#A78BFA",
+   "blue": "#38BDF8",
+   "yellow": "#FFB300"
+  },
+  {
+   "id": "volt",
+   "name": "Volt Run Club",
+   "accent": "#CBFF00",
+   "secondary": "#FF5A1F",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "hyper_mint",
+   "name": "Hyper-Mint Titanium",
+   "accent": "#05F196",
+   "secondary": "#818CF8",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "cyber_ice",
+   "name": "Cyber Ice & Cobalt",
+   "accent": "#00E5FF",
+   "secondary": "#818CF8",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "solar_flame",
+   "name": "Solar Flame & Onyx",
+   "accent": "#FF6E40",
+   "secondary": "#38BDF8",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "ultra_violet",
+   "name": "Ultra Violet Pulse",
+   "accent": "#D500F9",
+   "secondary": "#A855F7",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "crimson_pulse",
+   "name": "Pure Crimson Pulse",
+   "accent": "#FF1744",
+   "secondary": "#FB7185",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "electric_lime",
+   "name": "Electric Neon Lime",
+   "accent": "#76FF03",
+   "secondary": "#00E5FF",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "sunset_gold",
+   "name": "Sunset Gold & Solar",
+   "accent": "#FFD600",
+   "secondary": "#FB923C",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "stealth_platinum",
+   "name": "Stealth Platinum",
+   "accent": "#F1F5F9",
+   "secondary": "#94A3B8",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "tokyo_neon",
+   "name": "Tokyo Synthwave Neon",
+   "accent": "#FF007F",
+   "secondary": "#00F5FF",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "emerald_matrix",
+   "name": "Matrix Code Emerald",
+   "accent": "#00FF66",
+   "secondary": "#00E5FF",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "arctic_glacier",
+   "name": "Arctic Glacier Blue",
+   "accent": "#38BDF8",
+   "secondary": "#818CF8",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "blood_moon",
+   "name": "Blood Moon Eclipse",
+   "accent": "#E11D48",
+   "secondary": "#FB7185",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "cyber_amber",
+   "name": "Blade Runner Amber",
+   "accent": "#F59E0B",
+   "secondary": "#FB923C",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "rose_gold",
+   "name": "Luxe Rose Gold",
+   "accent": "#FB7185",
+   "secondary": "#C084FC",
+   "cyan": "#5eead4",
+   "red": "#ff4d4d",
+   "purple": "#b794ff",
+   "blue": "#7dd3fc",
+   "yellow": "#ffd23f"
+  },
+  {
+   "id": "google",
+   "name": "Google-inspired",
+   "accent": "#4285F4",
+   "secondary": "#34A853",
+   "cyan": "#24C1E0",
+   "red": "#EA4335",
+   "purple": "#A142F4",
+   "blue": "#4285F4",
+   "yellow": "#FBBC04"
+  },
+  {
+   "id": "sagittarius",
+   "name": "Sagittarius",
+   "accent": "#FFC46B",
+   "secondary": "#E58BC0",
+   "cyan": "#6FD6FF",
+   "red": "#FF7A8A",
+   "purple": "#B48CFF",
+   "blue": "#7C9CFF",
+   "yellow": "#FFC46B"
+  }
+ ]
+}

@@ -32,4 +32,6 @@ export const DEFAULT_REMINDERS: ReminderSettings = {
   hydrationEnabled: false,
   hydrationEveryMin: 90,
   fastingEnabled: false,
+  streakEnabled: false,
+  streakTime: '19:30',
 };

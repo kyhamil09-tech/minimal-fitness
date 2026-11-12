@@ -32,6 +32,8 @@ export interface BarDatum {
   label: string;
   value: number;
   highlight?: boolean;
+  /** A fuller name for the bar (a date), shown when you touch it. Defaults to the label. */
+  title?: string;
 }
 
 interface BarChartProps {
@@ -40,11 +42,16 @@ interface BarChartProps {
   height?: number;
   goal?: number;
   format?: (v: number) => string;
+  /** Added after the value when you touch a bar, e.g. " steps". */
+  unit?: string;
   ariaLabel: string;
 }
 
-/** Simple responsive SVG bar chart with optional goal line. */
-export const BarChart: React.FC<BarChartProps> = ({ data, color, height = 120, goal, format, ariaLabel }) => {
+/**
+ * A bar chart with three reference numbers down the right-hand side and a dashed goal line. Touch or drag across the bars to see a
+ * bar's day and exact value.
+ */
+export const BarChart: React.FC<BarChartProps> = ({ data, color, height = 120, goal, format, unit = '', ariaLabel }) => {
   const w = 300;
   const padTop = 14;
   const padBottom = 18;
@@ -55,66 +62,98 @@ export const BarChart: React.FC<BarChartProps> = ({ data, color, height = 120, g
   const showEvery = data.length > 16 ? Math.ceil(data.length / 8) : 1;
   const fmt = format || ((v: number) => String(Math.round(v)));
   const gid = useId().replace(/:/g, '');
+  const [sel, setSel] = useState<number | null>(null);
+  const yAt = (v: number) => padTop + plotH * (1 - v / max);
+  const ticks = [max, max / 2, 0];
+  const pick = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const i = Math.floor(((e.clientX - r.left) / Math.max(1, r.width)) * data.length);
+    setSel(Math.max(0, Math.min(data.length - 1, i)));
+  };
+  const sd = sel !== null ? data[sel] : null;
+  const selX = sel !== null ? sel * slot + slot / 2 : 0;
 
   return (
-    <svg
-      viewBox={`0 0 ${w} ${height}`}
-      className="w-full"
-      role="img"
-      aria-label={ariaLabel}
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id={`bar-${gid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={1} />
-          <stop offset="100%" stopColor={color} stopOpacity={0.35} />
-        </linearGradient>
-      </defs>
-      {goal ? (
-        <>
-          <line
-            x1={0}
-            x2={w}
-            y1={padTop + plotH * (1 - goal / max)}
-            y2={padTop + plotH * (1 - goal / max)}
-            stroke="#7E889B"
-            strokeDasharray="3 3"
-            strokeWidth={0.8}
-          />
-        </>
-      ) : null}
-      {data.map((d, i) => {
-        const h = (d.value / max) * plotH;
-        const x = i * slot + (slot - barW) / 2;
-        const y = padTop + plotH - h;
-        return (
-          <g key={`${d.label}-${i}`}>
-            <rect
-              x={x}
-              y={d.value > 0 ? y : padTop + plotH - 1}
-              width={barW}
-              height={d.value > 0 ? h : 1}
-              rx={4}
-              fill={d.value > 0 ? `url(#bar-${gid})` : 'rgba(255,255,255,0.08)'}
-              opacity={d.highlight ? 1 : 0.72}
-            />
-            {data.length <= 10 && d.value > 0 && (
-              <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={8} fill="#CBD5E1">
-                {fmt(d.value)}
-              </text>
-            )}
-            {i % showEvery === 0 && (
-              <text x={x + barW / 2} y={height - 5} textAnchor="middle" fontSize={8} fill="#7E889B">
-                {d.label}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <div className="flex items-stretch gap-1.5">
+      <div
+        className="relative min-w-0 flex-1 select-none"
+        style={{ touchAction: 'pan-y' }}
+        onPointerDown={pick}
+        onPointerMove={(e) => e.buttons > 0 && pick(e)}
+        onPointerLeave={() => setSel(null)}
+      >
+        <svg viewBox={`0 0 ${w} ${height}`} className="block w-full" role="img" aria-label={ariaLabel} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={`bar-${gid}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={1} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.35} />
+            </linearGradient>
+          </defs>
+          {ticks.map((t, i) => (
+            <line key={i} x1={0} x2={w} y1={yAt(t)} y2={yAt(t)} stroke="rgba(255,255,255,0.08)" strokeWidth={0.8} />
+          ))}
+          {goal ? <line x1={0} x2={w} y1={yAt(goal)} y2={yAt(goal)} stroke="#9AA3B2" strokeDasharray="3 3" strokeWidth={0.8} /> : null}
+          {data.map((d, i) => {
+            const h = (d.value / max) * plotH;
+            const x = i * slot + (slot - barW) / 2;
+            const y = padTop + plotH - h;
+            return (
+              <g key={`${d.label}-${i}`}>
+                <rect
+                  className={d.value > 0 ? 'chart-bar' : undefined}
+                  style={{ ['--i' as string]: i }}
+                  x={x}
+                  y={d.value > 0 ? y : padTop + plotH - 1}
+                  width={barW}
+                  height={d.value > 0 ? h : 1}
+                  rx={4}
+                  fill={d.value > 0 ? `url(#bar-${gid})` : 'rgba(255,255,255,0.08)'}
+                  opacity={sel === i || (sel === null && d.highlight) ? 1 : sel !== null ? 0.45 : 0.72}
+                />
+                {data.length <= 10 && d.value > 0 && sel === null && (
+                  <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={11} fill="#E2E8F0">
+                    {fmt(d.value)}
+                  </text>
+                )}
+                {i % showEvery === 0 && (
+                  <text x={x + barW / 2} y={height - 5} textAnchor="middle" fontSize={11} fill="#B3BBC9">
+                    {d.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+        {goal !== undefined && goal !== 0 && (
+          <span aria-hidden="true" className="pointer-events-none absolute left-1 -translate-y-full rounded bg-black/60 px-1 text-xs font-semibold text-[#B8C0CF]" style={{ top: `${(yAt(goal) / height) * 100}%` }}>
+            Goal {fmt(goal as number)}
+          </span>
+        )}
+
+        {sd && (
+          <span
+            className="pointer-events-none absolute whitespace-nowrap rounded-md bg-black/80 px-1.5 py-0.5 text-xs font-bold text-white"
+            style={{
+              left: `${Math.min(86, Math.max(14, (selX / w) * 100))}%`,
+              top: `${(Math.min(yAt(sd.value), padTop + plotH - 4) / height) * 100}%`,
+              transform: 'translate(-50%, calc(-100% - 4px))',
+            }}
+          >
+            {sd.title ?? sd.label} · {fmt(sd.value)}
+            {unit}
+          </span>
+        )}
+      </div>
+      <div className="relative w-9 shrink-0 text-xs tabular-nums text-[#9AA3B2]" aria-hidden="true">
+        {ticks.map((t, i) => (
+          <span key={i} className="absolute right-0 -translate-y-1/2" style={{ top: `${(yAt(t) / height) * 100}%` }}>
+            {fmt(t)}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 };
-
 export interface LinePoint {
   label: string;
   value: number;
@@ -138,6 +177,8 @@ export const LineChart: React.FC<LineChartProps> = ({ points, color, height = 13
   const padTop = 14;
   const padBottom = 18;
   const gid = useId().replace(/:/g, '');
+  // The point you touched: its day and value show above the line.
+  const [sel, setSel] = useState<number | null>(null);
   if (points.length === 0) return null;
   const vals = points.map((p) => p.value).concat(goal !== undefined ? [goal] : []);
   let min = yMin ?? Math.min(...vals);
@@ -158,33 +199,100 @@ export const LineChart: React.FC<LineChartProps> = ({ points, color, height = 13
   const first = points[0];
   const area =`${path} L${xAt(points.length - 1).toFixed(1)},${padTop + plotH} L${xAt(0).toFixed(1)},${padTop + plotH} Z`;
 
+  // Whole numbers on a wide chart, one decimal on a narrow one (weight, breathing rate).
+  const wide = max - min >= 8;
+  const shown = (v: number) => (wide || Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
+  // Three reference numbers down the right-hand side: the top, middle and bottom of the chart.
+  const ticks = [max, (max + min) / 2, min];
+  const pick = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / Math.max(1, r.width)) * w;
+    let best = 0;
+    for (let i = 1; i < points.length; i++) if (Math.abs(xAt(i) - x) < Math.abs(xAt(best) - x)) best = i;
+    setSel(best);
+  };
+  const sp = sel !== null ? points[Math.min(sel, points.length - 1)] : null;
+  const sx = sp ? xAt(points.indexOf(sp)) : 0;
+  const sy = sp ? yAt(sp.value) : 0;
+
   return (
-    <svg viewBox={`0 0 ${w} ${height}`} className="w-full" role="img" aria-label={ariaLabel} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={`area-${gid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      {goal !== undefined && (
-        <line x1={0} x2={w} y1={yAt(goal)} y2={yAt(goal)} stroke="#7E889B" strokeDasharray="3 3" strokeWidth={0.8} />
-      )}
-      {points.length > 1 && <path d={area} fill={`url(#area-${gid})`} stroke="none" />}
-      <path d={path} fill="none" stroke={color} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
-      {points.map((p, i) => (
-        <circle key={i} cx={xAt(i)} cy={yAt(p.value)} r={points.length > 30 ? 1.2 : 2.4} fill={color} />
-      ))}
-      <text x={xAt(points.length - 1)} y={yAt(last.value) - 6} textAnchor="end" fontSize={9} fill="#F8FAFC">
-        {Math.round(last.value * 10) / 10}
-        {unit}
-      </text>
-      <text x={padX} y={height - 5} fontSize={8} fill="#7E889B">
-        {first.label}
-      </text>
-      <text x={w - padX} y={height - 5} textAnchor="end" fontSize={8} fill="#7E889B">
-        {last.label}
-      </text>
-    </svg>
+    <div className="flex items-stretch gap-1.5">
+      <div
+        className="relative min-w-0 flex-1 select-none"
+        style={{ touchAction: 'pan-y' }}
+        onPointerDown={pick}
+        onPointerMove={(e) => e.buttons > 0 && pick(e)}
+        onPointerLeave={() => setSel(null)}
+      >
+        <svg viewBox={`0 0 ${w} ${height}`} className="block w-full" role="img" aria-label={ariaLabel} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={`area-${gid}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          {ticks.map((t, i) => (
+            <line key={i} x1={0} x2={w} y1={yAt(t)} y2={yAt(t)} stroke="rgba(255,255,255,0.08)" strokeWidth={0.8} />
+          ))}
+          {goal !== undefined && (
+            <line x1={0} x2={w} y1={yAt(goal)} y2={yAt(goal)} stroke="#9AA3B2" strokeDasharray="3 3" strokeWidth={0.8} />
+          )}
+          {points.length > 1 && <path className="chart-area" d={area} fill={`url(#area-${gid})`} stroke="none" />}
+          <path className="chart-line" pathLength={1} d={path} fill="none" stroke={color} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
+          {points.map((p, i) => (
+            <circle key={i} cx={xAt(i)} cy={yAt(p.value)} r={points.length > 30 ? 1.2 : 2.4} fill={color} />
+          ))}
+          {sp && <line x1={sx} x2={sx} y1={padTop} y2={padTop + plotH} stroke="rgba(255,255,255,0.35)" strokeWidth={0.8} strokeDasharray="2 2" />}
+          <text x={padX} y={height - 5} fontSize={11} fill="#B3BBC9">
+            {first.label}
+          </text>
+          <text x={w - padX} y={height - 5} textAnchor="end" fontSize={11} fill="#B3BBC9">
+            {last.label}
+          </text>
+        </svg>
+        {goal !== undefined && goal !== 0 && (
+          <span aria-hidden="true" className="pointer-events-none absolute left-1 -translate-y-full rounded bg-black/60 px-1 text-xs font-semibold text-[#B8C0CF]" style={{ top: `${(yAt(goal) / height) * 100}%` }}>
+            Goal {shown(goal as number)}{unit}
+          </span>
+        )}
+
+        {/* The newest value, or the point you are touching, drawn as a dot with a label that does not stretch with the chart */}
+        {(() => {
+          const showP = sp ?? last;
+          const px = sp ? sx : xAt(points.length - 1);
+          const py = yAt(showP.value);
+          const leftPct = (px / w) * 100;
+          return (
+            <>
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#0B0D11]"
+                style={{ left: `${leftPct}%`, top: `${(py / height) * 100}%`, background: color }}
+              />
+              <span
+                className="pointer-events-none absolute -translate-y-full whitespace-nowrap rounded-md bg-black/80 px-1.5 py-0.5 text-xs font-bold text-white"
+                style={{
+                  left: `${Math.min(88, Math.max(12, leftPct))}%`,
+                  top: `${(py / height) * 100}%`,
+                  transform: 'translate(-50%, calc(-100% - 6px))',
+                }}
+              >
+                {sp ? `${showP.label} · ` : ''}
+                {shown(showP.value)}
+                {unit}
+              </span>
+            </>
+          );
+        })()}
+      </div>
+      <div className="relative w-9 shrink-0 text-xs tabular-nums text-[#9AA3B2]" aria-hidden="true">
+        {ticks.map((t, i) => (
+          <span key={i} className="absolute right-0 -translate-y-1/2" style={{ top: `${(yAt(t) / height) * 100}%` }}>
+            {shown(t)}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 };
 
@@ -328,7 +436,7 @@ export const Hypnogram: React.FC<HypnogramProps> = ({ segments, startMs, endMs, 
       {lanes.map(([name, code]) => (
         <g key={name}>
           <rect x={left} y={yAt(laneOf(code))} width={plotW} height={laneH} rx={5} fill="rgba(255,255,255,0.035)" />
-          <text x={left - 5} y={yAt(laneOf(code)) + laneH / 2 + 3} textAnchor="end" fontSize={8} fill="#7E889B">
+          <text x={left - 5} y={yAt(laneOf(code)) + laneH / 2 + 3} textAnchor="end" fontSize={11} fill="#B3BBC9">
             {name}
           </text>
         </g>
@@ -357,17 +465,17 @@ export const Hypnogram: React.FC<HypnogramProps> = ({ segments, startMs, endMs, 
           </g>
         );
       })}
-      <text x={left} y={height - 6} fontSize={8} fill="#7E889B">
+      <text x={left} y={height - 6} fontSize={11} fill="#B3BBC9">
         {clockLabel(startMs)}
       </text>
       {ticks.map((t, i) =>
         i % labelEvery === labelEvery - 1 && xAt(t) > left + 46 && xAt(t) < w - right - 42 ? (
-          <text key={t} x={xAt(t)} y={height - 6} textAnchor="middle" fontSize={8} fill="#5F6877">
+          <text key={t} x={xAt(t)} y={height - 6} textAnchor="middle" fontSize={11} fill="#9AA3B2">
             {clockLabel(t)}
           </text>
         ) : null
       )}
-      <text x={w - right} y={height - 6} textAnchor="end" fontSize={8} fill="#7E889B">
+      <text x={w - right} y={height - 6} textAnchor="end" fontSize={11} fill="#B3BBC9">
         {clockLabel(endMs)}
       </text>
     </svg>
@@ -413,12 +521,12 @@ export const StackedBars: React.FC<StackedBarsProps> = ({ data, colors, height =
               return h > 0 ? <rect key={k} x={x} y={y} width={barW} height={h} rx={k === d.parts.length - 1 ? 3 : 0} fill={colors[k]} /> : null;
             })}
             {data.length <= 10 && totals[i] > 0 && (
-              <text x={x + barW / 2} y={padTop + plotH - (totals[i] / max) * plotH - 3} textAnchor="middle" fontSize={8} fill="#CBD5E1">
+              <text x={x + barW / 2} y={padTop + plotH - (totals[i] / max) * plotH - 3} textAnchor="middle" fontSize={11} fill="#E2E8F0">
                 {(totals[i] / 60).toFixed(1)}h
               </text>
             )}
             {i % showEvery === 0 && (
-              <text x={x + barW / 2} y={height - 5} textAnchor="middle" fontSize={8} fill="#7E889B">
+              <text x={x + barW / 2} y={height - 5} textAnchor="middle" fontSize={11} fill="#B3BBC9">
                 {d.label}
               </text>
             )}
@@ -463,7 +571,7 @@ export const RangeChart: React.FC<RangeChartProps> = ({ data, color, height = 13
       {[lo, Math.round((lo + hi) / 2), hi].map((v) => (
         <g key={v}>
           <line x1={0} x2={w} y1={yAt(v)} y2={yAt(v)} stroke="rgba(255,255,255,0.06)" strokeWidth={0.6} />
-          <text x={2} y={yAt(v) - 2} fontSize={7} fill="#5F6877">
+          <text x={2} y={yAt(v) - 2} fontSize={10} fill="#9AA3B2">
             {v}
           </text>
         </g>
@@ -477,7 +585,7 @@ export const RangeChart: React.FC<RangeChartProps> = ({ data, color, height = 13
             )}
             {d.avg !== undefined && <line x1={x - 1} x2={x + barW + 1} y1={yAt(d.avg)} y2={yAt(d.avg)} stroke="#fff" strokeWidth={1.6} strokeLinecap="round" />}
             {i % showEvery === 0 && (
-              <text x={x + barW / 2} y={height - 5} textAnchor="middle" fontSize={8} fill="#7E889B">
+              <text x={x + barW / 2} y={height - 5} textAnchor="middle" fontSize={11} fill="#B3BBC9">
                 {d.label}
               </text>
             )}
@@ -528,7 +636,7 @@ export const Sparkbars: React.FC<{
   );
 };
 export const EmptyState: React.FC<{ title: string; hint?: string }> = ({ title, hint }) => (
-  <div className="text-center py-6 text-xs text-[#7E889B]">
+  <div className="text-center py-6 text-xs text-[#9AA3B2]">
     <div className="text-neutral-300 font-medium">{title}</div>
     {hint && <div className="mt-1">{hint}</div>}
   </div>

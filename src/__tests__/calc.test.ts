@@ -49,6 +49,15 @@ test('trimp is zero for no time or no reserve and grows with intensity', () => {
   assert.ok(trimp(30, 160, 190, 55) > trimp(30, 120, 190, 55));
 });
 
+test('trimp uses the male weights unless the sex is female, whose published weights score the same effort higher', () => {
+  // 30 min at 70% of reserve: 30 * 0.7 * 0.64 * e^(1.92 * 0.7) and 30 * 0.7 * 0.86 * e^(1.67 * 0.7)
+  const hr = 55 + 0.7 * (190 - 55);
+  assert.equal(trimp(30, hr, 190, 55, 'male'), Math.round(30 * 0.7 * 0.64 * Math.exp(1.92 * 0.7)));
+  assert.equal(trimp(30, hr, 190, 55, 'female'), Math.round(30 * 0.7 * 0.86 * Math.exp(1.67 * 0.7)));
+  assert.equal(trimp(30, hr, 190, 55, 'other'), trimp(30, hr, 190, 55, 'male'));
+  assert.ok(trimp(30, hr, 190, 55, 'female') > trimp(30, hr, 190, 55, 'male'));
+});
+
 test('calorie estimates scale with weight, time and activity', () => {
   assert.equal(estimateCalories('Running', 60, 70), Math.round(9.8 * 70));
   assert.ok(estimateCalories('Running', 30, 70) > estimateCalories('Walking', 30, 70));

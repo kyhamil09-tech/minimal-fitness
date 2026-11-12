@@ -2,7 +2,7 @@
 
 export type TargetVerdict = 'ok' | 'slow' | 'fast' | 'low' | 'high' | null;
 
-/** Pace in seconds per kilometre from a speed in m/s, or null when standing still. */
+/** Pace in seconds per kilometer from a speed in m/s, or null when standing still. */
 export const paceSecPerKm = (speedMs: number | null): number | null =>
   speedMs !== null && speedMs > 0.5 ? 1000 / speedMs : null;
 
@@ -39,7 +39,7 @@ export const verdictMessage = (v: TargetVerdict, gapSecPerKm?: number, miles = f
   if ((v === 'slow' || v === 'fast') && gapSecPerKm !== undefined) {
     const gap = Math.round((miles ? gapSecPerKm * 1.609344 : gapSecPerKm) / 5) * 5;
     if (gap >= 5) {
-      const how = `${gap} seconds per ${miles ? 'mile' : 'kilometre'}`;
+      const how = `${gap} seconds per ${miles ? 'mile' : 'kilometer'}`;
       return v === 'slow' ? `Speed up, you are ${how} behind` : `Slow down, you are ${how} ahead`;
     }
   }

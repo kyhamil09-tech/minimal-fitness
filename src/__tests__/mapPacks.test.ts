@@ -79,7 +79,7 @@ test('a raster pack is described and its tile read back through the byte reader'
   assert.equal(await pm.getZxy(5, 3, 3), undefined);
 });
 
-test('a vector pack is recognised, and unsupported or empty files are refused', async () => {
+test('a vector pack is recognized, and unsupported or empty files are refused', async () => {
   const vector = buildPack(Uint8Array.from([1, 2, 3]), 1);
   assert.equal((await describePack('v', 'x', vector.length, reader(vector))).kind, 'vector');
   const unknown = buildPack(Uint8Array.from([1]), 0);

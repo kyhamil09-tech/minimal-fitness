@@ -3,6 +3,8 @@ import { Award, Flame, Timer, Trash2, TrendingUp } from 'lucide-react';
 import { FastingSession } from '../types/health';
 import { ColorPalette } from '../types/theme';
 import { BarChart } from './ui/charts';
+import { MetricDetailSheet } from './MetricDetailSheet';
+import { Goals, UnitSystem } from '../types/tracking';
 import { FeelingChips } from './FastingFeelings';
 import { completedFasts, fastingByDay, fastingStats } from '../lib/fasting';
 import { shortMonthDay, todayKey } from '../lib/dates';
@@ -11,6 +13,8 @@ interface FastingHistoryProps {
   sessions: FastingSession[];
   theme: ColorPalette;
   onDelete: (id: string) => void;
+  units?: UnitSystem;
+  goals?: Goals;
 }
 
 const fmtHours = (h: number) => {
@@ -20,7 +24,8 @@ const fmtHours = (h: number) => {
   return mm === 0 ? `${hh}h` : `${hh}h ${mm}m`;
 };
 
-export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme, onDelete }) => {
+export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme, onDelete, units = 'metric', goals }) => {
+  const [sheet, setSheet] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const today = todayKey();
@@ -28,6 +33,7 @@ export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme,
   const stats = fastingStats(sessions, today);
   const days = fastingByDay(sessions, today, 14);
   const goal = done[0]?.targetDurationHours;
+  const history = fastingByDay(sessions, today, 90).map((d) => ({ date: d.key, hours: d.hours }));
   const shown = showAll ? done : done.slice(0, 8);
 
   return (
@@ -37,7 +43,7 @@ export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme,
           <Award className="w-4 h-4" style={{ color: theme.primary }} />
           <h3 className="gh-title" style={{ fontSize: '1.05rem' }}>Fasting history</h3>
         </div>
-        <span className="text-[11px] text-neutral-400">{stats.total} completed</span>
+        <span className="text-xs text-neutral-400">{stats.total} completed</span>
       </div>
 
       {done.length === 0 ? (
@@ -51,31 +57,31 @@ export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme,
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 cursor-pointer" role="button" tabIndex={0} aria-label="Fasting, open history" onClick={() => setSheet(true)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSheet(true)}>
             <div className="rounded-2xl glass-inset p-3">
-              <div className="flex items-center gap-1.5 text-[11px] text-neutral-400"><Flame className="w-3.5 h-3.5 text-orange-300" />Streak</div>
+              <div className="flex items-center gap-1.5 text-xs text-neutral-400"><Flame className="w-3.5 h-3.5 text-orange-300" />Streak</div>
               <div className="text-xl font-semibold text-white tabular-nums mt-1">{stats.streakDays} <span className="text-xs font-medium text-neutral-400">day{stats.streakDays === 1 ? '' : 's'}</span></div>
-              <div className="text-[11px] text-neutral-500">in a row with a goal met</div>
+              <div className="text-xs text-neutral-400">in a row with a goal met</div>
             </div>
             <div className="rounded-2xl glass-inset p-3">
-              <div className="flex items-center gap-1.5 text-[11px] text-neutral-400"><TrendingUp className="w-3.5 h-3.5 text-emerald-300" />Goal rate</div>
+              <div className="flex items-center gap-1.5 text-xs text-neutral-400"><TrendingUp className="w-3.5 h-3.5 text-emerald-300" />Goal rate</div>
               <div className="text-xl font-semibold text-white tabular-nums mt-1">{stats.successRate}%</div>
-              <div className="text-[11px] text-neutral-500">{stats.goalMet} of {stats.total} reached</div>
+              <div className="text-xs text-neutral-400">{stats.goalMet} of {stats.total} reached</div>
             </div>
             <div className="rounded-2xl glass-inset p-3">
-              <div className="text-[11px] text-neutral-400">Average fast</div>
+              <div className="text-xs text-neutral-400">Average fast</div>
               <div className="text-xl font-semibold text-white tabular-nums mt-1">{fmtHours(stats.avgHours)}</div>
-              <div className="text-[11px] text-neutral-500">{fmtHours(stats.totalHours)} in total</div>
+              <div className="text-xs text-neutral-400">{fmtHours(stats.totalHours)} in total</div>
             </div>
             <div className="rounded-2xl glass-inset p-3">
-              <div className="text-[11px] text-neutral-400">Longest fast</div>
+              <div className="text-xs text-neutral-400">Longest fast</div>
               <div className="text-xl font-semibold text-white tabular-nums mt-1">{fmtHours(stats.longestHours)}</div>
-              <div className="text-[11px] text-neutral-500">personal best</div>
+              <div className="text-xs text-neutral-400">personal best</div>
             </div>
           </div>
 
-          <div className="rounded-2xl glass-inset p-3">
-            <div className="text-[11px] text-neutral-400 mb-1">Last 14 days (hours fasted)</div>
+          <div className="rounded-2xl glass-inset p-3 cursor-pointer" role="button" tabIndex={0} aria-label="Fasting, open history" onClick={() => setSheet(true)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSheet(true)}>
+            <div className="text-xs text-neutral-400 mb-1">Last 14 days (hours fasted)</div>
             <BarChart
               data={days.map((d, i) => ({ label: shortMonthDay(d.key).split(' ')[1] ?? '', value: d.hours, highlight: i === days.length - 1 }))}
               color={theme.primary}
@@ -97,15 +103,15 @@ export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme,
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-white">{session.fastProtocolName}</span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${met ? 'bg-emerald-400/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300'}`}>
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${met ? 'bg-emerald-400/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300'}`}>
                           {met ? 'Goal reached' : 'Partial'}
                         </span>
                       </div>
-                      <div className="text-[11px] text-neutral-400 mt-1">
+                      <div className="text-xs text-neutral-400 mt-1">
                         {new Date(session.startTimestamp).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                         {session.endTimestamp ? ` → ${new Date(session.endTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
                       </div>
-                      {session.notes && <div className="text-[11px] text-neutral-300 mt-1">“{session.notes}”</div>}
+                      {session.notes && <div className="text-xs text-neutral-300 mt-1">“{session.notes}”</div>}
                       {session.checkIns && session.checkIns.length > 0 && (
                         <div className="mt-1.5">
                           <FeelingChips tags={[...new Set(session.checkIns.flatMap((c) => c.tags))]} />
@@ -114,20 +120,20 @@ export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme,
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-base font-semibold tabular-nums text-white">{fmtHours(actual)}</div>
-                      <div className={`text-[10px] tabular-nums ${delta >= 0 ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                      <div className={`text-xs tabular-nums ${delta >= 0 ? 'text-emerald-400' : 'text-neutral-400'}`}>
                         {delta >= 0 ? `+${fmtHours(delta)} over goal` : `${fmtHours(-delta)} short`}
                       </div>
                     </div>
                   </div>
                   <div className="flex justify-end mt-2">
                     {confirmId === session.id ? (
-                      <span className="flex items-center gap-2 text-[11px]">
+                      <span className="flex items-center gap-2 text-xs">
                         <span className="text-neutral-400">Delete this fast?</span>
                         <button onClick={() => { onDelete(session.id); setConfirmId(null); }} className="text-rose-400 font-bold">Yes</button>
                         <button onClick={() => setConfirmId(null)} className="text-neutral-400">No</button>
                       </span>
                     ) : (
-                      <button onClick={() => setConfirmId(session.id)} className="text-[11px] flex items-center gap-1 text-neutral-500 hover:text-rose-400">
+                      <button onClick={() => setConfirmId(session.id)} className="text-xs flex items-center gap-1 text-neutral-400 hover:text-rose-400">
                         <Trash2 className="w-3.5 h-3.5" /> Delete
                       </button>
                     )}
@@ -143,6 +149,17 @@ export const FastingHistory: React.FC<FastingHistoryProps> = ({ sessions, theme,
           )}
         </>
       )}
+      {sheet && (
+        <MetricDetailSheet
+          metric="fasting"
+          theme={theme}
+          units={units}
+          goals={goals ?? ({ dailySteps: 0, dailyCalories: 0, dailyProteinG: 0, dailyWaterMl: 0 } as Goals)}
+          input={{ days: [], body: [], food: [], water: [], fasting: history }}
+          onClose={() => setSheet(false)}
+        />
+      )}
     </section>
   );
 };
+

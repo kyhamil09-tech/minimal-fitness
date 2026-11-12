@@ -11,7 +11,7 @@ import android.widget.RemoteViews;
 
 /** Home-screen fasting widget: a clock that counts up by itself, the stage and goal time, a progress bar, and one-tap start or end. */
 public class FastingWidgetProvider extends AppWidgetProvider {
-    private static final int ACCENT = 0xFFCBFF00;
+    private static final int ACCENT = 0xFFFF5500;
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
@@ -49,6 +49,7 @@ public class FastingWidgetProvider extends AppWidgetProvider {
             v.setTextViewText(R.id.fast_action, "END FAST");
             v.setInt(R.id.fast_action, "setBackgroundResource", R.drawable.widget_btn);
             v.setTextColor(R.id.fast_action, 0xFFFFFFFF);
+            v.setContentDescription(R.id.fast_action, "End the fast");
             v.setOnClickPendingIntent(R.id.fast_action, FastingNotifier.open(c, "fast:end", 7412));
         } else {
             String protocol = p.getString("lastProtocol", "16:8 Standard");
@@ -60,6 +61,7 @@ public class FastingWidgetProvider extends AppWidgetProvider {
             v.setTextViewText(R.id.fast_action, "START FAST");
             v.setInt(R.id.fast_action, "setBackgroundResource", R.drawable.widget_btn_primary);
             v.setTextColor(R.id.fast_action, 0xFF000000);
+            v.setContentDescription(R.id.fast_action, "Start a fast");
             v.setOnClickPendingIntent(R.id.fast_action, FastingNotifier.open(c, "fast:start", 7413));
         }
         return v;

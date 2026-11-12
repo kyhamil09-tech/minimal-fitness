@@ -53,6 +53,19 @@
    "dim": "#ffa29e95"
   },
   {
+   "id": "kinetic",
+   "name": "Kinetic Orange",
+   "colors": [
+    "#ffff5500",
+    "#ff00e5ff",
+    "#ffffb300",
+    "#ffffb300"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
    "id": "volt",
    "name": "Volt Run Club",
    "colors": [
@@ -242,6 +255,32 @@
     "#ffc084fc",
     "#fff472b6",
     "#ffc084fc"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "google",
+   "name": "Google-inspired",
+   "colors": [
+    "#ff4285f4",
+    "#ff34a853",
+    "#ffea4335",
+    "#fffbbc04"
+   ],
+   "bg": "#ff17181b",
+   "ink": "#fff2ede3",
+   "dim": "#ffa29e95"
+  },
+  {
+   "id": "sagittarius",
+   "name": "Sagittarius",
+   "colors": [
+    "#ffffc46b",
+    "#ffe58bc0",
+    "#ff7c9cff",
+    "#ffffc46b"
    ],
    "bg": "#ff17181b",
    "ink": "#fff2ede3",

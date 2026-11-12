@@ -55,3 +55,31 @@ export const recoveryAdvice = (w: WorkoutSession, all: WorkoutSession[], opts: {
   const basis = prior.length >= 4 ? 'compared with your last month' : 'compared with a typical session (not enough history yet)';
   return { label, title, ratio: Math.round(ratio * 100) / 100, hours, message: `${title} ${basis}. About ${hours} hours until another hard one. ${when}`, tone };
 };
+
+export interface RecoveryNow {
+  /** Whole hours until the hardest recent session is recovered from; 0 when you already are. */
+  hoursLeft: number;
+  /** The session that sets it. */
+  workout: WorkoutSession;
+  /** How hard that session was for you. */
+  label: EffortLabel;
+}
+
+/**
+ * Where recovery stands right now: each session from the last three days has its own hours (see recoveryAdvice), and what is left of
+ * the longest one is what shows. Null when nothing recent has a load, so the card stays out of the way.
+ */
+export const recoveryNow = (all: WorkoutSession[], now: number, opts: { readiness?: number } = {}): RecoveryNow | null => {
+  let best: RecoveryNow | null = null;
+  let any = false;
+  for (const w of all) {
+    if (!w.startedAt || w.startedAt > now || now - w.startedAt > 3 * DAY) continue;
+    const a = recoveryAdvice(w, all, opts);
+    if (!a) continue;
+    any = true;
+    const endedAt = w.startedAt + (w.durationMinutes ?? 0) * 60_000;
+    const left = Math.max(0, Math.round(a.hours - (now - endedAt) / 3_600_000));
+    if (!best || left > best.hoursLeft) best = { hoursLeft: left, workout: w, label: a.label };
+  }
+  return any ? best : null;
+};

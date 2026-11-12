@@ -26,7 +26,7 @@ const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAA
  * Tiles come from the cache when seen before, otherwise through fetch, which the network guard checks and logs. There is
  * deliberately no fallback that loads the picture straight from the map server: that would skip the guard.
  */
-const loadTile = async (url: string): Promise<string> => {
+export const loadTile = async (url: string): Promise<string> => {
   try {
     const cache = cachesAvailable() ? await caches.open(CACHE_NAME) : null;
     const hit = cache ? await cache.match(url) : undefined;

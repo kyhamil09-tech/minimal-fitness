@@ -162,7 +162,7 @@ const entryFor = (u: URL, method: string, sent: number, result: NetEntry['result
   t: Date.now(),
   feature,
   host: u.hostname,
-  path: feature === 'strava' ? u.pathname : u.pathname + u.search,
+  path: feature === 'strava' || feature === 'recipes' ? u.pathname : u.pathname + u.search,
   method,
   sent,
   result,
@@ -189,6 +189,27 @@ export const guardNative = async <T extends { status?: number }>(url: string, me
     return res;
   } catch (e) {
     recordRequest(entryFor(u, method, sent, 'failed', verdict.feature));
+    throw e;
+  }
+};
+
+/**
+ * Checks and logs the download of one recipe page. The address is one the person typed, so it is not on the fixed list; native code
+ * refuses anything that is not a public https address, and Offline mode blocks it here.
+ */
+export const guardRecipePage = async <T>(url: string, call: () => Promise<T>): Promise<T> => {
+  const u = parse(url);
+  if (!u || u.protocol !== 'https:') throw new Error('That is not a web address that starts with https.');
+  if (readNetPrefs().offline) {
+    recordRequest(entryFor(u, 'GET', url.length, 'blocked', 'recipes', undefined, 'Offline mode is on.'));
+    throw new Error('Offline mode is on, so the page was not opened. Paste the ingredients instead, or turn Offline mode off in Settings > Privacy.');
+  }
+  try {
+    const res = await call();
+    recordRequest(entryFor(u, 'GET', url.length, 'ok', 'recipes', 200));
+    return res;
+  } catch (e) {
+    recordRequest(entryFor(u, 'GET', url.length, 'failed', 'recipes'));
     throw e;
   }
 };

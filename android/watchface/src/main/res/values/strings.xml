@@ -11,7 +11,7 @@
     <string name="slot_6">Bottom-left text</string>
     <string name="slot_7">Right arc top</string>
     <string name="slot_8">Right arc bottom</string>
-    <string name="theme_0">Volt Run</string>
+    <string name="theme_0">Kinetic</string>
     <string name="theme_1">Fire</string>
     <string name="theme_2">Steel Blue</string>
     <string name="theme_3">Toxic</string>
@@ -41,4 +41,6 @@
     <string name="theme_27">Blood Moon Eclipse</string>
     <string name="theme_28">Blade Runner Amber</string>
     <string name="theme_29">Luxe Rose Gold</string>
+    <string name="theme_30">Googleinspired</string>
+    <string name="theme_31">Sagittarius</string>
 </resources>

@@ -65,3 +65,27 @@ test('the trend compares the newest week with the days before it', () => {
   // too little earlier data for a trend
   assert.equal(seriesStats(series.slice(-9)).trendPct, undefined);
 });
+
+test('macros add up per day, readings average per day and fasting hours add up', () => {
+  const more: SeriesInput = {
+    ...input,
+    food: [
+      { date: '2026-10-05', calories: 500, proteinG: 30, carbsG: 50, fatG: 10 },
+      { date: '2026-10-05', calories: 700, proteinG: 20, carbsG: 40, fatG: 25 },
+    ],
+    log: [
+      { date: '2026-10-05', systolic: 120, diastolic: 80 },
+      { date: '2026-10-05', systolic: 130, diastolic: 84 },
+      { date: '2026-10-04', mgdl: 95 },
+    ],
+    fasting: [{ date: '2026-10-04', hours: 16 }],
+  };
+  const last = (id: Parameters<typeof buildSeries>[0]) => buildSeries(id, more, 3, TODAY);
+  assert.equal(last('protein')[2].value, 50);
+  assert.equal(last('carbs')[2].value, 90);
+  assert.equal(last('fat')[2].value, 35);
+  assert.equal(last('systolic')[2].value, 125);
+  assert.equal(last('glucose')[1].value, 95);
+  assert.equal(last('fasting')[1].value, 16);
+  assert.equal(buildSeries('systolic', input, 3, TODAY)[2].value, undefined);
+});

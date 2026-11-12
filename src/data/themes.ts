@@ -1,7 +1,7 @@
-import { ColorPalette } from '../types/theme';
+﻿import { ColorPalette } from '../types/theme';
 
 export const MODERN_THEMES: Record<string, ColorPalette> = {
-  // ---- Soft palettes: each carries its own data colours (charts, rings, zones) as well as its accents ----
+  // ---- Soft palettes: each carries its own data colors (charts, rings, zones) as well as its accents ----
   grounded: {
     id: 'grounded',
     name: 'Grounded Sage',
@@ -73,6 +73,29 @@ export const MODERN_THEMES: Record<string, ColorPalette> = {
     ecgStroke: '#7FA8C9',
     sleepStages: { deep: '#5B84AA', rem: '#B8A9D9', light: '#9CC3DB', awake: '#33424F' },
     data: { blue: '#7FA8C9', green: '#9CC4A8', cyan: '#86C8CC', red: '#D98B7F', yellow: '#D9B66F', purple: '#B0A4D6' },
+  },
+  kinetic: {
+    id: 'kinetic',
+    name: 'Kinetic Orange',
+    tagline: 'Obsidian and signal orange, built for the track',
+    primary: '#FF5500',
+    primaryGlow: 'rgba(255, 85, 0, 0.25)',
+    primaryContainer: '#2B1200',
+    secondary: '#00E5FF',
+    tertiary: '#FFB300',
+    surface: '#121316',
+    surfaceBorder: '#23252B',
+    textPrimary: '#F4F4F6',
+    textSecondary: '#D4D4D8',
+    textMuted: '#A1A1AA',
+    ecgStroke: '#FF5500',
+    sleepStages: {
+      deep: '#00E5FF',
+      rem: '#FF5500',
+      light: '#7DD3FC',
+      awake: '#303036',
+    },
+    data: { blue: '#38BDF8', green: '#10B981', cyan: '#00E5FF', red: '#F43F5E', yellow: '#FFB300', purple: '#A78BFA' },
   },
   volt: {
     id: 'volt',
@@ -404,7 +427,51 @@ export const MODERN_THEMES: Record<string, ColorPalette> = {
       awake: '#381F2C',
     },
   },
+  // ---- Special themes: colors plus a scene (see ColorPalette.scene) ----
+  google: {
+    id: 'google',
+    name: 'Google-inspired',
+    tagline: 'Blue, red, yellow and green on clean white, with 3D training androids on Home',
+    primary: '#4285F4',
+    primaryGlow: 'rgba(66, 133, 244, 0.28)',
+    primaryContainer: '#E8F0FE',
+    secondary: '#34A853',
+    tertiary: '#EA4335',
+    surface: '#F8F9FA',
+    surfaceBorder: '#DADCE0',
+    textPrimary: '#202124',
+    textSecondary: '#3C4043',
+    textMuted: '#5F6368',
+    ecgStroke: '#EA4335',
+    sleepStages: { deep: '#4285F4', rem: '#A142F4', light: '#8AB4F8', awake: '#FBBC04' },
+    data: { blue: '#4285F4', green: '#34A853', cyan: '#24C1E0', red: '#EA4335', yellow: '#FBBC04', purple: '#A142F4' },
+    scene: 'google',
+    preset: { light: 'google_white', dark: 'slate', mode: 'light' },
+  },
+  sagittarius: {
+    id: 'sagittarius',
+    name: 'Sagittarius',
+    tagline: 'The Milky Way toward its glowing core, alive behind every screen',
+    primary: '#FFC46B',
+    primaryGlow: 'rgba(255, 196, 107, 0.28)',
+    primaryContainer: '#2A1D08',
+    secondary: '#E58BC0',
+    tertiary: '#7C9CFF',
+    surface: '#0B0F1F',
+    surfaceBorder: '#232B4A',
+    textPrimary: '#EAF0FF',
+    textSecondary: '#CBD5F5',
+    textMuted: '#8E9BC4',
+    ecgStroke: '#FFC46B',
+    sleepStages: { deep: '#5A6CFF', rem: '#E58BC0', light: '#8FB0FF', awake: '#3A3150' },
+    data: { blue: '#7C9CFF', green: '#7FE0C2', cyan: '#6FD6FF', red: '#FF7A8A', yellow: '#FFC46B', purple: '#B48CFF' },
+    scene: 'galaxy',
+    preset: { dark: 'galaxy', light: 'sky', mode: 'dark', glow: 'always' },
+  },
 };
+
+/** The themes that bring a scene with them, shown together at the top of the palette list. */
+export const SPECIAL_THEME_IDS = ['google', 'sagittarius'] as const;
 
 /**
  * Creates a complete ColorPalette from custom user hex selections.

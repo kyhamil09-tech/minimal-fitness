@@ -16,6 +16,7 @@ import {
 } from '../lib/units';
 import { estimateMaxHr, tdee } from '../lib/calc';
 import { suggestedGoals } from '../data/defaults';
+import { Segmented } from './ui/Segmented';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -173,28 +174,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     >
       <div className="space-y-4">
         {isOnboarding && (
-          <p className="text-xs text-[#7E889B] leading-relaxed">
+          <p className="text-xs text-[#9AA3B2] leading-relaxed">
             A few details let the app size your heart-rate zones, calorie burn and daily targets. Everything is
             stored only on this device.
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-1 p-1 bg-black/60 rounded-xl border border-[#1A1E26]" role="group" aria-label="Units">
-          {(['metric', 'imperial'] as UnitSystem[]).map((u) => (
-            <button
-              key={u}
-              type="button"
-              aria-pressed={units === u}
-              onClick={() => switchUnits(u)}
-              className={`py-1.5 rounded-lg text-xs font-semibold ${
-                units === u ? 'bg-neutral-900 border border-neutral-700' : 'text-neutral-400'
-              }`}
-              style={{ color: units === u ? theme.primary : undefined }}
-            >
-              {u === 'metric' ? 'Metric (kg, km)' : 'Imperial (lb, mi)'}
-            </button>
-          ))}
-        </div>
+        <Segmented<UnitSystem>
+          ariaLabel="Units"
+          size="sm"
+          semantics="group"
+          value={units}
+          onChange={switchUnits}
+          options={[
+            { id: 'metric', label: 'Metric (kg, km)' },
+            { id: 'imperial', label: 'Imperial (lb, mi)' },
+          ]}
+        />
 
         <div className="space-y-1">
           <label className={labelClass} htmlFor="pf-name">
@@ -262,12 +258,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         </div>
 
-        <p className="text-[11px] text-[#7E889B] font-mono">
+        <p className="text-xs text-[#9AA3B2] font-mono">
           Estimated max HR {estimateMaxHr(draft.age)} bpm · maintenance ≈ {tdee(draft)} kcal/day
         </p>
 
         <div className="pt-2 border-t border-[#1A1E26] space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">Daily & weekly goals</h3>
+          <h3 className="text-sm font-bold text-neutral-200">Daily & weekly goals</h3>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className={labelClass} htmlFor="g-steps">
@@ -286,7 +282,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 Calories / day
               </label>
               <input id="g-cal" inputMode="numeric" value={calories} onChange={(e) => setCalories(e.target.value)} className={fieldClass} />
-              <button type="button" onClick={useSuggestedCalories} className="text-[10px] underline" style={{ color: theme.primary }}>
+              <button type="button" onClick={useSuggestedCalories} className="text-xs underline" style={{ color: theme.primary }}>
                 Use maintenance estimate
               </button>
             </div>

@@ -293,6 +293,10 @@ export const estimateNight = (input: EstimateInput): SleepLogEntry | null => {
     segments: staged.segments,
     awakenings: countAwakenings(staged.segments),
     inBedMinutes: inBed,
+    hrSeries: hr
+      .slice(startIdx, endIdx)
+      .map((v, i): [number, number] => [w.startMs + i * BUCKET_MS, Math.round(v)])
+      .filter(([, v]) => !Number.isNaN(v) && v > 0),
     hrAvg: staged.hrAvg,
     hrMin: staged.hrMin,
     hrMax: staged.hrMax,

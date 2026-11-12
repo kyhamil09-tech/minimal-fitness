@@ -86,13 +86,14 @@ export interface AutomaticData {
   /** What the watch has delivered on its own: when it last did, and how many heart-rate readings today (null before the first look). */
   watchData: { watchSyncAt: number; hrToday: number } | null;
   enableSteps: () => Promise<void>;
-  connectHealthConnect: () => Promise<void>;
+  /** Asks Health Connect for access: for the named features only, or everything when none are named. */
+  connectHealthConnect: (groups?: string[]) => Promise<void>;
   syncNow: () => Promise<void>;
 }
 
 /**
  * Pulls steps and sleep in automatically:
- * - steps from the phone's step counter, the Pixel Watch, and Health Connect (the highest wins);
+ * - steps from the phone's step counter, a linked watch, and Health Connect (the highest wins);
  * - sleep sessions with measured stages from Health Connect, merged into the sleep log.
  * Everything is read on-device; nothing leaves the phone.
  */
@@ -104,8 +105,14 @@ export function useAutomaticData(
   /** Which source counts steps (Settings > Steps). The phone's counter and Health Connect are only read when chosen. */
   stepSource: StepSource = 'auto',
   /** The Health Connect master switch (Settings). Off: it is not read, and nothing asks for its permissions. */
-  useHealthConnect = true
+  useHealthConnect = true,
+  /** Which tracker's sleep to show when several saved the same night: 'auto' or a tracker's package name (Settings). */
+  sleepSource = 'auto',
+  /** Which tracker may fill in what the main one missed: 'auto' (any other), 'none', or a tracker's package name (Settings). */
+  sleepSecondary = 'auto'
 ): AutomaticData {
+  const sleepSourceRef = useRef({ main: sleepSource, second: sleepSecondary });
+  sleepSourceRef.current = { main: sleepSource, second: sleepSecondary };
   const workoutsCb = useRef(onHcWorkouts);
   workoutsCb.current = onHcWorkouts;
   // Totals saved before sources were kept apart move across once, so past days keep their numbers.
@@ -237,7 +244,7 @@ export function useAutomaticData(
             const { sessions } = await HealthConnect.readSleep({ days: 30 });
             const logs = sessions.map(sessionToLog).filter((l): l is SleepLogEntry => l !== null);
             setHcNightsImported(logs.length);
-            if (logs.length > 0) setSleepLogs((prev) => mergeImportedSleep(prev, logs));
+            if (logs.length > 0) setSleepLogs((prev) => mergeImportedSleep(prev, logs, { preferred: sleepSourceRef.current.main, secondary: sleepSourceRef.current.second }));
             setHcLastSyncAt(Date.now());
             setHcError('');
           } catch (err: any) {
@@ -405,11 +412,12 @@ export function useAutomaticData(
 
   const enableSteps = useCallback(() => sync(true), [sync]);
 
-  const connectHealthConnect = useCallback(async () => {
+  const connectHealthConnect = useCallback(async (groups?: string[]) => {
     if (!useHealthConnect) return;
     setHcError('');
     try {
-      const status = await HealthConnect.requestAccess();
+      // Only the reads are asked for unless the person has also turned on saving data to Health Connect.
+      const status = await HealthConnect.requestAccess({ ...(groups && groups.length ? { groups } : {}), readOnly: !readPrefs().writeHealthConnect });
       setHc(status);
       resetHealthWriteCache();
       if (!(status.grantedCount ?? 0) && !status.sleepGranted && !status.stepsGranted) {

@@ -13,15 +13,16 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Local plugins must be registered before super.onCreate builds the bridge.
         registerPlugin(WatchHeartRatePlugin.class);
+        registerPlugin(BreatheWatchPlugin.class);
         registerPlugin(BleHeartRatePlugin.class);
         registerPlugin(BleCyclingPlugin.class);
-        registerPlugin(LiveSharePlugin.class);
         registerPlugin(ActivityDetectPlugin.class);
         registerPlugin(LookPlugin.class);
         registerPlugin(GpsTrackerPlugin.class);
         registerPlugin(HealthConnectPlugin.class);
         registerPlugin(StepsPlugin.class);
         registerPlugin(BackupPlugin.class);
+        registerPlugin(GoogleDrivePlugin.class);
         registerPlugin(DiagnosticsPlugin.class);
         registerPlugin(LaunchPlugin.class);
         registerPlugin(MetronomePlugin.class);
@@ -33,11 +34,19 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(FastingPlugin.class);
         registerPlugin(GlancePlugin.class);
         registerPlugin(WaterPlugin.class);
+        registerPlugin(EatPlugin.class);
+        registerPlugin(DeviceCalendarPlugin.class);
         registerPlugin(MapPackPlugin.class);
         registerPlugin(AppLockPlugin.class);
         registerPlugin(VoiceLogPlugin.class);
+        registerPlugin(LiftSessionPlugin.class);
+        registerPlugin(LabelScanPlugin.class);
+        registerPlugin(OpenUrlPlugin.class);
+        registerPlugin(RecipeFetchPlugin.class);
+        registerPlugin(ClipboardReadPlugin.class);
         super.onCreate(savedInstanceState);
         LaunchBridge.capture(getIntent());
+        BuildMarks.stamp(this);
         if (Build.VERSION.SDK_INT >= 28) {
             // Draw behind the camera cutout so hiding the status bar leaves no black strip at the top.
             getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;

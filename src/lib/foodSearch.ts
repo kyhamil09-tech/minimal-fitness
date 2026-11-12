@@ -3,7 +3,7 @@ import { FoodRecord } from './foodDb';
 /**
  * Food search that forgives how people type: it matches the start of words as you type ("chick" finds chicken), tolerates a slipped
  * letter ("chiken brest"), understands British and American names ("yoghurt", "aubergine", "courgette") and ranks everyday foods
- * ahead of obscure ones, with the foods you eat often and your favourites on top. It runs on the phone over the bundled database.
+ * ahead of obscure ones, with the foods you eat often and your favorites on top. It runs on the phone over the bundled database.
  */
 
 export const normalize = (s: string): string =>
@@ -126,7 +126,7 @@ const expand = (ix: SearchIndex, t: string, isLast: boolean): Match[] => {
 
 export interface SearchOptions {
   limit?: number;
-  /** Extra score for a record (how often you eat it, favourites). */
+  /** Extra score for a record (how often you eat it, favorites). */
   boost?: (r: FoodRecord) => number;
   /** Only records the filter keeps. */
   filter?: (r: FoodRecord) => boolean;

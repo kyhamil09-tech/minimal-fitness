@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/breathe_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:letterSpacing="0.14"
+        android:text="BREATHE"
+        android:textColor="#FF5EEAD4"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-condensed"
+        android:includeFontPadding="false"
+        android:maxLines="2"
+        android:text="Take two minutes"
+        android:textColor="#FFFFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold|italic" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Slow in, slower out"
+        android:textColor="#FF8A8A8A"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/breathe_start"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_btn_breathe"
+            android:fontFamily="sans-serif-condensed"
+            android:gravity="center"
+            android:letterSpacing="0.04"
+            android:text="Start"
+            android:textColor="#FF04121A"
+            android:textSize="16sp"
+            android:textStyle="bold|italic" />
+
+        <TextView
+            android:id="@+id/breathe_sleep"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_btn"
+            android:fontFamily="sans-serif-condensed"
+            android:gravity="center"
+            android:letterSpacing="0.04"
+            android:text="Wind down"
+            android:textColor="#FFFFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold|italic" />
+    </LinearLayout>
+</LinearLayout>

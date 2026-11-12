@@ -1,12 +1,13 @@
+import { Micros, microsFromList, scaleMicros } from './micros';
 import { FOOD_DATABASE } from '../data/foods';
 
 /**
  * The food database the search runs over. About 13,000 everyday foods come from the US government's USDA FoodData Central (public
- * domain; see tools/build-food-db.mjs), each with calories, protein, carbs, fat, fibre, sugar, sodium per 100 g and its usual portions
+ * domain; see tools/build-food-db.mjs), each with calories, protein, carbs, fat, fiber, sugar, sodium per 100 g and its usual portions
  * ("1 cup", "1 slice"). A small hand-picked list of the most common foods sits in front of them, packaged foods you look up online
  * are turned into the same shape, and so are the foods you make yourself.
  */
-export type FoodSource = 'curated' | 'fndds' | 'sr' | 'off' | 'mine';
+export type FoodSource = 'curated' | 'fndds' | 'sr' | 'off' | 'usda' | 'mine';
 
 export interface Portion {
   label: string;
@@ -34,11 +35,13 @@ export interface FoodRecord {
   perServing?: boolean;
   brand?: string;
   barcode?: string;
+  /** Vitamins and minerals per 100 g (or per serving, like the rest), when the source has them. */
+  micros?: Micros;
 }
 
 export const GROUPS = ['Other', 'Dairy', 'Eggs', 'Meat', 'Poultry', 'Fish and seafood', 'Grains and pasta', 'Bread and baking', 'Fruit', 'Vegetables', 'Beans, nuts and seeds', 'Oils, sauces and spices', 'Sweets and desserts', 'Snacks', 'Drinks', 'Alcohol', 'Meals and dishes'] as const;
 
-type Raw = [string, number, number, number, number, number, number, number, number, number, [string, number][]];
+type Raw = [string, number, number, number, number, number, number, number, number, number, [string, number][], number[]?];
 
 const fromRaw = (r: Raw, i: number): FoodRecord => ({
   id: `usda:${i}`,
@@ -53,6 +56,7 @@ const fromRaw = (r: Raw, i: number): FoodRecord => ({
   sugar: r[8],
   sodium: r[9],
   portions: r[10].map(([label, g]) => ({ label, g })),
+  ...(r[11] ? { micros: microsFromList(r[11]) } : {}),
 });
 
 let usda: Promise<FoodRecord[]> | null = null;
@@ -100,6 +104,7 @@ export interface Nutrients {
   fiber: number;
   sugar: number;
   sodium: number;
+  micros?: Micros;
 }
 
 export type UnitKey = 'g' | 'oz' | `p${number}`;
@@ -120,7 +125,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 
 export const nutrientsFor = (r: FoodRecord, unit: UnitKey, qty: number): Nutrients => {
   const k = factorFor(r, unit, qty);
-  return { kcal: Math.round(r.kcal * k), p: r1(r.p * k), c: r1(r.c * k), f: r1(r.f * k), fiber: r1(r.fiber * k), sugar: r1(r.sugar * k), sodium: Math.round(r.sodium * k) };
+  return { kcal: Math.round(r.kcal * k), p: r1(r.p * k), c: r1(r.c * k), f: r1(r.f * k), fiber: r1(r.fiber * k), sugar: r1(r.sugar * k), sodium: Math.round(r.sodium * k), micros: scaleMicros(r.micros, k) };
 };
 
 /** The amount a food opens with: its first portion (a cup, a slice, a serving), or 100 g when it has none. */

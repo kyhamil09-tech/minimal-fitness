@@ -2,7 +2,7 @@ import type { LatLng } from './geo';
 
 const R = 6371000;
 
-/** Local flat projection in metres around a reference latitude (accurate for the few kilometres of a route). */
+/** Local flat projection in meters around a reference latitude (accurate for the few kilometers of a route). */
 const project = (p: LatLng, lat0: number): [number, number] => [((p[1] * Math.PI) / 180) * R * Math.cos((lat0 * Math.PI) / 180), ((p[0] * Math.PI) / 180) * R];
 
 const perpendicular = (p: [number, number], a: [number, number], b: [number, number]): number => {
@@ -16,7 +16,7 @@ const perpendicular = (p: [number, number], a: [number, number], b: [number, num
 
 /**
  * Ramer-Douglas-Peucker: keeps the points that matter for the shape of a route and drops the ones along straight stretches.
- * {@code epsilonM} is how far, in metres, the simplified line may stray from the original. Returns the indices kept.
+ * {@code epsilonM} is how far, in meters, the simplified line may stray from the original. Returns the indices kept.
  */
 export const douglasPeuckerIndices = (points: LatLng[], epsilonM: number): number[] => {
   const n = points.length;

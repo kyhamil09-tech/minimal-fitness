@@ -69,7 +69,7 @@ export const RemindersModal: React.FC<RemindersModalProps> = ({ isOpen, onClose,
         {perm === 'granted' && (
           <button
             onClick={() => notify('Minimal Fitness', 'Notifications are working.', 'test')}
-            className="text-[11px] underline text-neutral-400 hover:text-white"
+            className="text-xs underline text-neutral-400 hover:text-white"
           >
             Send a test notification
           </button>
@@ -78,7 +78,7 @@ export const RemindersModal: React.FC<RemindersModalProps> = ({ isOpen, onClose,
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm text-white">Workout</div>
-            <div className="text-[11px] text-[#7E889B]">Daily nudge at a set time</div>
+            <div className="text-xs text-[#9AA3B2]">Daily nudge at a set time</div>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -94,8 +94,25 @@ export const RemindersModal: React.FC<RemindersModalProps> = ({ isOpen, onClose,
 
         <div className="flex items-center justify-between gap-3">
           <div>
+            <div className="text-sm text-white">Streak saver</div>
+            <div className="text-xs text-[#9AA3B2]">Evening nudge if nothing is logged yet</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              aria-label="Streak saver time"
+              type="time"
+              value={settings.streakTime ?? '19:30'}
+              onChange={(e) => set({ streakTime: e.target.value })}
+              className={fieldClass + ' !w-28'}
+            />
+            <Toggle checked={settings.streakEnabled === true} onChange={(v) => set({ streakEnabled: v })} label="Streak saver" color={theme.primary} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
             <div className="text-sm text-white">Bedtime</div>
-            <div className="text-[11px] text-[#7E889B]">Wind-down reminder</div>
+            <div className="text-xs text-[#9AA3B2]">Wind-down reminder</div>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -112,7 +129,7 @@ export const RemindersModal: React.FC<RemindersModalProps> = ({ isOpen, onClose,
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm text-white">Hydration</div>
-            <div className="text-[11px] text-[#7E889B]">8am–9pm, only while below your goal</div>
+            <div className="text-xs text-[#9AA3B2]">8am–9pm, only while below your goal</div>
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -133,7 +150,7 @@ export const RemindersModal: React.FC<RemindersModalProps> = ({ isOpen, onClose,
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm text-white">Fast complete</div>
-            <div className="text-[11px] text-[#7E889B]">When you reach your fasting target</div>
+            <div className="text-xs text-[#9AA3B2]">When you reach your fasting target</div>
           </div>
           <Toggle checked={settings.fastingEnabled} onChange={(v) => set({ fastingEnabled: v })} label="Fasting reminder" color={theme.primary} />
         </div>
@@ -141,20 +158,28 @@ export const RemindersModal: React.FC<RemindersModalProps> = ({ isOpen, onClose,
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm text-white">Fasting timer</div>
-            <div className="text-[11px] text-[#7E889B]">A live timer in the notification shade while you fast (Android app)</div>
+            <div className="text-xs text-[#9AA3B2]">A live timer in the notification shade while you fast (Android app)</div>
           </div>
           <Toggle checked={settings.fastingLive !== false} onChange={(v) => set({ fastingLive: v })} label="Fasting timer notification" color={theme.primary} />
         </div>
 
         <div className="flex items-center justify-between gap-3">
           <div>
+            <div className="text-sm text-white">Glow card</div>
+            <div className="text-xs text-[#9AA3B2]">The timer drawn in your color scheme with a filling bar. Off uses Android's own live update, which can show a chip in the status bar</div>
+          </div>
+          <Toggle checked={settings.fastingGlow !== false} onChange={(v) => set({ fastingGlow: v })} label="Fasting glow card" color={theme.primary} />
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
             <div className="text-sm text-white">Fasting stages</div>
-            <div className="text-[11px] text-[#7E889B]">A short alert when your fast reaches a new stage (Android app)</div>
+            <div className="text-xs text-[#9AA3B2]">A short alert when your fast reaches a new stage (Android app)</div>
           </div>
           <Toggle checked={settings.fastingStages !== false} onChange={(v) => set({ fastingStages: v })} label="Fasting stage alerts" color={theme.primary} />
         </div>
 
-        <p className="text-[11px] text-neutral-500 leading-relaxed border-t border-[#1A1E26] pt-3">
+        <p className="text-xs text-neutral-400 leading-relaxed border-t border-[#1A1E26] pt-3">
           Reminders are checked locally while Minimal Fitness is open or installed and running in the background. There is no
           server, so a fully closed app can't wake itself up to notify you.
         </p>

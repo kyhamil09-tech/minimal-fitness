@@ -27,7 +27,7 @@ test('every section of the Run tab, Progress and every Settings group can be rea
 
 test('the map is five areas and none of them is overwhelming', () => {
   assert.equal(APP_MAP.length, 5);
-  for (const a of APP_MAP) assert.ok(a.items.length >= 3 && a.items.length <= 6, `${a.id} has ${a.items.length}`);
+  for (const a of APP_MAP) assert.ok(a.items.length >= 3 && a.items.length <= 7, `${a.id} has ${a.items.length}`);
 });
 
 test('search matches the start of words in the name, the line under it and its keywords', () => {

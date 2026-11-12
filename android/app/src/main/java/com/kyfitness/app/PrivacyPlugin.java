@@ -8,6 +8,8 @@ import android.net.TrafficStats;
 import android.os.Process;
 import android.os.SystemClock;
 import com.getcapacitor.JSArray;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -49,6 +51,14 @@ public class PrivacyPlugin extends Plugin {
             o.put("rxBytes", TrafficStats.getUidRxBytes(uid));
             o.put("countedSince", System.currentTimeMillis() - SystemClock.elapsedRealtime());
             o.put("version", pi.versionName);
+            // Whether Google Play services is on this phone: the pieces on the Privacy screen's Google section that need it stay off without it.
+            boolean play;
+            try {
+                play = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(c) == ConnectionResult.SUCCESS;
+            } catch (Throwable t) {
+                play = false;
+            }
+            o.put("playServices", play);
             call.resolve(o);
         } catch (Exception e) {
             call.reject("Could not read the app's details: " + e.getMessage());

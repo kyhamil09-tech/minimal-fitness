@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/logo_bg_forest"/>
-    <foreground android:drawable="@drawable/ic_logo_fg_forest"/>
+    <background android:drawable="@color/logo_bg_runclub"/>
+    <foreground android:drawable="@drawable/ic_logo_fg_runclub"/>
+    <monochrome android:drawable="@drawable/ic_logo_mono"/>
 </adaptive-icon>

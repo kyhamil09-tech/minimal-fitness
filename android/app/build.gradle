@@ -5,10 +5,13 @@ kotlin {
     jvmToolchain(21)
 }
 
+apply from: '../upload-signing.gradle'
+
 android {
     // One stable key for every build (the key your installed apps already use), so updates install over the top
     // and keep your data. Keep a copy of ../signing/ky-fitness-signing.keystore somewhere safe.
     signingConfigs {
+        configureUploadKey(signingConfigs)
         ky {
             storeFile rootProject.file('../signing/ky-fitness-signing.keystore')
             storePassword 'android'
@@ -37,7 +40,7 @@ android {
             signingConfig signingConfigs.ky
         }
         release {
-            signingConfig signingConfigs.ky
+            signingConfig hasUploadKey ? signingConfigs.upload : null
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -56,13 +59,15 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    // Wear OS Data Layer: receives live heart rate from the Pixel Watch app
+    // Wear OS Data Layer: receives live heart rate from the watch app
     implementation 'com.google.android.gms:play-services-wearable:19.0.0'
+    // Google sign-in permission for the Drive backup (the hidden app folder only)
+    implementation 'com.google.android.gms:play-services-auth:21.3.0'
     // Opens the watch app when a workout starts on the phone
     implementation 'androidx.wear:wear-remote-interactions:1.1.0'
     // Background route recording (foreground location service)
     implementation 'com.google.android.gms:play-services-location:21.3.0'
-    // Health Connect (sleep sessions and steps recorded by the Pixel Watch / Google Health apps)
+    // Health Connect (sleep sessions and steps recorded by a watch or health app)
     implementation 'androidx.health.connect:connect-client:1.1.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
     // Periodic phone step-counter sampling and folder backups
@@ -70,7 +75,14 @@ dependencies {
     implementation 'androidx.biometric:biometric:1.1.0'
     implementation 'com.google.guava:guava:33.4.0-android'
     implementation 'androidx.documentfile:documentfile:1.0.1'
+    // Reading a nutrition label from a photo, on the phone (the text model is bundled, so it needs no download and no Google services)
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
+    // Naming what is in a photo of a meal, on the phone (the image model is bundled too; nothing is downloaded or sent)
+    implementation 'com.google.mlkit:image-labeling:17.0.9'
+    // The in-app overlay for a video search or a saved link
+    implementation 'androidx.browser:browser:1.8.0'
     testImplementation "junit:junit:$junitVersion"
+    testImplementation 'org.json:json:20240303'
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')

@@ -11,13 +11,13 @@ interface WatchLinkCardProps {
 
 const HELP: Record<string, string> = {
   unsupported:
-    'Live watch heart rate works in the Android app. Install the Minimal Fitness APK on your phone to link a Pixel Watch.',
+    'Live watch heart rate works in the Android app. Install the Minimal Fitness APK on your phone to link a watch.',
   unavailable:
     'This phone does not have the Google Play services Wearable API, which the watch link needs.',
   'no-watch':
-    'Pair your Pixel Watch with this phone in the Pixel Watch app, keep Bluetooth on, then tap Refresh.',
+    'Pair your watch with this phone using its own companion app, keep Bluetooth on, then tap Refresh. Watches that do not run the Minimal Fitness watch app can still send heart rate over Bluetooth (see below) or share data through Health Connect.',
   'no-app':
-    'Your watch is connected but Minimal Fitness is not installed on it yet. Install the Minimal Fitness Wear OS APK (see the README), then tap Refresh.',
+    'Your watch is connected but Minimal Fitness is not installed on it yet. Install the Minimal Fitness watch APK (see the README), then tap Refresh.',
   waiting:
     'Open Minimal Fitness on your watch and tap Start. Heart rate will appear here within a few seconds.',
   live: 'Streaming live from your watch. Keep Minimal Fitness running on the watch while you train.',
@@ -36,8 +36,8 @@ export const WatchLinkCard: React.FC<WatchLinkCardProps> = ({ watch, theme }) =>
             <Watch className="w-5 h-5" style={{ color: theme.primary }} />
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white">Pixel Watch live heart rate</div>
-            <div className="text-xs text-[#7E889B] mt-0.5" role="status">
+            <div className="text-sm font-semibold text-white">{(watch.state === 'live' || watch.state === 'waiting') && watch.nodeName ? watch.nodeName : 'Watch'}</div>
+            <div className="text-xs text-[#9AA3B2] mt-0.5" role="status">
               {watchStateLabel(watch)}
             </div>
           </div>
@@ -45,14 +45,14 @@ export const WatchLinkCard: React.FC<WatchLinkCardProps> = ({ watch, theme }) =>
         {watch.supported && (
           <button
             onClick={watch.refresh}
-            className="px-3 py-1.5 rounded-lg border border-neutral-700 text-xs font-mono text-neutral-300 hover:text-white shrink-0 flex items-center gap-1.5"
+            className="min-h-11 px-4 rounded-xl border border-neutral-700 text-xs font-mono text-neutral-200 hover:text-white shrink-0 flex items-center gap-1.5"
           >
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
         )}
       </div>
 
-      <p className="text-[11px] text-neutral-400 leading-relaxed">{HELP[watch.state]}</p>
+      <p className="text-xs text-neutral-400 leading-relaxed">{HELP[watch.state]}</p>
 
       {watch.supported && watch.state !== 'no-watch' && watch.state !== 'unavailable' && (
         <div className="flex gap-2">
@@ -74,7 +74,7 @@ export const WatchLinkCard: React.FC<WatchLinkCardProps> = ({ watch, theme }) =>
       )}
 
       {watch.error && (
-        <p role="alert" className="text-[11px] text-rose-400">
+        <p role="alert" className="text-xs text-rose-400">
           {watch.error}
         </p>
       )}

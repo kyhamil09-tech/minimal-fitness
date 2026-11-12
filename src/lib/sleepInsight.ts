@@ -110,7 +110,7 @@ export const buildSleepInsight = (logs: SleepLogEntry[], todayIso: string): Slee
   // Sentence 2: the single most useful secondary finding, in priority order.
   let second: string;
   if (latest.durationMinutes < 360) {
-    second = 'Under 6 hours is short enough to impair recovery; prioritise an earlier bedtime tonight.';
+    second = 'Under 6 hours is short enough to impair recovery; prioritize an earlier bedtime tonight.';
   } else if (Math.abs(bedDelta) >= SHIFT_MIN) {
     second = `Bedtime was ${formatHM(bedDelta)} ${bedDelta > 0 ? 'later' : 'earlier'} than your usual ${clock(mean(bedScale))}.`;
   } else if (Math.abs(qualityDelta) >= 1) {

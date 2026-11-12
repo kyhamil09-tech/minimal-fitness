@@ -1,12 +1,16 @@
 import React from 'react';
-import { Droplets, Eye, EyeOff, Hand, Lock, MonitorSmartphone, Navigation, Timer, Type, Vibrate, Volume2, Zap } from 'lucide-react';
+import { Droplets, Eye, ShieldCheck, EyeOff, Hand, Lock, MonitorSmartphone, Navigation, Timer, Type, Vibrate, Volume2, Zap } from 'lucide-react';
 import { ColorPalette } from '../types/theme';
 import { UnitSystem } from '../types/tracking';
 import { WorkoutType } from '../types/health';
-import { usePrefs } from '../lib/prefs';
+import { WARN_CHOICES, usePrefs } from '../lib/prefs';
 import { AppLock } from '../lib/native';
 import { distanceUnit } from '../lib/units';
+import { useT } from '../lib/i18n';
+import { LANGUAGES, type Language } from '../lib/languages';
+import type { MessageKey } from '../locales/en';
 import { Choice, ChoiceRow, Row, Toggle } from './ui/SettingsParts';
+import { VoicePicker } from './VoicePicker';
 
 const SPORTS: { id: WorkoutType; label: string }[] = [
   { id: 'Running', label: 'Run' },
@@ -21,11 +25,25 @@ const SPORTS: { id: WorkoutType; label: string }[] = [
   { id: 'Yoga', label: 'Yoga' },
   { id: 'Elliptical', label: 'Elliptical' },
   { id: 'Calisthenics', label: 'Bodyweight' },
+  { id: 'Swimming', label: 'Pool swim' },
+  { id: 'OpenWaterSwim', label: 'Open water' },
+  { id: 'StairClimbing', label: 'Stairs' },
+  { id: 'Dance', label: 'Dance' },
+  { id: 'Pilates', label: 'Pilates' },
+  { id: 'Stretching', label: 'Stretch' },
+  { id: 'AlpineSkiing', label: 'Downhill ski' },
+  { id: 'CrossCountrySkiing', label: 'Cross-country ski' },
+  { id: 'Snowboarding', label: 'Snowboard' },
+  { id: 'Snowshoeing', label: 'Snowshoe' },
+  { id: 'IceSkating', label: 'Ice skate' },
+  { id: 'Kayaking', label: 'Kayak or canoe' },
+  { id: 'Paddleboarding', label: 'Paddleboard' },
 ];
 
 /** The extra Run settings: screen, countdown, spoken updates, GPS battery, default activity, buzz and beat. */
 export const RunPrefs: React.FC<{ theme: ColorPalette; units: UnitSystem; voiceCues: boolean }> = ({ units, voiceCues }) => {
   const { prefs, setPrefs } = usePrefs();
+  const t = useT();
   const unit = distanceUnit(units);
   const distanceChoices = [0.5, 1, 2, 5].map((v) => ({ id: v, label: v + ' ' + unit }));
   return (
@@ -36,6 +54,17 @@ export const RunPrefs: React.FC<{ theme: ColorPalette; units: UnitSystem; voiceC
         sub="Stops the screen from turning off while a workout is running. Turn it off to save battery; the run keeps recording either way."
         action={<Toggle on={prefs.keepScreenOn} onChange={(v) => setPrefs({ keepScreenOn: v })} label="Keep the screen on during workouts" />}
       />
+      <Row
+        icon={<ShieldCheck className="w-5 h-5 text-emerald-300" />}
+        title="Are you okay? check"
+        sub="If a GPS workout stops moving for a few minutes, the phone buzzes and asks. Tap I am OK, or share your location. It never sends anything by itself."
+        action={<Toggle on={prefs.safetyCheck} onChange={(v) => setPrefs({ safetyCheck: v })} label="Are you okay check" />}
+      />
+      {prefs.safetyCheck && (
+        <ChoiceRow title="Ask after standing still for" sub="A longer wait means fewer false alarms at traffic lights and stretch breaks.">
+          <Choice label="Minutes before the check" value={prefs.safetyCheckMin} onChange={(v) => setPrefs({ safetyCheckMin: v })} options={[3, 5, 10].map((v) => ({ id: v, label: v + ' min' }))} />
+        </ChoiceRow>
+      )}
       <Row
         icon={<Timer className="w-5 h-5 text-amber-300" />}
         title="Start countdown"
@@ -148,7 +177,7 @@ export const RunPrefs: React.FC<{ theme: ColorPalette; units: UnitSystem; voiceC
           label="Default activity"
           value={prefs.defaultSport}
           onChange={(v) => setPrefs({ defaultSport: v })}
-          options={[{ id: 'last' as const, label: 'Last used' }, ...SPORTS]}
+          options={[{ id: 'last' as const, label: 'Last used' }, ...SPORTS.map((s) => ({ ...s, label: t(`sport.${s.id}` as MessageKey) }))]}
         />
       </ChoiceRow>
       <Row
@@ -163,6 +192,31 @@ export const RunPrefs: React.FC<{ theme: ColorPalette; units: UnitSystem; voiceC
         sub="A buzz at the start and at every step change of an interval workout, and on each countdown number."
         action={<Toggle on={prefs.hapticsSteps} onChange={(v) => setPrefs({ hapticsSteps: v })} label="Buzz at interval steps" />}
       />
+      <Row
+        icon={<Volume2 className="w-5 h-5 text-sky-300" />}
+        title="Say interval steps out loud"
+        sub="Says Run, Walk and the other steps of an interval workout, even when the spoken running updates are off."
+        action={<Toggle on={prefs.intervalVoice} onChange={(v) => setPrefs({ intervalVoice: v })} label="Say interval steps out loud" />}
+      />
+      <ChoiceRow title="Warn me before a change" sub='A buzz and a spoken "Walk in 10 seconds" this long before a step ends, so you can get ready. Steps shorter than the warning are left alone.'>
+        <Choice
+          label="Warning before a step changes"
+          value={prefs.intervalWarnSec}
+          onChange={(v) => setPrefs({ intervalWarnSec: v })}
+          options={WARN_CHOICES.map((v) => ({ id: v, label: v === 0 ? 'Off' : v + ' s' }))}
+        />
+      </ChoiceRow>
+      <Row
+        icon={<Timer className="w-5 h-5 text-amber-300" />}
+        title="Count down the last 3 seconds"
+        sub="A tick and a spoken 3, 2, 1 as a step is about to change."
+        action={<Toggle on={prefs.intervalCountdown} onChange={(v) => setPrefs({ intervalCountdown: v })} label="Count down the last 3 seconds" />}
+      />
+      {prefs.intervalVoice && (
+        <ChoiceRow title="Voice for the cues" sub="Android picks the best voice installed. A higher quality voice sounds less robotic; the picker lists what your phone has.">
+          <VoicePicker />
+        </ChoiceRow>
+      )}
       <Row
         icon={<Zap className="w-5 h-5 text-rose-300" />}
         title="Buzz for pace and heart-rate alerts"
@@ -200,11 +254,20 @@ export const RunPrefs: React.FC<{ theme: ColorPalette; units: UnitSystem; voiceC
 };
 
 /** The extra Look and feel settings: swipe, opening screen, week start, text size and motion. */
-export const LookPrefs: React.FC<{ showCycle?: boolean }> = ({ showCycle = false }) => {
+export const LookPrefs: React.FC = () => {
   const { prefs, setPrefs } = usePrefs();
+  const t = useT();
   const [lockMsg, setLockMsg] = React.useState('');
   return (
     <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] divide-y divide-[#1A1E26] overflow-hidden">
+      <ChoiceRow title={t('settings.language.title')} sub={t('settings.language.sub')}>
+        <Choice<Language>
+          label={t('settings.language.title')}
+          value={prefs.language}
+          onChange={(v) => setPrefs({ language: v })}
+          options={[{ id: 'auto', label: t('settings.language.auto') }, ...LANGUAGES.map((l) => ({ id: l.code as Language, label: l.name }))]}
+        />
+      </ChoiceRow>
       <Row
         icon={<Hand className="w-5 h-5 text-sky-300" />}
         title="Swipe between tabs"
@@ -233,27 +296,6 @@ export const LookPrefs: React.FC<{ showCycle?: boolean }> = ({ showCycle = false
           ]}
         />
       </ChoiceRow>
-      <ChoiceRow
-        title="Background glow"
-        sub="Soft, slowly drifting light in your theme colours behind the screens. On tab change shows it for a few seconds after you switch tabs and is the easiest on the battery. Always keeps it drifting, and switches back to tab changes when the battery is low. Hidden during workouts and with Reduce motion."
-      >
-        <Choice
-          label="Background glow"
-          value={prefs.glow}
-          onChange={(v) => setPrefs({ glow: v })}
-          options={[
-            { id: 'off', label: 'Off' },
-            { id: 'tabs', label: 'On tab change' },
-            { id: 'always', label: 'Always' },
-          ]}
-        />
-      </ChoiceRow>
-      <Row
-        icon={<Droplets className="w-5 h-5 text-sky-300" />}
-        title="Liquid glass"
-        sub="Frosted, see-through cards and bars with soft highlights on the edges, over the background glow. With the glow turned off it shows a still, non-moving glow. Using Always glow together with this uses more battery."
-        action={<Toggle on={prefs.liquidGlass} onChange={(v) => setPrefs({ liquidGlass: v })} label="Liquid glass" />}
-      />
       <Row
         icon={<Lock className="w-5 h-5 text-emerald-300" />}
         title="App lock"
@@ -279,15 +321,6 @@ export const LookPrefs: React.FC<{ showCycle?: boolean }> = ({ showCycle = false
           />
         }
       />
-      {/* Only offered when the profile says female; for any other profile the cycle card and this switch are both hidden. */}
-      {showCycle && (
-        <Row
-          icon={<Droplets className="w-5 h-5 text-rose-300" />}
-          title="Menstrual cycle tracking"
-          sub="Optional. Log your period start dates by hand and Home shows your cycle phase with training notes. Stays on this phone: nothing is sent anywhere or written to Health Connect."
-          action={<Toggle on={prefs.cycleTracking} onChange={(v) => setPrefs({ cycleTracking: v })} label="Menstrual cycle tracking" />}
-        />
-      )}
       <Row
         icon={<EyeOff className="w-5 h-5 text-emerald-300" />}
         title="Hide in recent apps"
@@ -309,3 +342,4 @@ export const LookPrefs: React.FC<{ showCycle?: boolean }> = ({ showCycle = false
     </div>
   );
 };
+

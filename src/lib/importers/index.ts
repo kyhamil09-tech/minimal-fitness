@@ -1,5 +1,7 @@
 import { SleepLogEntry, WorkoutSession } from '../../types/health';
-import { UserProfile } from '../../types/tracking';
+import { Exercise, UserProfile } from '../../types/tracking';
+import { customExercises } from '../../data/exercises';
+import { parseLiftCsv } from './liftCsv';
 import { activityToWorkout } from './convert';
 import { parseFit } from './fitActivity';
 import { looksLikeNike, parseFitbitExercise, parseFitbitSleep, parseNikeActivity } from './jsonExports';
@@ -13,6 +15,10 @@ export interface ImportOutcome {
   /** Files that held no usable activity, with the reason in plain words. */
   skipped: { name: string; reason: string }[];
   filesSeen: number;
+  /** Exercises made for names from a Hevy or Strong file that the library does not have. They are saved when the import is applied. */
+  exercises: Exercise[];
+  /** What a Hevy or Strong file held, for the preview. */
+  lift?: { source: string; matched: number; created: number };
 }
 
 /** Strava's numeric activity types, found in <type> of some older GPX exports. */
@@ -81,8 +87,9 @@ const SKIP = /(^|\/)(__MACOSX|\.)|\/\._/;
  * Reads files you drop in (a Strava or Google Takeout zip, a Nike export, or loose GPX / TCX / FIT / JSON files) and returns the
  * workouts and nights found. Nothing is added to the app here: the caller shows a preview first. Everything happens on the phone.
  */
-export const importFiles = async (files: File[], profile: UserProfile, onProgress?: (p: ImportProgress) => void): Promise<ImportOutcome> => {
-  const outcome: ImportOutcome = { workouts: [], nights: [], skipped: [], filesSeen: 0 };
+export const importFiles = async (files: File[], profile: UserProfile, onProgress?: (p: ImportProgress) => void, options: { liftUnit?: 'kg' | 'lb' } = {}): Promise<ImportOutcome> => {
+  const outcome: ImportOutcome = { workouts: [], nights: [], skipped: [], filesSeen: 0, exercises: [] };
+  const liftUnit = options.liftUnit ?? (profile.units === 'imperial' ? 'lb' : 'kg');
   const seenKeys = new Set<string>();
   let meta = new Map<string, StravaMeta>();
   const report = (current?: string) => onProgress?.({ seen: outcome.filesSeen, workouts: outcome.workouts.length, nights: outcome.nights.length, current });
@@ -99,7 +106,7 @@ export const importFiles = async (files: File[], profile: UserProfile, onProgres
       if (m?.name) a.name = m.name;
       const w = activityToWorkout(a, profile);
       if (!w) {
-        outcome.skipped.push({ name, reason: 'Not a supported activity (swimming and winter sports have no place here yet) or too short' });
+        outcome.skipped.push({ name, reason: 'Not a supported activity (surfing, sailing and wheeled skating have no place here yet) or too short' });
         continue;
       }
       if (seenKeys.has(w.id)) continue;
@@ -156,7 +163,18 @@ export const importFiles = async (files: File[], profile: UserProfile, onProgres
     } else {
       const bytes = new Uint8Array(await file.arrayBuffer());
       if (/activities\.csv$/i.test(file.name)) meta = stravaMeta(new TextDecoder().decode(bytes));
-      else await ingest(file.name, bytes);
+      else if (/\.csv$/i.test(file.name)) {
+        outcome.filesSeen++;
+        // A lifting export from Hevy or Strong: workouts with their exercises and sets.
+        const lift = parseLiftCsv(new TextDecoder().decode(bytes), { unit: liftUnit, weightKg: profile.weightKg, known: customExercises() });
+        if (!lift) outcome.skipped.push({ name: file.name, reason: 'Not a Hevy or Strong lifting export' });
+        else {
+          outcome.workouts.push(...lift.workouts);
+          for (const e of lift.created) if (!outcome.exercises.some((x) => x.id === e.id)) outcome.exercises.push(e);
+          outcome.lift = { source: lift.format === 'hevy' ? 'Hevy' : 'Strong', matched: (outcome.lift?.matched ?? 0) + lift.matched, created: outcome.exercises.length };
+          if (lift.skippedRows > 0) outcome.skipped.push({ name: file.name, reason: `${lift.skippedRows} rows were not sets (rest timers or blanks) and were left out` });
+        }
+      } else await ingest(file.name, bytes);
     }
     report(file.name);
   }

@@ -2,6 +2,7 @@ import type { WorkoutSession } from '../types/health';
 import type { PlanDay, WorkoutPlan } from '../types/tracking';
 import { addDays, startOfMondayWeek, startOfWeek, toDateKey, weekdayIndex, parseDateKey } from './dates';
 import { planDaysForWeek } from './planBuilder';
+import { PlanMove, applyMoves, movesFor } from './planReshuffle';
 import { workoutDateKey } from './calc';
 
 export interface CalendarWorkout {
@@ -44,12 +45,13 @@ export interface CalendarMonth {
 }
 
 /** The plan day for a date, or undefined when no plan is running, the date is outside it, or the day is a rest day. */
-export const plannedDayFor = (plan: WorkoutPlan | undefined, startedAt: number | undefined, date: string): PlanDay | undefined => {
+export const plannedDayFor = (plan: WorkoutPlan | undefined, startedAt: number | undefined, date: string, moves?: PlanMove[]): PlanDay | undefined => {
   if (!plan || startedAt === undefined) return undefined;
   const d = parseDateKey(date);
   const week = Math.round((startOfMondayWeek(d).getTime() - startOfMondayWeek(startedAt).getTime()) / (7 * 86_400_000)) + 1;
   if (week < 1 || week > plan.weeks) return undefined;
-  const day = planDaysForWeek(plan, week).find((p) => p.day === weekdayIndex(d));
+  const weekKey = toDateKey(startOfMondayWeek(d));
+  const day = applyMoves(planDaysForWeek(plan, week), movesFor(moves, weekKey)).find((p) => p.day === weekdayIndex(d));
   return day && day.kind !== 'rest' ? day : undefined;
 };
 
@@ -58,7 +60,7 @@ export const buildMonth = (
   year: number,
   month: number,
   workouts: WorkoutSession[],
-  plan: { plan: WorkoutPlan | undefined; startedAt: number } | null,
+  plan: { plan: WorkoutPlan | undefined; startedAt: number; moves?: PlanMove[] } | null,
   today: string
 ): CalendarMonth => {
   const byDate = new Map<string, CalendarWorkout[]>();
@@ -79,7 +81,7 @@ export const buildMonth = (
     // Stop once a whole week past the end of the month has been drawn.
     if (d > last && cells.length % 7 === 0) break;
     const ws = (byDate.get(date) ?? []).sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
-    const planned = plannedDayFor(plan?.plan, plan?.startedAt, date);
+    const planned = plannedDayFor(plan?.plan, plan?.startedAt, date, plan?.moves);
     cells.push({
       date,
       day: d.getDate(),

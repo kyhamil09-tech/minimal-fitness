@@ -14,7 +14,7 @@ export const RecoveryNote: React.FC<{ workout: WorkoutSession; all: WorkoutSessi
       <BatteryCharging className="w-4 h-4 mt-0.5 shrink-0" style={{ color: TONE[advice.tone] }} />
       <div className="min-w-0">
         <div className="text-sm font-bold text-white">{advice.title}</div>
-        <div className="text-[11px] text-neutral-400">{advice.message.replace(advice.title, '').replace(/^\s*/, '')}</div>
+        <div className="text-xs text-neutral-400">{advice.message.replace(advice.title, '').replace(/^\s*/, '')}</div>
       </div>
     </div>
   );

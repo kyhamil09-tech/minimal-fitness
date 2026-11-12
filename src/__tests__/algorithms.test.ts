@@ -208,7 +208,7 @@ test('grade adjustment: hills cost more going up, so the adjusted pace is faster
   assert.ok(minettiCost(0.08) > minettiCost(0));
   assert.ok(minettiCost(-0.08) < minettiCost(0));
   const flat = gradeAdjustedPaceSec(360, 0, 1);
-  const up = gradeAdjustedPaceSec(360, 60, 1); // 6% climb over a kilometre
+  const up = gradeAdjustedPaceSec(360, 60, 1); // 6% climb over a kilometer
   assert.equal(flat, 360);
   assert.ok(up < 330 && up > 250, `up ${up}`);
   const down = gradeAdjustedPaceSec(360, -30, 1);

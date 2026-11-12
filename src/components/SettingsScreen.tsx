@@ -15,8 +15,10 @@ import {
   Navigation,
   FileUp,
   LayoutGrid,
+  Trophy,
+  Sparkles,
+  Compass,
 } from 'lucide-react';
-import { LiveSharePanel } from './LiveSharePanel';
 import { LogoSettings } from './LogoSettings';
 import { ColorPalette } from '../types/theme';
 import { BleHeartRate } from '../hooks/useBleHeartRate';
@@ -28,11 +30,15 @@ import { PrivacyPanel } from './PrivacyPanel';
 import { LookPrefs, RunPrefs } from './PrefsSettings';
 import { SettingsGroup, SubHeading } from './ui/SettingsParts';
 import { StorageRow } from './StorageRow';
+import { ChallengesPanel } from './ChallengesPanel';
+import { useT } from '../lib/i18n';
+import { CoachNotesSettings } from './CoachNotesSettings';
 import { AutomaticData } from '../hooks/useAutomaticData';
 import { AutoBackup } from '../hooks/useAutoBackup';
 import { RunOptions, UnitSystem } from '../types/tracking';
 import { WorkoutSession } from '../types/health';
 import { distanceUnit, kmToDisplay } from '../lib/units';
+import { Segmented } from './ui/Segmented';
 
 interface SettingsScreenProps {
   ble: BleHeartRate;
@@ -63,8 +69,8 @@ interface SettingsScreenProps {
   onResetAllData: () => void;
   workouts?: WorkoutSession[];
   units?: UnitSystem;
-  /** Offers the menstrual cycle tracking switch (the profile is female). */
-  showCycle?: boolean;
+  /** Steps per day, for challenges. */
+  steps?: Record<string, number>;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -93,8 +99,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onResetAllData,
   workouts = [],
   units = 'metric',
-  showCycle = false,
+  steps = {},
 }) => {
+  const t = useT();
   const [confirmReset, setConfirmReset] = React.useState(false);
 
   return (
@@ -110,7 +117,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="truncate">{profileName || 'Athlete'}</h1>
-            <button onClick={onOpenProfile} className="mt-1 text-[11px] font-extrabold uppercase tracking-wider" style={{ color: theme.primary }}>
+            <button onClick={onOpenProfile} className="mt-1 min-h-11 text-xs font-extrabold uppercase tracking-wider" style={{ color: theme.primary }}>
               Edit profile and goals
             </button>
           </div>
@@ -131,33 +138,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
       </section>
 
-      {/* The way to anything in the app, for someone who cannot find it */}
-      <button
-        onClick={onOpenMap}
-        className="w-full rounded-2xl border p-4 flex items-center justify-between text-left glass-tile"
-        style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
-      >
-        <span className="flex items-center gap-3.5">
-          <span className="w-10 h-10 rounded-xl flex items-center justify-center border" style={{ backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}33` }}>
-            <LayoutGrid className="w-5 h-5" style={{ color: theme.primary }} />
-          </span>
-          <span>
-            <span className="block text-sm font-semibold text-white">Map of the app</span>
-            <span className="block text-xs text-[#7E889B] mt-0.5">Everything in one place, with search</span>
-          </span>
-        </span>
-        <ChevronRight className="w-4 h-4 text-neutral-400" />
-      </button>
-
       <div className="flex items-center justify-between border-b border-[#1A1E26] pb-3">
         <div>
           <h2 className="gh-title">Settings</h2>
-          <p className="text-xs text-[#7E889B] mt-1">Profile, devices, data and appearance</p>
+          <p className="text-xs text-[#9AA3B2] mt-1">Profile, devices, data and appearance</p>
         </div>
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('kyfit-open-settings-group', { detail: 'privacy' }))}
           aria-label="Open Privacy and data: see proof that everything stays on this device"
-          className="px-2.5 py-1 rounded-full text-[11px] font-mono font-medium flex items-center gap-1.5 border"
+          className="px-2.5 py-1 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 border"
           style={{
             color: theme.primary,
             backgroundColor: `${theme.primary}12`,
@@ -181,7 +170,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
               <div>
                 <div className="text-sm font-semibold text-white">Profile & Goals</div>
-                <div className="text-xs text-[#7E889B] mt-0.5">
+                <div className="text-xs text-[#9AA3B2] mt-0.5">
                   {profileName ? `${profileName} · ` : ''}Units, heart-rate zones, calorie, step & water targets
                 </div>
               </div>
@@ -196,7 +185,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
               <div>
                 <div className="text-sm font-semibold text-white">Reminders</div>
-                <div className="text-xs text-[#7E889B] mt-0.5">Workout, bedtime, hydration and fasting notifications</div>
+                <div className="text-xs text-[#9AA3B2] mt-0.5">Workout, bedtime, hydration and fasting notifications</div>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
@@ -206,6 +195,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
 
+      </SettingsGroup>
+
+      {/* WORKOUT OPTIONS: how a workout behaves while you do it */}
+      <SettingsGroup id="workouts" title="Workout options" summary="Auto-pause, spoken updates, GPS, buzz, beat and safety sharing" icon={<Navigation className="w-5 h-5" style={{ color: theme.primary }} />}>
+        <AutomationSettings part="run" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
+        <RunPrefs theme={theme} units={units} voiceCues={runOptions.voiceCues} />
       </SettingsGroup>
 
       {/* WATCH, STEPS AND DATA SOURCES: where your numbers come from */}
@@ -224,8 +219,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <Bluetooth className="w-5 h-5 text-sky-400" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-white">Bluetooth Heart-Rate Sensor</div>
-                    <div className="text-xs text-[#7E889B] mt-0.5" role="status">
+                    <div className="text-sm font-semibold text-white">{ble.status === 'connected' && ble.deviceName ? ble.deviceName : 'Heart-rate sensor'}</div>
+                    <div className="text-xs text-[#9AA3B2] mt-0.5" role="status">
                       {ble.status === 'connected'
                         ? `Live from ${ble.deviceName}${ble.bpm ? ` · ${ble.bpm} bpm` : ' · waiting for a reading…'}`
                         : ble.status === 'connecting'
@@ -237,14 +232,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   </div>
                 </div>
                 {ble.status === 'connected' ? (
-                  <button onClick={ble.disconnect} className="px-3 py-1.5 rounded-lg border border-neutral-700 text-xs font-mono text-neutral-300 hover:text-white shrink-0">
+                  <button onClick={ble.disconnect} className="min-h-11 px-4 rounded-xl border border-neutral-700 text-xs font-mono text-neutral-200 hover:text-white shrink-0">
                     Disconnect
                   </button>
                 ) : (
                   <button
                     onClick={ble.connect}
                     disabled={ble.status === 'connecting' || ble.status === 'scanning'}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-black disabled:opacity-40 shrink-0"
+                    className="min-h-11 px-4 rounded-xl text-xs font-bold text-black disabled:opacity-40 shrink-0"
                     style={{ backgroundColor: theme.primary }}
                   >
                     {ble.native ? (ble.status === 'scanning' ? 'Scanning…' : 'Scan') : 'Connect'}
@@ -253,7 +248,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
 
               {ble.native && ble.status === 'scanning' && ble.devices.length === 0 && (
-                <p className="text-[11px] text-neutral-500">No sensors found yet.</p>
+                <p className="text-xs text-neutral-400">No sensors found yet.</p>
               )}
               {ble.native && ble.devices.length > 0 && ble.status !== 'connected' && (
                 <div className="space-y-1.5">
@@ -265,17 +260,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       className="w-full px-3 py-2 rounded-lg border border-neutral-700 text-left text-xs text-white hover:border-neutral-500 disabled:opacity-40 flex items-center justify-between"
                     >
                       <span>{d.name}</span>
-                      <span className="font-mono text-neutral-500">Connect</span>
+                      <span className="font-mono text-neutral-400">Connect</span>
                     </button>
                   ))}
                 </div>
               )}
-              <p className="text-[10px] text-neutral-600 leading-relaxed">
-                Pixel Watch and other Wear OS watches don't broadcast heart rate over Bluetooth. Use the Pixel Watch
-                live heart rate above for those.
+              <p className="text-xs text-neutral-400 leading-relaxed">
+                Some watches only share heart rate through their own app and do not broadcast it over Bluetooth. For those, use the watch link above, or the data they share through Health Connect.
               </p>
               {ble.error && (
-                <p role="alert" className="text-[11px] text-rose-400">
+                <p role="alert" className="text-xs text-rose-400">
                   {ble.error}
                 </p>
               )}
@@ -291,14 +285,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <StravaSettings theme={theme} hideTitle />
       </SettingsGroup>
 
-      {/* WORKOUT OPTIONS: how a workout behaves while you do it */}
-      <SettingsGroup id="workouts" title="Workout options" summary="Auto-pause, spoken updates, GPS, buzz, beat and safety sharing" icon={<Navigation className="w-5 h-5" style={{ color: theme.primary }} />}>
-        <AutomationSettings part="run" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
-        <RunPrefs theme={theme} units={units} voiceCues={runOptions.voiceCues} />
-        <SubHeading>Safety live share</SubHeading>
-        <p className="px-1 text-[11px] leading-relaxed text-[#7E889B]">Text a map link to people you choose while you run or ride.</p>
-        <LiveSharePanel theme={theme} />
+      {/* BACKUP AND DATA */}
+      <SettingsGroup id="data" title="Backup & data" summary="Back up, restore, export, import and storage" icon={<DatabaseBackup className="w-5 h-5" style={{ color: theme.primary }} />}>
+        <StorageRow />
+        <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] overflow-hidden">
+          <button onClick={onOpenBackup} className="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-900/60 transition-colors group">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center">
+                <DatabaseBackup className="w-5 h-5 text-neutral-300" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Backup, Restore & Export</div>
+                <div className="text-xs text-[#9AA3B2] mt-0.5">Download your data as JSON/CSV or restore a backup</div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+          </button>
+        </div>
+        <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] overflow-hidden">
+          <button onClick={onOpenImport} className="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-900/60 transition-colors group">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center">
+                <FileUp className="w-5 h-5 text-neutral-300" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Import your history</div>
+                <div className="text-xs text-[#9AA3B2] mt-0.5">From Strava, Google Takeout, Nike, Garmin and other apps</div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+          </button>
+        </div>
+        <AutomationSettings part="backup" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
+        <AutomationSettings part="diagnostics" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
       </SettingsGroup>
+
+      <h3 className="px-1 pt-3 text-xs font-semibold uppercase tracking-wider text-[#9AA3B2]">Appearance, privacy and help</h3>
 
       {/* LOOK AND FEEL */}
       <SettingsGroup id="look" title="Look & feel" summary="Theme, text size, swipe, week start and motion" icon={<Palette className="w-5 h-5" style={{ color: theme.primary }} />}>
@@ -319,12 +341,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
               <div>
                 <div className="text-sm font-semibold text-white flex items-center gap-2">
-                  Colours & background
-                  <span className="text-[10px] px-1.5 py-0.2 rounded font-mono uppercase" style={{ color: theme.primary, backgroundColor: `${theme.primary}18` }}>
+                  Colors & background
+                  <span className="text-xs px-1.5 py-0.2 rounded font-mono uppercase" style={{ color: theme.primary, backgroundColor: `${theme.primary}18` }}>
                     {theme.name}
                   </span>
                 </div>
-                <div className="text-xs text-[#7E889B] mt-0.5">{lookSummary || 'Soft backgrounds, pastels, AMOLED and your own colours'}</div>
+                <div className="text-xs text-[#9AA3B2] mt-0.5">{lookSummary || 'Soft backgrounds, pastels, AMOLED and your own colors'}</div>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
@@ -333,21 +355,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <div className="p-4 flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-white">Appearance</div>
-              <div className="text-xs text-[#7E889B] mt-0.5">Dark, light, or follow your phone</div>
+              <div className="text-xs text-[#9AA3B2] mt-0.5">Dark, light, or follow your phone</div>
             </div>
-            <div role="radiogroup" aria-label="Appearance" className="flex rounded-full glass-chip p-0.5 text-[11px] font-semibold shrink-0">
-              {(['dark', 'light', 'auto'] as const).map((m) => (
-                <button
-                  key={m}
-                  role="radio"
-                  aria-checked={themeMode === m}
-                  onClick={() => onThemeModeChange(m)}
-                  className={'px-3 py-1.5 rounded-full capitalize ' + (themeMode === m ? 'bg-white/25 text-white' : 'text-neutral-300')}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+            <Segmented<'dark' | 'light' | 'auto'>
+              className="shrink-0"
+              ariaLabel="Appearance"
+              size="sm"
+              semantics="radio"
+              fill={false}
+              value={themeMode}
+              onChange={onThemeModeChange}
+              options={[
+                { id: 'dark', label: 'Dark' },
+                { id: 'light', label: 'Light' },
+                { id: 'auto', label: 'Auto' },
+              ]}
+            />
           </div>
 
           <button
@@ -360,7 +383,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
               <div>
                 <div className="text-sm font-semibold text-white">Customize Visible Metrics</div>
-                <div className="text-xs text-[#7E889B] mt-0.5">Choose which cards show on Today</div>
+                <div className="text-xs text-[#9AA3B2] mt-0.5">Choose which cards show on Today</div>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
@@ -374,14 +397,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-white">Top App Bar</div>
-                  <div className="text-xs text-[#7E889B] mt-0.5">
+                  <div className="text-xs text-[#9AA3B2] mt-0.5">
                     {isTopBannerVisible ? 'Shown above each screen, with watch status' : 'Hidden for more room'}
                   </div>
                 </div>
               </div>
               <button
                 onClick={onToggleTopBanner}
-                className="px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors"
+                className="min-h-11 px-4 rounded-xl border text-xs font-mono transition-colors"
                 style={{
                   borderColor: isTopBannerVisible ? `${theme.primary}55` : '#1A1E26',
                   color: isTopBannerVisible ? theme.primary : '#CBD5E1',
@@ -397,48 +420,58 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
 
         <LogoSettings />
-        <LookPrefs showCycle={showCycle} />
+        <LookPrefs />
       </SettingsGroup>
 
-      {/* BACKUP AND DATA */}
-      <SettingsGroup id="data" title="Backup & data" summary="Back up, restore, export, import and storage" icon={<DatabaseBackup className="w-5 h-5" style={{ color: theme.primary }} />}>
-        <StorageRow />
-        <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] overflow-hidden">
-          <button onClick={onOpenBackup} className="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-900/60 transition-colors group">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center">
-                <DatabaseBackup className="w-5 h-5 text-neutral-300" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white">Backup, Restore & Export</div>
-                <div className="text-xs text-[#7E889B] mt-0.5">Download your data as JSON/CSV or restore a backup</div>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
-          </button>
-        </div>
-        <div className="rounded-2xl bg-[#0B0D11] border border-[#1A1E26] overflow-hidden">
-          <button onClick={onOpenImport} className="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-900/60 transition-colors group">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center">
-                <FileUp className="w-5 h-5 text-neutral-300" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white">Import your history</div>
-                <div className="text-xs text-[#7E889B] mt-0.5">From Strava, Google Takeout, Nike, Garmin and other apps</div>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
-          </button>
-        </div>
-        <AutomationSettings part="backup" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
-        <AutomationSettings part="diagnostics" hideTitles theme={theme} automation={automation} backup={backup} runOptions={runOptions} onRunOptionsChange={onRunOptionsChange} />
+      {/* FRIENDS AND CHALLENGES (optional, no accounts) */}
+      <SettingsGroup id="coach" title={t('coach.group.title')} summary={t('coach.group.summary')} icon={<Sparkles className="w-5 h-5" style={{ color: theme.primary }} />}>
+        <CoachNotesSettings />
+      </SettingsGroup>
+
+      <SettingsGroup id="friends" title="Friends & challenges" summary="Optional. Compete with friends using short codes, no accounts" icon={<Trophy className="w-5 h-5" style={{ color: theme.primary }} />}>
+        <ChallengesPanel theme={theme} steps={steps} workouts={workouts} units={units} />
       </SettingsGroup>
 
       {/* PRIVACY */}
       <SettingsGroup id="privacy" title="Privacy" summary="Proof that everything stays on this phone" icon={<ShieldCheck className="w-5 h-5" style={{ color: theme.primary }} />}>
         <PrivacyPanel theme={theme} />
       </SettingsGroup>
+
+      {/* A short walk through everything, to replay */}
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent('kyfit-show-tour'))}
+        className="w-full rounded-2xl border min-h-14 p-4 flex items-center justify-between text-left glass-tile"
+        style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+      >
+        <span className="flex items-center gap-3.5">
+          <span className="w-10 h-10 rounded-xl flex items-center justify-center border" style={{ backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}33` }}>
+            <Compass className="w-5 h-5" style={{ color: theme.primary }} />
+          </span>
+          <span>
+            <span className="block text-sm font-semibold text-white">App tour</span>
+            <span className="block text-xs text-[#9AA3B2] mt-0.5">Replay the walk-through of everything</span>
+          </span>
+        </span>
+        <ChevronRight className="w-4 h-4 text-neutral-400" />
+      </button>
+
+      {/* The way to anything in the app, for someone who cannot find it */}
+      <button
+        onClick={onOpenMap}
+        className="w-full rounded-2xl border min-h-14 p-4 flex items-center justify-between text-left glass-tile"
+        style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
+      >
+        <span className="flex items-center gap-3.5">
+          <span className="w-10 h-10 rounded-xl flex items-center justify-center border" style={{ backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}33` }}>
+            <LayoutGrid className="w-5 h-5" style={{ color: theme.primary }} />
+          </span>
+          <span>
+            <span className="block text-sm font-semibold text-white">Map of the app</span>
+            <span className="block text-xs text-[#9AA3B2] mt-0.5">Everything in one place, with search</span>
+          </span>
+        </span>
+        <ChevronRight className="w-4 h-4 text-neutral-400" />
+      </button>
 
       {/* ERASE */}
       <div className="pt-2 space-y-2">
@@ -457,16 +490,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               you might want them back.
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmReset(false)} className="px-3 py-1.5 rounded-lg border border-neutral-700 text-xs text-neutral-300">
+              <button onClick={() => setConfirmReset(false)} className="min-h-11 px-4 rounded-xl border border-neutral-700 text-xs text-neutral-200">
                 Cancel
               </button>
-              <button onClick={onResetAllData} className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold">
+              <button onClick={onResetAllData} className="min-h-11 px-4 rounded-xl bg-red-600 text-white text-xs font-bold">
                 Yes, erase everything
               </button>
             </div>
           </div>
         )}
-        <p className="text-[11px] text-center text-neutral-500">
+        <p className="text-xs text-center text-neutral-400">
           Minimal Fitness · Everything you log stays on this device.
         </p>
       </div>

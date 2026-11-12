@@ -42,7 +42,9 @@ public class StepsPassiveService extends PassiveListenerService {
                 if (bpm < 30 || bpm > 230) continue;
                 VitalsStore.addHr(this, point.getTimeInstant(boot).toEpochMilli(), (int) Math.round(bpm));
             }
+            HeartComplicationService.notifyChanged(this);
             storeLast(dataPoints.getData(DataType.CALORIES_DAILY), "kcal");
+            CaloriesComplicationService.notifyChanged(this);
             storeLast(dataPoints.getData(DataType.DISTANCE_DAILY), "dist");
             storeLast(dataPoints.getData(DataType.FLOORS_DAILY), "floors");
         }

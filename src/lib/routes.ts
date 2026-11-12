@@ -55,7 +55,7 @@ export const shapeOf = (w: WorkoutSession): RouteShape | null => {
   return { samples, km: dist, loop: haversineKm(samples[0], samples[samples.length - 1]) < 0.15 };
 };
 
-/** How far apart two routes are along their length: average and worst gap, in metres (same direction). */
+/** How far apart two routes are along their length: average and worst gap, in meters (same direction). */
 export const routeGap = (a: LatLng[], b: LatLng[]): { mean: number; max: number } => {
   let sum = 0;
   let max = 0;

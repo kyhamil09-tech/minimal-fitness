@@ -18,7 +18,8 @@ test('no backdrop uses pure black or pure white text, apart from the AMOLED page
     assert.notEqual(b.ink.toLowerCase(), '#ffffff', b.id);
     assert.notEqual(b.ink.toLowerCase(), '#000000', b.id);
     if (b.id !== 'amoled') assert.notEqual(b.bg.toLowerCase(), '#000000', b.id);
-    assert.notEqual(b.bg.toLowerCase(), '#ffffff', b.id);
+    // The Google-inspired theme is white by request.
+    if (b.id !== 'google_white') assert.notEqual(b.bg.toLowerCase(), '#ffffff', b.id);
   }
 });
 
@@ -36,7 +37,7 @@ test('every backdrop has readable text and the right family', () => {
   assert.ok(DARK_BACKDROPS.length >= 6 && LIGHT_BACKDROPS.length >= 6);
 });
 
-test('dark appearance uses the colours as designed', () => {
+test('dark appearance uses the colors as designed', () => {
   const b = findBackdrop('charcoal')!;
   const a = buildAppearance(b, MODERN_THEMES.grounded);
   assert.equal(a.family, 'dark');
@@ -77,7 +78,7 @@ test('vibes point at real palettes and backdrops', () => {
   }
 });
 
-test('a custom background gets matching card and text colours', () => {
+test('a custom background gets matching card and text colors', () => {
   const dark = makeBackdrop('c1', 'Mine', '#1E2A3A');
   assert.equal(dark.family, 'dark');
   assert.ok(contrast(dark.ink, dark.bg) >= 7);

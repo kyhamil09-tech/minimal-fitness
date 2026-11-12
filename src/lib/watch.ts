@@ -25,7 +25,7 @@ export interface CalorieSample {
   ts: number;
 }
 
-export type WatchCommandName = 'start' | 'pause' | 'resume' | 'stop' | 'discard' | 'set';
+export type WatchCommandName = 'start' | 'pause' | 'resume' | 'stop' | 'discard' | 'set' | 'fast';
 
 /** A button pressed on the watch's workout screen. */
 export interface WatchCommand {
@@ -37,10 +37,13 @@ export interface WatchCommand {
   /** For `start`: the shoes or bike picked on the watch (an id from lib/watchGear, or "none"). */
   gear?: string;
   /** For `set`: what was pressed on the watch's strength screen. */
+  /** For set: the strength button. For ast: start or end. */
   action?: string;
+  /** For ast: when it was pressed on the watch (epoch ms). */
+  at?: number;
   delta?: number;
   index?: number;
-  /** Goal picked on the watch for `start`: kilometres, minutes or kcal. */
+  /** Goal picked on the watch for `start`: kilometers, minutes or kcal. */
   goalType?: 'open' | 'distance' | 'time' | 'calories';
   goalValue?: number;
 }
@@ -62,7 +65,7 @@ export interface WatchWorkoutState {
   kcal: number;
   maxHr: number;
   canPause: boolean;
-  /** The user's units, so the watch shows the same miles or kilometres when it records on its own. */
+  /** The user's units, so the watch shows the same miles or kilometers when it records on its own. */
   miles: boolean;
   /** The target this workout was started with (km, minutes or kcal); the watch shows progress toward it. */
   goalType?: 'open' | 'distance' | 'time' | 'calories';
@@ -117,3 +120,5 @@ export const STALE_AFTER_MS = 12_000;
 
 export const isFresh = (sample: HeartRateSample | null, now: number) =>
   !!sample && sample.bpm > 0 && now - sample.ts <= STALE_AFTER_MS;
+
+

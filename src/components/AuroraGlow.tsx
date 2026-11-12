@@ -43,7 +43,7 @@ const useLowBattery = (): boolean => {
 };
 
 /**
- * A very soft, slowly drifting glow in the theme colours behind the screens.
+ * A very soft, slowly drifting glow in the theme colors behind the screens.
  *
  * - `tabs`: fades in on every tab change, drifts for a few seconds, fades out and removes itself.
  * - `always`: stays on, drifting slowly with a reduced update rate. Falls back to `tabs` on a low battery.
@@ -53,7 +53,7 @@ const useLowBattery = (): boolean => {
  */
 export const AuroraGlow: React.FC<{ mode: 'off' | 'tabs' | 'always'; burstKey: number; still?: boolean }> = ({ mode, burstKey, still }) => {
   const lowBattery = useLowBattery();
-  // Liquid glass needs colour behind it: when the glow is off it shows a still, non-moving version (no battery cost).
+  // Liquid glass needs color behind it: when the glow is off it shows a still, non-moving version (no battery cost).
   const effective: 'off' | 'tabs' | 'always' | 'still' = mode === 'off' && still ? 'still' : mode === 'always' && lowBattery ? 'tabs' : mode;
   const [mounted, setMounted] = useState(false);
   const [on, setOn] = useState(false);

@@ -3,6 +3,7 @@ import { Activity, BedDouble, ChevronLeft, ChevronRight, Droplets, HeartPulse, M
 import { BarChart, EmptyState, Hypnogram, LineChart, Ring, Sparkbars, StackedBars } from '../ui/charts';
 import { ColorPalette } from '../../types/theme';
 import { SleepLogEntry } from '../../types/health';
+import { SleepMetricDef, SleepMetricSheet } from './SleepMetricSheet';
 import { shortMonthDay, shortWeekday } from '../../lib/dates';
 import {
   STAGE_COLORS,
@@ -15,9 +16,10 @@ import {
   sleepScore,
   stageSummary,
 } from '../../lib/sleepMetrics';
+import { Segmented } from '../ui/Segmented';
+import { nightSourceLabel, sourceName, versionName } from '../../lib/sleepSources';
 
 /** Hours of sleep the trend graphs measure against. */
-const SLEEP_GOAL_MIN = 480;
 
 const clock12 = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number);
@@ -46,7 +48,7 @@ const Card: React.FC<{ theme: ColorPalette; className?: string; children: React.
 
 const SectionTitle: React.FC<{ icon?: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }> = ({ icon, children, right }) => (
   <div className="flex items-center justify-between gap-2">
-    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#7E889B]">
+    <div className="flex items-center gap-2 text-sm font-bold text-neutral-200">
       {icon}
       <span>{children}</span>
     </div>
@@ -76,12 +78,33 @@ interface VitalDef {
   pick: (l: SleepLogEntry) => number | undefined;
   digits: number;
   sub: (l: SleepLogEntry, avg: number | undefined) => string;
+  explain: string;
 }
 
-export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry[] }> = ({ theme, logs }) => {
+const toSheet = (v: VitalDef): SleepMetricDef => ({
+  id: v.id,
+  title: v.label,
+  unit: v.unit,
+  color: v.color,
+  icon: v.icon,
+  digits: v.digits,
+  pick: v.pick,
+  chart: 'line',
+  explain: v.explain,
+});
+
+export const SleepDashboard: React.FC<{
+  theme: ColorPalette;
+  logs: SleepLogEntry[];
+  /** Switch a night to another tracker's version of it. */
+  onPickVersion?: (nightId: string, versionId: string) => void;
+  /** The sleep goal in minutes (Sleep > Sleep goal and debt). */
+  goalMin?: number;
+}> = ({ theme, logs, onPickVersion, goalMin: SLEEP_GOAL_MIN = 480 }) => {
   const nights = useMemo(() => lastNights(logs, 365), [logs]);
   const [back, setBack] = useState(0); // 0 = newest night
   const [range, setRange] = useState<7 | 14 | 30>(7);
+  const [openMetric, setOpenMetric] = useState<SleepMetricDef | null>(null);
 
   const idx = Math.max(0, nights.length - 1 - back);
   const night = nights[idx];
@@ -113,6 +136,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
       pick: (l) => l.detail?.hrAvg,
       digits: 0,
       sub: (l) => (l.detail?.hrMin ? `Lowest ${l.detail.hrMin} · highest ${l.detail.hrMax ?? '-'}` : ''),
+      explain: 'Your average heart rate while you slept. It usually dips lower in good, deep sleep; a number that creeps up can follow stress, alcohol, illness or a late meal.',
     },
     {
       id: 'hrv',
@@ -123,6 +147,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
       pick: (l) => l.detail?.hrvMs,
       digits: 0,
       sub: (_l, avg) => (avg ? `Your average ${Math.round(avg)} ms` : ''),
+      explain: 'The small beat-to-beat variation in your heart rate overnight. It is personal: watch your own trend rather than comparing with other people.',
     },
     {
       id: 'resp',
@@ -133,6 +158,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
       pick: (l) => l.detail?.respRate,
       digits: 1,
       sub: (_l, avg) => (avg ? `Your average ${avg.toFixed(1)}` : ''),
+      explain: 'Breaths per minute while you slept. It is steady for most people; a jump of a few breaths can be an early sign of illness.',
     },
     {
       id: 'spo2',
@@ -143,6 +169,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
       pick: (l) => l.detail?.spo2Avg,
       digits: 0,
       sub: (l) => (l.detail?.spo2Min ? `Lowest ${Math.round(l.detail.spo2Min)}%` : ''),
+      explain: 'Blood oxygen your watch measured overnight, shared through Health Connect. Most healthy people sit between 95 and 100%. This is not a medical measurement.',
     },
     {
       id: 'skin',
@@ -153,10 +180,48 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
       pick: (l) => l.detail?.skinDelta,
       digits: 1,
       sub: () => 'Change from your baseline',
+      explain: 'How far your skin temperature was from your own baseline overnight. Small swings are normal; a lasting rise can come with illness or a late workout.',
     },
   ];
 
-  const windowFor = (l: SleepLogEntry) => nights.slice(Math.max(0, nights.indexOf(l) - 6), nights.indexOf(l) + 1);
+  const summaryDefs: Record<'score' | 'awake' | 'wakeups', SleepMetricDef> = {
+    score: {
+      id: 'score',
+      title: 'Sleep score',
+      unit: '/100',
+      color: '#81C995',
+      icon: <Moon className="h-4 w-4" />,
+      digits: 0,
+      pick: (l) => sleepScore(l, SLEEP_GOAL_MIN)?.score,
+      chart: 'line',
+      explain: "This app's own estimate from duration, stages and efficiency. Google's Sleep Score is not shared with other apps.",
+    },
+    awake: {
+      id: 'awake',
+      title: 'Time awake',
+      unit: 'min',
+      color: '#F28B82',
+      icon: <BedDouble className="h-4 w-4" />,
+      digits: 0,
+      pick: (l) => (l.detail ? stageSummary(l).awake : undefined),
+      chart: 'bar',
+      explain: 'Minutes you were awake between falling asleep and the final waking.',
+    },
+    wakeups: {
+      id: 'wakeups',
+      title: 'Wake-ups',
+      unit: 'times',
+      color: '#FDD663',
+      icon: <Moon className="h-4 w-4" />,
+      digits: 0,
+      pick: (l) => l.detail?.awakenings,
+      chart: 'bar',
+      explain: 'Times you woke during the night, not counting falling asleep or the final waking.',
+    },
+  };
+  const nightHr = night.detail?.hrSeries ?? [];
+
+  const windowFor =(l: SleepLogEntry) => nights.slice(Math.max(0, nights.indexOf(l) - 6), nights.indexOf(l) + 1);
 
   const stageNights = trend.filter((l) => l.detail && l.detail.segments.length > 0 || l.detail?.stagesFrom === 'estimated');
   const efficiencyPoints = trend.filter((l) => l.detail).map((l) => ({ label: labelOf(l), value: stageSummary(l).efficiency }));
@@ -200,24 +265,41 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
         <div className="mt-4 flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="hero-num text-[3.1rem] leading-none text-white">{hm(night.durationMinutes)}</div>
-            <p className="mt-1.5 text-xs text-[#7E889B]">Total sleep · {dateLabel}</p>
+            <p className="mt-1.5 text-xs text-[#9AA3B2]">Total sleep · {dateLabel}</p>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-neutral-300">
-              <BedDouble className="h-3.5 w-3.5 shrink-0 text-[#7E889B]" />
+              <BedDouble className="h-3.5 w-3.5 shrink-0 text-[#9AA3B2]" />
               <span>
                 {bedLabel} to {wakeLabel}
                 {measured && ` · in bed ${hm(s.inBed)}`}
               </span>
             </p>
+            <p className="mt-1 text-xs text-[#9AA3B2]">{nightSourceLabel(night)}</p>
+            {onPickVersion && night.alternates && night.alternates.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Other trackers' versions of this night">
+                <span className="text-xs text-neutral-400">Also:</span>
+                {night.alternates.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => onPickVersion(night.id, a.id)}
+                    className="rounded-full border border-neutral-700 px-2.5 py-1 text-xs text-neutral-200 hover:text-white"
+                    aria-label={`Show ${versionName(a)} version of this night, ${hm(a.durationMinutes)}`}
+                  >
+                    {versionName(a)} · {hm(a.durationMinutes)}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {measured ? (
             <Ring value={s.efficiency / 100} size={104} stroke={8} color={theme.secondary} ariaLabel={`Sleep efficiency ${s.efficiency} percent`}>
               <div>
                 <div className="hero-num text-[1.7rem] leading-none text-white">{s.efficiency}%</div>
-                <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-[#7E889B]">Efficiency</div>
+                <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-[#9AA3B2]">Efficiency</div>
               </div>
             </Ring>
           ) : (
-            <div className="shrink-0 rounded-2xl glass-inset px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-[#7E889B]">
+            <div className="shrink-0 rounded-2xl glass-inset px-3 py-2 text-center text-sm font-bold text-neutral-200">
               Efficiency
               <div className="mt-0.5 text-sm text-neutral-300">Not measured</div>
             </div>
@@ -225,25 +307,25 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl glass-inset px-1 py-2.5">
-            <div className="text-[10px] text-neutral-400">Sleep score</div>
+          <button type="button" onClick={() => setOpenMetric(summaryDefs.score)} aria-label="Sleep score, open history" className="rounded-2xl glass-inset px-1 py-2.5">
+            <div className="text-xs text-neutral-400">Sleep score</div>
             <div className="mt-0.5 text-base font-bold tabular-nums" style={{ color: scoreColor }}>
               {score ? score.score : '—'}
             </div>
-            <div className="text-[9px] text-neutral-500">{score ? `${score.label} · estimate` : 'Needs measured stages'}</div>
-          </div>
-          <div className="rounded-2xl glass-inset px-1 py-2.5">
-            <div className="text-[10px] text-neutral-400">Awake</div>
+            <div className="text-xs text-neutral-400">{score ? `${score.label} · estimate` : 'Needs measured stages'}</div>
+          </button>
+          <button type="button" onClick={() => setOpenMetric(summaryDefs.awake)} aria-label="Awake time, open history" className="rounded-2xl glass-inset px-1 py-2.5">
+            <div className="text-xs text-neutral-400">Awake</div>
             <div className="mt-0.5 text-base font-bold tabular-nums text-white">{measured ? hm(s.awake) : '—'}</div>
-            <div className="text-[9px] text-neutral-500">{measured ? `${s.awakePct}% of time in bed` : ' '}</div>
-          </div>
-          <div className="rounded-2xl glass-inset px-1 py-2.5">
-            <div className="text-[10px] text-neutral-400">Wake-ups</div>
+            <div className="text-xs text-neutral-400">{measured ? `${s.awakePct}% of time in bed` : ' '}</div>
+          </button>
+          <button type="button" onClick={() => setOpenMetric(summaryDefs.wakeups)} aria-label="Wake-ups, open history" className="rounded-2xl glass-inset px-1 py-2.5">
+            <div className="text-xs text-neutral-400">Wake-ups</div>
             <div className="mt-0.5 text-base font-bold tabular-nums text-white">{night.detail ? night.detail.awakenings : '—'}</div>
-            <div className="text-[9px] text-neutral-500">during the night</div>
-          </div>
+            <div className="text-xs text-neutral-400">during the night</div>
+          </button>
         </div>
-        <p className="mt-3 text-[10px] leading-relaxed text-neutral-500">
+        <p className="mt-3 text-xs leading-relaxed text-neutral-400">
           The sleep score is this app's own estimate. Google's Sleep Score is not shared with other apps.
         </p>
       </Card>
@@ -269,7 +351,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
                   ['Deep', colors.deep],
                 ] as const
               ).map(([name, c]) => (
-                <span key={name} className="flex items-center gap-1.5 text-[11px] text-neutral-300">
+                <span key={name} className="flex items-center gap-1.5 text-xs text-neutral-300">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />
                   {name}
                 </span>
@@ -296,13 +378,13 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
                   {name} sleep
                 </span>
                 <span className="font-mono text-white">
-                  {hm(minutes)} <span className="ml-2 text-[#7E889B]">{pct}%</span>
+                  {hm(minutes)} <span className="ml-2 text-[#9AA3B2]">{pct}%</span>
                 </span>
               </div>
               <div className="mt-1.5">
                 <RangeBar pct={pct} range={rng} color={c} />
               </div>
-              <div className="mt-1 text-[10px] text-neutral-500">Typical {rng[0]}–{rng[1]}% of your sleep</div>
+              <div className="mt-1 text-xs text-neutral-400">Typical {rng[0]}–{rng[1]}% of your sleep</div>
             </div>
           ))}
           <div className="flex items-center justify-between border-t border-white/5 pt-3 text-xs">
@@ -311,11 +393,38 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
               Awake
             </span>
             <span className="font-mono text-white">
-              {hm(s.awake)} <span className="ml-2 text-[#7E889B]">{s.awakePct}%</span>
+              {hm(s.awake)} <span className="ml-2 text-[#9AA3B2]">{s.awakePct}%</span>
             </span>
           </div>
         </div>
-        <p className="mt-3 text-[10px] leading-relaxed text-neutral-500">{stageNote(night)}</p>
+        <p className="mt-3 text-xs leading-relaxed text-neutral-400">{stageNote(night)}</p>
+      </Card>
+
+      {/* Heart rate through the night */}
+      <Card theme={theme} label="Heart rate through the night">
+        <SectionTitle icon={<HeartPulse className="h-4 w-4" style={{ color: '#F28B82' }} />}>Heart rate through the night</SectionTitle>
+        {nightHr.length >= 6 ? (
+          <div className="mt-3">
+            <LineChart
+              points={nightHr.map(([t, bpm]) => ({ label: new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), value: bpm }))}
+              color="#F28B82"
+              unit=" bpm"
+              ariaLabel={`Heart rate through the night of ${dateLabel}`}
+            />
+            <div className="mt-2 flex justify-between text-xs text-[#9AA3B2]">
+              <span>{bedLabel}</span>
+              <span>
+                Lowest {Math.min(...nightHr.map((p) => p[1]))} · highest {Math.max(...nightHr.map((p) => p[1]))} bpm
+              </span>
+              <span>{wakeLabel}</span>
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            title="No heart-rate curve for this night"
+            hint={lookingUp ? 'Looking up overnight readings…' : 'Wear your watch to bed and keep Health Connect syncing; older nights fill in when they are next refreshed.'}
+          />
+        )}
       </Card>
 
       {/* Overnight vitals */}
@@ -332,12 +441,15 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
               return all.length >= 3 ? average(all) : undefined;
             })();
             return (
-              <div
+              <button
                 key={v.id}
-                className={`rounded-3xl border p-4 ${v.id === 'skin' ? 'col-span-2' : ''}`}
+                type="button"
+                onClick={() => setOpenMetric(toSheet(v))}
+                aria-label={`${v.label}, open history`}
+                className={`rounded-3xl border p-4 text-left ${v.id === 'skin' ? 'col-span-2' : ''}`}
                 style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
               >
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300" style={{ color: v.color }}>
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-300" style={{ color: v.color }}>
                   {v.icon}
                   <span className="text-neutral-300">{v.label}</span>
                 </div>
@@ -345,37 +457,35 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
                   <span className="hero-num text-[2rem] leading-none text-white">
                     {value === undefined ? '—' : v.id === 'skin' && value > 0 ? `+${value.toFixed(v.digits)}` : value.toFixed(v.digits)}
                   </span>
-                  <span className="text-[11px] text-[#7E889B]">{value === undefined ? '' : v.unit}</span>
+                  <span className="text-xs text-[#9AA3B2]">{value === undefined ? '' : v.unit}</span>
                 </div>
-                <div className="mt-1 min-h-[28px] text-[10px] leading-snug text-neutral-500">
+                <div className="mt-1 min-h-[28px] text-xs leading-snug text-neutral-400">
                   {value === undefined ? (lookingUp ? 'Looking up overnight readings…' : 'Not recorded for this night') : v.sub(night, avg)}
                 </div>
                 <div className="mt-2">
                   <Sparkbars values={series} color={v.color} signed={v.id === 'skin'} ariaLabel={`${v.label}, last nights`} />
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
 
+      {openMetric && <SleepMetricSheet def={openMetric} logs={logs} onClose={() => setOpenMetric(null)} />}
+
       {/* Trends */}
       <Card theme={theme} label="Sleep trends">
         <SectionTitle
           right={
-            <div className="flex gap-1 rounded-full bg-white/[0.06] p-0.5">
-              {([7, 14, 30] as const).map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setRange(n)}
-                  aria-pressed={range === n}
-                  className="rounded-full px-2.5 py-1 text-[11px] font-bold"
-                  style={{ background: range === n ? '#fff' : 'transparent', color: range === n ? '#000' : '#9AA3B2' }}
-                >
-                  {n}d
-                </button>
-              ))}
-            </div>
+            <Segmented<string>
+              ariaLabel="Sleep trend range"
+              size="sm"
+              semantics="group"
+              fill={false}
+              value={String(range)}
+              onChange={(id) => setRange(Number(id) as typeof range)}
+              options={['7', '14', '30'].map((n) => ({ id: n, label: `${n}d` }))}
+            />
           }
         >
           Trends
@@ -384,18 +494,18 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
         <div className="mt-4">
           <div className="flex items-baseline justify-between">
             <div className="text-xs font-semibold text-white">Total sleep</div>
-            <div className="text-[11px] text-[#7E889B]">
+            <div className="text-xs text-[#9AA3B2]">
               Avg {hm(avgDuration)} · best {hm(best)}
             </div>
           </div>
           <BarChart data={durationBars} color={theme.secondary} goal={SLEEP_GOAL_MIN / 60} format={(v) => `${v}h`} ariaLabel="Total sleep per night in hours" />
-          <p className="mt-1 text-[10px] text-neutral-500">Dashed line is an {SLEEP_GOAL_MIN / 60}-hour goal.</p>
+          <p className="mt-1 text-xs text-neutral-400">Dashed line is an {SLEEP_GOAL_MIN / 60}-hour goal.</p>
         </div>
 
         <div className="mt-5">
           <div className="flex items-baseline justify-between">
             <div className="text-xs font-semibold text-white">Sleep stages per night</div>
-            <div className="text-[11px] text-[#7E889B]">Hours asleep</div>
+            <div className="text-xs text-[#9AA3B2]">Hours asleep</div>
           </div>
           {stageNights.length > 0 ? (
             <>
@@ -407,7 +517,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
                 colors={[colors.deep, colors.rem, colors.light]}
                 ariaLabel="Deep, REM and light sleep per night"
               />
-              <div className="mt-1 flex gap-4 text-[10px] text-neutral-400">
+              <div className="mt-1 flex gap-4 text-xs text-neutral-400">
                 <span style={{ color: colors.deep }}>● Deep</span>
                 <span style={{ color: colors.rem }}>● REM</span>
                 <span style={{ color: colors.light }}>● Light</span>
@@ -423,7 +533,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
             <div className="mt-5">
               <div className="flex items-baseline justify-between">
                 <div className="text-xs font-semibold text-white">REM sleep</div>
-                <div className="text-[11px] text-[#7E889B]">Avg {hm(average(stageNights.map((l) => l.remSleepMinutes)))}</div>
+                <div className="text-xs text-[#9AA3B2]">Avg {hm(average(stageNights.map((l) => l.remSleepMinutes)))}</div>
               </div>
               <BarChart
                 data={stageNights.map((l, i) => ({ label: labelOf(l), value: l.remSleepMinutes, highlight: i === stageNights.length - 1 }))}
@@ -435,7 +545,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
             <div className="mt-5">
               <div className="flex items-baseline justify-between">
                 <div className="text-xs font-semibold text-white">Deep sleep</div>
-                <div className="text-[11px] text-[#7E889B]">Avg {hm(average(stageNights.map((l) => l.deepSleepMinutes)))}</div>
+                <div className="text-xs text-[#9AA3B2]">Avg {hm(average(stageNights.map((l) => l.deepSleepMinutes)))}</div>
               </div>
               <BarChart
                 data={stageNights.map((l, i) => ({ label: labelOf(l), value: l.deepSleepMinutes, highlight: i === stageNights.length - 1 }))}
@@ -451,10 +561,10 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
           <div className="mt-5">
             <div className="flex items-baseline justify-between">
               <div className="text-xs font-semibold text-white">Sleep efficiency</div>
-              <div className="text-[11px] text-[#7E889B]">Avg {Math.round(average(efficiencyPoints.map((p) => p.value)))}%</div>
+              <div className="text-xs text-[#9AA3B2]">Avg {Math.round(average(efficiencyPoints.map((p) => p.value)))}%</div>
             </div>
             <LineChart points={efficiencyPoints} color="#81C995" unit="%" yMin={70} yMax={100} ariaLabel="Sleep efficiency per night in percent" />
-            <p className="mt-1 text-[10px] text-neutral-500">Time asleep as a share of time in bed. 85% or more is considered good.</p>
+            <p className="mt-1 text-xs text-neutral-400">Time asleep as a share of time in bed. 85% or more is considered good.</p>
           </div>
         )}
 
@@ -463,7 +573,7 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
             <div className="flex items-center justify-between">
               <div className="text-xs font-semibold text-white">Sleep schedule</div>
               <div
-                className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                className="rounded-full px-2 py-0.5 text-xs font-bold"
                 style={{ background: schedule.label === 'Irregular' ? '#F28B8226' : '#81C99526', color: schedule.label === 'Irregular' ? '#F28B82' : '#81C995' }}
               >
                 {schedule.label}
@@ -471,25 +581,25 @@ export const SleepDashboard: React.FC<{ theme: ColorPalette; logs: SleepLogEntry
             </div>
             <div className="mt-2 grid grid-cols-2 gap-3 text-center">
               <div>
-                <div className="text-[10px] text-neutral-400">Usual bedtime</div>
+                <div className="text-xs text-neutral-400">Usual bedtime</div>
                 <div className="mt-0.5 text-sm font-bold tabular-nums text-white">{clock12(schedule.avgBedtime)}</div>
-                <div className="text-[10px] text-neutral-500">varies ±{schedule.bedSpreadMin} min</div>
+                <div className="text-xs text-neutral-400">varies ±{schedule.bedSpreadMin} min</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-400">Usual wake time</div>
+                <div className="text-xs text-neutral-400">Usual wake time</div>
                 <div className="mt-0.5 text-sm font-bold tabular-nums text-white">{clock12(schedule.avgWake)}</div>
-                <div className="text-[10px] text-neutral-500">varies ±{schedule.wakeSpreadMin} min</div>
+                <div className="text-xs text-neutral-400">varies ±{schedule.wakeSpreadMin} min</div>
               </div>
             </div>
             {regularity && (
               <div className="mt-3 border-t border-white/10 pt-2.5 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[11px] font-semibold text-white">Sleep Regularity Index</div>
-                  <div className="text-[10px] text-neutral-500 leading-snug">How often you are in the same state, asleep or awake, at the same time on consecutive days.</div>
+                  <div className="text-xs font-semibold text-white">Sleep Regularity Index</div>
+                  <div className="text-xs text-neutral-400 leading-snug">How often you are in the same state, asleep or awake, at the same time on consecutive days.</div>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-lg font-bold tabular-nums text-white">{regularity.sri}</div>
-                  <div className="text-[10px] text-neutral-400">{regularity.label}</div>
+                  <div className="text-xs text-neutral-400">{regularity.label}</div>
                 </div>
               </div>
             )}

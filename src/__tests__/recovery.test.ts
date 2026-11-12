@@ -34,3 +34,17 @@ test('without enough history it says so, and with no load it says nothing', () =
 test('a 9 out of 10 effort is never called easy', () => {
   assert.equal(recoveryAdvice(w('a', 0, 20, 9), history)!.label, 'moderate');
 });
+
+import { recoveryNow } from '../lib/recovery';
+
+test('recovery now counts down from the hardest recent session and ends at zero', () => {
+  const hard = { ...w('hard', 0, 120), startedAt: now - 6 * 3_600_000, durationMinutes: 60 } as WorkoutSession;
+  const all = [...history, hard];
+  const r = recoveryNow(all, now)!;
+  assert.equal(r.workout.id, 'hard');
+  assert.ok(r.hoursLeft > 0);
+  const later = recoveryNow(all, now + 2.5 * DAY)!;
+  assert.equal(later.hoursLeft, 0);
+  assert.equal(recoveryNow([], now), null);
+  assert.equal(recoveryNow(history.slice(0, 1).map((x) => ({ ...x, startedAt: now - 10 * DAY })), now), null);
+});

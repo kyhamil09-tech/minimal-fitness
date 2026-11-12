@@ -2,7 +2,7 @@ import { DayFitness } from './fitnessMetrics';
 import { lastNDayKeys } from './dates';
 
 /** Everything a health tile can open into. */
-export type MetricId = 'steps' | 'distance' | 'kcal' | 'active' | 'exercise' | 'floors' | 'resting' | 'heart' | 'hrv' | 'weight' | 'water' | 'eaten';
+export type MetricId = 'steps' | 'distance' | 'kcal' | 'active' | 'exercise' | 'floors' | 'resting' | 'heart' | 'hrv' | 'weight' | 'water' | 'eaten' | 'protein' | 'carbs' | 'fat' | 'systolic' | 'glucose' | 'fasting';
 
 export interface SeriesPoint {
   date: string;
@@ -14,9 +14,32 @@ export interface SeriesInput {
   /** The daily fitness numbers, oldest first (see buildFitnessDays). */
   days: DayFitness[];
   body: { date: string; weightKg: number }[];
-  food: { date: string; calories: number }[];
+  food: { date: string; calories: number; proteinG?: number; carbsG?: number; fatG?: number }[];
   water: { date: string; ml: number }[];
+  /** Blood pressure and glucose readings from the health log (optional). */
+  log?: { date: string; systolic?: number; diastolic?: number; mgdl?: number }[];
+  /** Hours fasted per day (optional). */
+  fasting?: { date: string; hours: number }[];
 }
+
+const dailySum = <T extends { date: string }>(rows: T[], keys: string[], pick: (r: T) => number | undefined): SeriesPoint[] => {
+  const sum = new Map<string, number>();
+  for (const r of rows) sum.set(r.date, (sum.get(r.date) ?? 0) + (pick(r) ?? 0));
+  return keys.map((date) => ({ date, value: positive(sum.get(date)) }));
+};
+
+/** The day's average of a reading that can be taken several times a day. */
+const dailyMean = <T extends { date: string }>(rows: T[], keys: string[], pick: (r: T) => number | undefined): SeriesPoint[] => {
+  const acc = new Map<string, number[]>();
+  for (const r of rows) {
+    const v = positive(pick(r));
+    if (v !== undefined) acc.set(r.date, [...(acc.get(r.date) ?? []), v]);
+  }
+  return keys.map((date) => {
+    const v = acc.get(date);
+    return { date, value: v ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : undefined };
+  });
+};
 
 const positive = (v: number | undefined): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined);
 
@@ -63,6 +86,18 @@ export const buildSeries = (id: MetricId, input: SeriesInput, range: number, tod
       for (const f of input.food) sum.set(f.date, (sum.get(f.date) ?? 0) + f.calories);
       return keys.map((date) => ({ date, value: positive(sum.get(date)) }));
     }
+    case 'protein':
+      return dailySum(input.food, keys, (f) => f.proteinG);
+    case 'carbs':
+      return dailySum(input.food, keys, (f) => f.carbsG);
+    case 'fat':
+      return dailySum(input.food, keys, (f) => f.fatG);
+    case 'fasting':
+      return dailySum(input.fasting ?? [], keys, (f) => f.hours);
+    case 'systolic':
+      return dailyMean(input.log ?? [], keys, (r) => r.systolic);
+    case 'glucose':
+      return dailyMean(input.log ?? [], keys, (r) => r.mgdl);
   }
 };
 
@@ -108,3 +143,5 @@ export const seriesStats = (series: SeriesPoint[]): SeriesStats => {
         : undefined,
   };
 };
+
+

@@ -31,7 +31,7 @@ final class WorkoutState {
     // ---- the goal set before the workout (0 = open, 1 = distance, 2 = time, 3 = calories) ----
     static final int GOAL_NONE = 0, GOAL_DISTANCE = 1, GOAL_TIME = 2, GOAL_KCAL = 3, GOAL_INTERVALS = 4;
     static volatile int goalType = GOAL_NONE;
-    /** Metres, milliseconds or kilocalories depending on goalType. */
+    /** Meters, milliseconds or kilocalories depending on goalType. */
     static volatile double goalValue = 0;
     static volatile boolean goalHit = false;
 
@@ -69,7 +69,7 @@ final class WorkoutState {
     static volatile long stepStartElapsedMs = 0;
     static volatile double stepStartDistM = 0;
     static volatile boolean stepsDone = false;
-    /** Seconds per kilometre, 0 = off. */
+    /** Seconds per kilometer, 0 = off. */
     static volatile double targetPaceSecPerKm = 0;
     /** Heart-rate zone 1-5, 0 = off. */
     static volatile int targetZone = 0;
@@ -144,6 +144,8 @@ final class WorkoutState {
 
     /** The strength session on show, or null when the phone is not running one (then the normal pages are used). */
     static volatile Strength strength = null;
+    /** Counts the strength states that arrived from the phone, so the watch can tell when the phone has answered a button. */
+    static volatile int strengthVersion = 0;
     /** The rest-over buzz has been given for the current rest. */
     static volatile boolean restBuzzed = false;
     /** The routine picked on the setup page, sent to the phone with the start command ("" = an empty session). */
@@ -250,6 +252,12 @@ final class WorkoutState {
     static volatile double speedMs = 0;
     static volatile long speedAt = 0;
     static volatile double elevGainM = 0;
+    /** Steps taken since the workout began (counted by the exercise itself, or worked out from the all-day step count). */
+    static volatile long stepCount = 0;
+    /** The all-day step count when the workout began, to work steps out from when the exercise does not count them (-1 = unknown). */
+    static volatile int stepsAtStart = -1;
+    /** True when the exercise itself reported steps (so the all-day count is not needed). */
+    static volatile boolean exerciseSteps = false;
     static volatile long hrSum = 0;
     static volatile int hrCount = 0;
     static volatile int hrMax = 0;
@@ -287,6 +295,7 @@ final class WorkoutState {
         int maxHr;
         double kcal;
         int elevGainM;
+        long steps;
         long[] zones = new long[5];
         String avgPace = "";
         boolean sentToPhone;
@@ -304,7 +313,12 @@ final class WorkoutState {
         return Math.max(0, end - startedAt - pausedTotalMs);
     }
 
+    /** Reps the watch counted by itself since the last set was ticked off (automatic rep counting). */
+    static volatile int autoReps = 0;
+
     private static void resetMeasurements() {
+        autoReps = 0;
+        LocalStrength.clear();
         strength = null;
         restBuzzed = false;
         bpm = 0;
@@ -313,6 +327,9 @@ final class WorkoutState {
         speedMs = 0;
         speedAt = 0;
         elevGainM = 0;
+        stepCount = 0;
+        stepsAtStart = -1;
+        exerciseSteps = false;
         hrSum = 0;
         hrCount = 0;
         hrMax = 0;
@@ -385,12 +402,15 @@ final class WorkoutState {
                 clearPhoneSteps();
             }
             phoneAlert = o.optString("alertText", "");
-            JSONObject st = o.optJSONObject("strength");
-            if (st != null) {
+            JSONObject st = LocalStrength.active != null ? null : o.optJSONObject("strength");
+            if (LocalStrength.active != null) {
+                // This session runs on the watch alone: the phone does not own it.
+            } else if (st != null) {
                 Strength fresh = parseStrength(st);
                 Strength old = strength;
                 if (old == null || old.restEndsAt != fresh.restEndsAt) restBuzzed = false;
                 strength = fresh;
+                strengthVersion++;
             } else {
                 strength = null;
             }
@@ -417,7 +437,7 @@ final class WorkoutState {
         return miles ? "mi" : "km";
     }
 
-    /** Distance in metres from the best source: the phone when it reports one, otherwise the watch's GPS. */
+    /** Distance in meters from the best source: the phone when it reports one, otherwise the watch's GPS. */
     static double distanceM() {
         if (linkedToPhone && phoneDistanceKm > 0) return phoneDistanceKm * 1000;
         return watchDistanceM;
@@ -471,3 +491,4 @@ final class WorkoutState {
         return z == 0 ? "" : "Z" + z + " " + ZONE_NAMES[z - 1];
     }
 }
+

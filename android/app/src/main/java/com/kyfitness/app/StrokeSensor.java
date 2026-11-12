@@ -10,7 +10,7 @@ import android.os.PowerManager;
 /**
  * Raw movement for working out a rowing stroke rate: the phone's linear acceleration (gravity removed) on three axes, resampled
  * to 25 readings a second over the last 24 seconds. The app finds the stroke rhythm in it (src/lib/strokeRate.ts). The movement
- * is analysed on the phone and never stored or sent anywhere.
+ * is analyzed on the phone and never stored or sent anywhere.
  */
 final class StrokeSensor implements SensorEventListener {
     static final int RATE_HZ = 25;

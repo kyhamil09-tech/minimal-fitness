@@ -12,6 +12,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -30,6 +33,7 @@ import androidx.health.services.client.data.DataType;
 import androidx.health.services.client.data.ExerciseConfig;
 import androidx.health.services.client.data.ExerciseLapSummary;
 import androidx.health.services.client.data.ExerciseUpdate;
+import androidx.health.services.client.data.IntervalDataPoint;
 import androidx.health.services.client.data.LocationData;
 import androidx.health.services.client.data.SampleDataPoint;
 import androidx.wear.ongoing.OngoingActivity;
@@ -86,8 +90,13 @@ public class WorkoutService extends Service {
     private long lastHrSeriesAt = 0;
     private int lastZone = 0;
     private double nextAutoLapM = 0;
-    private int slowTicks = 0;
-    private int fastTicks = 0;
+    /**
+     * Pauses the workout by itself when you stop and carries on when you move again. It is fed by every speed reading, from Health
+     * Services and from the watch's own GPS, as they arrive, and not by a once-a-second timer: that timer stops while the watch sleeps
+     * with the screen off, and Health Services stops reporting speed once the exercise is paused, so a timer alone never saw you move.
+     */
+    private static volatile AutoPauseDetector autoDetector;
+    private static volatile boolean detectorManual = false;
 
     private static long lapHrSum = 0;
     private static int lapHrCount = 0;
@@ -96,10 +105,11 @@ public class WorkoutService extends Service {
         @Override
         public void run() {
             syncPause();
-            autoPauseTick();
+            stepsTick();
             checkAutoLap();
             checkGoal();
             checkIntervals();
+            checkStepWarning();
             checkTargets();
             syncBeat();
             checkRest();
@@ -108,6 +118,22 @@ public class WorkoutService extends Service {
         }
     };
 
+    private int stepFlushTicks = 0;
+
+    /**
+     * Steps for the workout when the exercise does not count them itself: how far the all-day step count has moved since the start. The
+     * all-day count is only delivered now and then, so it is asked to hand over what it holds every twenty seconds.
+     */
+    private void stepsTick() {
+        if (WorkoutState.exerciseSteps || WorkoutState.stepsAtStart < 0 || !Sports.find(WorkoutState.type).takesSteps()) return;
+        if (++stepFlushTicks >= 20) {
+            stepFlushTicks = 0;
+            WatchSteps.flush(this);
+        }
+        int today = WatchSteps.today(this);
+        if (today >= WorkoutState.stepsAtStart) WorkoutState.stepCount = today - WorkoutState.stepsAtStart;
+    }
+
     /** Buzz when a strength rest ends. This runs here (not on the phone) so it lands on time even with the watch screen off. */
     private void checkRest() {
         WorkoutState.Strength s = WorkoutState.strength;
@@ -115,6 +141,8 @@ public class WorkoutService extends Service {
         long now = System.currentTimeMillis();
         if (now < s.restEndsAt) return;
         WorkoutState.restBuzzed = true;
+        // The rest is over: the next set starts counting from nothing.
+        WorkoutState.autoReps = 0;
         // An end time that is long past (a stale message after reconnecting) is not worth a buzz.
         if (now - s.restEndsAt < 6000) Haptics.alert(this);
     }
@@ -192,6 +220,11 @@ public class WorkoutService extends Service {
         boolean startedHere = !WorkoutState.active;
         if (startedHere) WorkoutState.beginLocal(type);
         else WorkoutState.discarded = false;
+        // A workout started on the watch uses the phone's max heart rate for its zones (the phone sets it itself when it starts one).
+        if (startedHere) {
+            int mh = GlanceStore.maxHr(this);
+            WorkoutState.maxHr = mh >= 120 && mh <= 230 ? mh : 190;
+        }
         WorkoutState.miles = WatchPrefs.miles(this);
         track.clear();
         hrSeries.clear();
@@ -200,13 +233,19 @@ public class WorkoutService extends Service {
         lastHrSeriesAt = 0;
         lastZone = 0;
         nextAutoLapM = WorkoutState.unitM();
-        slowTicks = 0;
-        fastTicks = 0;
+        detectorManual = false;
+        autoDetector = new AutoPauseDetector(
+            Sports.find(WorkoutState.type).gps && WatchPrefs.autoPause(this), AutoPauseDetector.walkLike(WorkoutState.type), System.currentTimeMillis());
         lapHrSum = 0;
         lapHrCount = 0;
         running = true;
+        // Where the all-day step count stands now, so steps taken in the workout can be worked out if the exercise does not count them.
+        WorkoutState.stepsAtStart = WatchSteps.today(this);
         startForegroundWithOngoing();
+        final String routineForLocal = WorkoutState.pendingRoutine == null ? "" : WorkoutState.pendingRoutine;
         if (startedHere) PhoneLink.sendStart(this, WorkoutState.type, WorkoutState.goalType, WorkoutState.goalValue);
+        // With no answer from the phone after a few seconds, a strength session runs on the watch alone.
+        if (startedHere && "Strength".equals(WorkoutState.type)) main.postDelayed(() -> LocalStrength.maybeStart(this, routineForLocal), 5000);
         beginExercise();
         main.postDelayed(tick, 1000);
         KyComplicationService.requestUpdate(this);
@@ -225,13 +264,13 @@ public class WorkoutService extends Service {
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Minimal Fitness")
             .setContentText(Sports.find(WorkoutState.type).label + " in progress")
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_logo)
             .setCategory(NotificationCompat.CATEGORY_WORKOUT)
             .setOngoing(true)
             .setContentIntent(open);
         try {
             new OngoingActivity.Builder(this, NOTIFICATION_ID, b)
-                .setStaticIcon(R.drawable.ic_launcher)
+                .setStaticIcon(R.drawable.ic_stat_logo)
                 .setTouchIntent(open)
                 .setStatus(new Status.Builder().addTemplate(Sports.find(WorkoutState.type).label).build())
                 .build()
@@ -243,6 +282,15 @@ public class WorkoutService extends Service {
         int type = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH;
         if (Sports.find(WorkoutState.type).gps && hasLocationPermission()) type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION;
         startForeground(NOTIFICATION_ID, n, type);
+    }
+
+    /** Adds reps the watch counted to the set on show, but only while you are working: not during the rest. */
+    private void onRepsCounted(List<IntervalDataPoint<Long>> points) {
+        WorkoutState.Strength s = WorkoutState.strength;
+        if (s == null || !WatchPrefs.autoReps(this) || s.restEndsAt > System.currentTimeMillis()) return;
+        long add = 0;
+        for (IntervalDataPoint<Long> p : points) add += p.getValue();
+        if (add > 0) WorkoutState.autoReps = (int) Math.min(99, WorkoutState.autoReps + add);
     }
 
     private void beginExercise() {
@@ -285,7 +333,15 @@ public class WorkoutService extends Service {
                     double v = speed.get(speed.size() - 1).getValue();
                     WorkoutState.speedMs = WorkoutState.speedMs == 0 ? v : 0.35 * v + 0.65 * WorkoutState.speedMs;
                     WorkoutState.speedAt = System.currentTimeMillis();
+                    autoPauseSpeed(v);
                 }
+                CumulativeDataPoint<Long> stepsTotal = m.getData(DataType.STEPS_TOTAL);
+                if (stepsTotal != null) {
+                    WorkoutState.stepCount = stepsTotal.getTotal();
+                    WorkoutState.exerciseSteps = true;
+                }
+                List<IntervalDataPoint<Long>> reps = m.getData(DataType.REP_COUNT);
+                if (!reps.isEmpty()) onRepsCounted(reps);
                 List<SampleDataPoint<LocationData>> loc = m.getData(DataType.LOCATION);
                 for (SampleDataPoint<LocationData> p : loc) recordLocation(p.getValue(), p.getTimeInstant(boot).toEpochMilli());
             }
@@ -306,6 +362,9 @@ public class WorkoutService extends Service {
         if (level <= 2) types.add(DataType.CALORIES_TOTAL);
         boolean gps = false;
         if (level <= 1) {
+            if ("Strength".equals(sport.type) && WatchPrefs.autoReps(this) && WatchCaps.repCounting(this)) types.add(DataType.REP_COUNT);
+            // Steps, for the sports where you take them, when this watch counts them during an exercise.
+            if (WatchCaps.stepsTotal(this, sport.exercise)) types.add(DataType.STEPS_TOTAL);
             if (sport.gps && hasLocationPermission()) {
                 types.add(DataType.DISTANCE_TOTAL);
                 types.add(DataType.SPEED);
@@ -314,14 +373,16 @@ public class WorkoutService extends Service {
                 gps = true;
             } else if (sport.indoorDistance) {
                 types.add(DataType.DISTANCE_TOTAL);
-                types.add(DataType.SPEED);
+                // A pool swim measures distance from lengths; it has no speed stream.
+                if (!"Swimming".equals(sport.type)) types.add(DataType.SPEED);
             }
         }
-        ExerciseConfig config = ExerciseConfig.builder(sport.exercise)
+        ExerciseConfig.Builder cfg = ExerciseConfig.builder(sport.exercise)
             .setDataTypes(types)
             .setIsAutoPauseAndResumeEnabled(false)
-            .setIsGpsEnabled(gps)
-            .build();
+            .setIsGpsEnabled(gps);
+        if ("Swimming".equals(sport.type)) cfg.setSwimmingPoolLengthMeters(WatchPrefs.poolLengthM(this));
+        ExerciseConfig config = cfg.build();
         ListenableFuture<Void> f = exerciseClient.startExerciseAsync(config);
         Futures.addCallback(f, new FutureCallback<Void>() {
             @Override
@@ -385,20 +446,24 @@ public class WorkoutService extends Service {
         track.add(new double[] {at, loc.getLatitude(), loc.getLongitude(), Double.isNaN(alt) ? Double.NaN : alt, km});
     }
 
-    // ---- fallback location (Fused Location Provider) ----
+    // ---- fallback location (the watch's own GPS first, Google's fused provider only if there is none) ----
 
+    private LocationManager platformLocation;
+    private LocationListener platformListener;
     private FusedLocationProviderClient fused;
     private LocationCallback fusedCallback;
     private long lastHsFixAt = 0;
 
     /**
-     * Health Services gives the watch its route during a workout. Fused Location runs beside it as a fallback: it can use
-     * the watch's own GPS or, when the watch is linked to the phone, the phone's position, and it fills in only while Health
-     * Services has gone quiet (no fix for 10 seconds), so the route is not cut short.
+     * Health Services gives the watch its route during a workout. A second source runs beside it as a fallback and fills in only
+     * while Health Services has gone quiet (no fix for 10 seconds), so the route is not cut short. Privacy first, that source is
+     * Android's own GPS on the watch; Google's fused provider (which can borrow the phone's position) is used only when the watch
+     * has no GPS of its own to listen to.
      */
     @SuppressLint("MissingPermission")
     private void startFusedFallback() {
         if (!Sports.find(WorkoutState.type).gps || !hasLocationPermission()) return;
+        if (startPlatformFallback()) return;
         try {
             fused = LocationServices.getFusedLocationProviderClient(this);
             fusedCallback = new LocationCallback() {
@@ -419,14 +484,52 @@ public class WorkoutService extends Service {
         }
     }
 
+    /** @return true when the watch's own GPS is being listened to. */
+    @SuppressLint("MissingPermission")
+    private boolean startPlatformFallback() {
+        try {
+            LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            if (lm == null || !lm.getAllProviders().contains(LocationManager.GPS_PROVIDER)) return false;
+            LocationListener listener = new LocationListener() {
+                @Override
+                public void onLocationChanged(@NonNull Location location) {
+                    recordFusedFix(location);
+                }
+
+                // Android 11 and newer give these a default body; the older versions need them spelled out.
+                @Override
+                public void onStatusChanged(String provider, int status, Bundle extras) {}
+
+                @Override
+                public void onProviderEnabled(@NonNull String provider) {}
+
+                @Override
+                public void onProviderDisabled(@NonNull String provider) {}
+            };
+            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 0f, listener, Looper.getMainLooper());
+            platformLocation = lm;
+            platformListener = listener;
+            return true;
+        } catch (RuntimeException e) {
+            Log.w(TAG, "The watch's own GPS could not be listened to: " + e.getMessage());
+            return false;
+        }
+    }
+
     private void stopFusedFallback() {
+        if (platformLocation != null && platformListener != null) platformLocation.removeUpdates(platformListener);
+        platformLocation = null;
+        platformListener = null;
         if (fused != null && fusedCallback != null) fused.removeLocationUpdates(fusedCallback);
         fused = null;
         fusedCallback = null;
     }
 
     private void recordFusedFix(Location l) {
-        if (WorkoutState.paused || l == null) return;
+        if (l == null) return;
+        // Health Services stops reporting speed when it is paused, and may when you stand still: the watch's own GPS speaks up then.
+        if (System.currentTimeMillis() - WorkoutState.speedAt > 3000) autoPauseFix(l);
+        if (WorkoutState.paused) return;
         if (System.currentTimeMillis() - lastHsFixAt < 10_000) return; // Health Services is delivering: it stays the main source
         if (l.hasAccuracy() && l.getAccuracy() > 50f) return; // too vague to draw a route with
         long at = l.getTime();
@@ -457,31 +560,40 @@ public class WorkoutService extends Service {
         }
     }
 
-    /** Pauses after ~6 s standing still and resumes after ~2 s of real movement (GPS sports only). */
-    private void autoPauseTick() {
-        if (!Sports.find(WorkoutState.type).gps || !WatchPrefs.autoPause(this)) return;
-        long now = System.currentTimeMillis();
-        if (now - WorkoutState.speedAt > 5000) return; // no fresh speed reading
-        double v = WorkoutState.speedMs;
-        if (!WorkoutState.paused) {
-            slowTicks = v < 0.7 ? slowTicks + 1 : 0;
-            if (slowTicks >= 6) {
-                slowTicks = 0;
-                WorkoutState.autoPaused = true;
-                applyPause(true, now);
-                Haptics.tick(this);
-                if (WorkoutState.linkedToPhone) PhoneLink.sendCommand(this, "pause", null);
-            }
-        } else if (WorkoutState.autoPaused) {
-            fastTicks = v > 1.4 ? fastTicks + 1 : 0;
-            if (fastTicks >= 2) {
-                fastTicks = 0;
-                WorkoutState.autoPaused = false;
-                applyPause(false, now);
-                Haptics.tick(this);
-                if (WorkoutState.linkedToPhone) PhoneLink.sendCommand(this, "resume", null);
-            }
+    /** A speed reading in m/s (from Health Services). */
+    private void autoPauseSpeed(double speed) {
+        AutoPauseDetector det = autoDetector;
+        if (det == null) return;
+        syncDetector(det);
+        applyAutoPause(det.onSpeed(System.currentTimeMillis(), speed));
+    }
+
+    /** A position from the watch's own GPS, which carries its own speed when the chip has one. */
+    private void autoPauseFix(Location l) {
+        AutoPauseDetector det = autoDetector;
+        if (det == null) return;
+        syncDetector(det);
+        applyAutoPause(det.onFix(System.currentTimeMillis(), l.getLatitude(), l.getLongitude(), l.hasAccuracy() ? l.getAccuracy() : Double.NaN,
+            l.hasSpeed() ? l.getSpeed() : Double.NaN));
+    }
+
+    /** A pause or resume by hand (on the watch, or sent from the phone) makes the automatic one stand down, and a resume starts it over. */
+    private static void syncDetector(AutoPauseDetector det) {
+        boolean manual = WorkoutState.paused && !WorkoutState.autoPaused;
+        if (manual != detectorManual) {
+            detectorManual = manual;
+            det.setManualPaused(manual);
         }
+    }
+
+    private void applyAutoPause(AutoPauseDetector.Action action) {
+        if (action == AutoPauseDetector.Action.NONE) return;
+        long now = System.currentTimeMillis();
+        boolean pause = action == AutoPauseDetector.Action.PAUSE;
+        WorkoutState.autoPaused = pause;
+        applyPause(pause, now);
+        Haptics.tick(this);
+        if (WorkoutState.linkedToPhone) PhoneLink.sendCommand(this, pause ? "pause" : "resume", null);
     }
 
     private void checkAutoLap() {
@@ -518,6 +630,50 @@ public class WorkoutService extends Service {
         if (s.durMs > 0) return s.label + "  " + WorkoutState.clock(s.durMs / 1000);
         double m = miles ? s.distM / 1609.344 : s.distM / 1000.0;
         return s.label + "  " + (s.distM < 1000 && !miles ? Math.round(s.distM) + " m" : String.format(Locale.US, "%.2f %s", m, miles ? "mi" : "km"));
+    }
+
+    private int warnKey = -1;
+    private boolean warned = false;
+    private long lastCountSec = -1;
+
+    /**
+     * Warns before an interval step changes: one buzz when the set number of seconds is left (ten by default), then a tick for each of the
+     * last three seconds, so you know a change is coming without looking. Works for steps this watch runs and steps the phone runs.
+     */
+    private void checkStepWarning() {
+        if (WorkoutState.paused) return;
+        long now = System.currentTimeMillis();
+        int key;
+        long remaining;
+        long totalMs;
+        WatchIntervals.Step[] steps = WorkoutState.steps;
+        if (WorkoutState.linkedToPhone && WorkoutState.phoneStepCount > 0 && !WorkoutState.phoneStepsDone && WorkoutState.phoneStepEndsAt > 0) {
+            key = 1000 + WorkoutState.phoneStepIndex;
+            remaining = WorkoutState.phoneStepEndsAt - now;
+            totalMs = WorkoutState.phoneStepDurMs;
+        } else if (steps != null && !WorkoutState.stepsDone && WorkoutState.stepIdx < steps.length && steps[WorkoutState.stepIdx].durMs > 0) {
+            key = WorkoutState.stepIdx;
+            totalMs = steps[key].durMs;
+            remaining = totalMs - (WorkoutState.elapsedMs(now) - WorkoutState.stepStartElapsedMs);
+        } else {
+            return;
+        }
+        if (key != warnKey) {
+            warnKey = key;
+            warned = false;
+            lastCountSec = -1;
+        }
+        long sec = (remaining + 999) / 1000;
+        int warn = WatchPrefs.stepWarnSec(this);
+        // A step too short to be warned about (shorter than the warning plus the countdown) just changes.
+        if (warn > 0 && !warned && sec <= warn && sec > 3 && totalMs / 1000 > warn + 3) {
+            warned = true;
+            Haptics.warn(this);
+        }
+        if (WatchPrefs.stepCountdown(this) && sec >= 1 && sec <= 3 && sec != lastCountSec && totalMs / 1000 > 6) {
+            lastCountSec = sec;
+            Haptics.tick(this);
+        }
     }
 
     /** Moves to the next interval step when this one is done, with a buzz and a banner. */
@@ -622,6 +778,7 @@ public class WorkoutService extends Service {
     @Override
     public void onDestroy() {
         main.removeCallbacksAndMessages(null);
+        autoDetector = null;
         long now = System.currentTimeMillis();
         long elapsed = WorkoutState.elapsedMs(now);
         boolean save = WorkoutState.active && !WorkoutState.discarded && elapsed >= 15_000;
@@ -631,6 +788,7 @@ public class WorkoutService extends Service {
         WorkoutState.clearPlan();
         Metronome.stop();
         beatPlaying = false;
+        LocalStrength.clear();
         WorkoutState.active = false;
         WorkoutState.linkedToPhone = false;
         WorkoutState.paused = false;
@@ -654,6 +812,7 @@ public class WorkoutService extends Service {
         s.avgHr = WorkoutState.hrCount > 0 ? (int) (WorkoutState.hrSum / WorkoutState.hrCount) : 0;
         s.maxHr = WorkoutState.hrMax;
         s.kcal = WorkoutState.kcal > 0 ? WorkoutState.kcal : WorkoutState.phoneKcal;
+        s.steps = WorkoutState.stepCount;
         s.elevGainM = (int) Math.round(WorkoutState.elevGainM);
         System.arraycopy(WorkoutState.zoneSec, 0, s.zones, 0, 5);
         s.avgPace = s.distanceM >= 20 ? WorkoutState.averagePace(elapsed) : "";
@@ -709,6 +868,7 @@ public class WorkoutService extends Service {
             h.put(r);
         }
         o.put("hr", h);
+        if (WorkoutState.stepCount > 0) o.put("steps", WorkoutState.stepCount);
         // The shoes or bike picked on the watch, so the phone counts this workout's mileage toward the right one.
         String gear = WorkoutState.workoutGear;
         if (gear != null && !gear.isEmpty() && !"none".equals(gear)) o.put("shoeId", gear);
@@ -724,6 +884,8 @@ public class WorkoutService extends Service {
             }
         }
         o.put("laps", l);
+        JSONArray exs = LocalStrength.exercisesJson();
+        if (exs.length() > 0) o.put("exercises", exs);
         return o.toString();
     }
 
@@ -738,3 +900,8 @@ public class WorkoutService extends Service {
         return String.format(Locale.US, "%s %.0fm %ds", WorkoutState.type, WorkoutState.distanceM(), WorkoutState.elapsedMs(System.currentTimeMillis()) / 1000);
     }
 }
+
+
+
+
+

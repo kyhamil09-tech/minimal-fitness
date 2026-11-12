@@ -35,9 +35,9 @@ export const AppMapScreen: React.FC<AppMapScreenProps> = ({ theme, onGo, onClose
       <button onClick={() => onGo(item.target)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.04]">
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-white">{item.label}</span>
-          <span className="block text-[11px] leading-snug text-[#7E889B]">{item.sub}</span>
+          <span className="block text-xs leading-snug text-[#9AA3B2]">{item.sub}</span>
         </span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-neutral-500" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" />
       </button>
     </li>
   );
@@ -58,13 +58,13 @@ export const AppMapScreen: React.FC<AppMapScreenProps> = ({ theme, onGo, onClose
         <div className="px-5 pt-4">
           <label className="relative block">
             <span className="sr-only">Search the app</span>
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <input
               ref={input}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Find anything: sleep, backup, groceries…"
-              className="w-full rounded-2xl border border-[#1A1E26] bg-black/50 py-3 pl-10 pr-4 text-sm text-white placeholder:text-neutral-500"
+              className="w-full rounded-2xl border border-[#1A1E26] bg-black/50 py-3 pl-10 pr-4 text-sm text-white placeholder:text-neutral-400"
               enterKeyHint="search"
             />
           </label>
@@ -75,7 +75,7 @@ export const AppMapScreen: React.FC<AppMapScreenProps> = ({ theme, onGo, onClose
             results.length > 0 ? (
               <ul className="divide-y divide-[#1A1E26] overflow-hidden rounded-2xl border border-[#1A1E26] bg-black/30">{results.map(row)}</ul>
             ) : (
-              <p className="px-1 py-6 text-center text-sm text-[#7E889B]">Nothing matches “{query.trim()}”. Try a simpler word, like “sleep” or “backup”.</p>
+              <p className="px-1 py-6 text-center text-sm text-[#9AA3B2]">Nothing matches “{query.trim()}”. Try a simpler word, like “sleep” or “backup”.</p>
             )
           ) : (
             APP_MAP.map((area) => {
@@ -87,7 +87,7 @@ export const AppMapScreen: React.FC<AppMapScreenProps> = ({ theme, onGo, onClose
                       <Icon className="h-4 w-4" />
                     </span>
                     <h2 className="text-sm font-bold text-white">{area.title}</h2>
-                    <span className="text-[11px] text-[#7E889B]">{area.blurb}</span>
+                    <span className="text-xs text-[#9AA3B2]">{area.blurb}</span>
                   </div>
                   <ul className="divide-y divide-[#1A1E26] overflow-hidden rounded-2xl border border-[#1A1E26] bg-black/30">{area.items.map(row)}</ul>
                 </section>

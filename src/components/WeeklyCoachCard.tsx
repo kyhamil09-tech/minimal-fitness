@@ -50,9 +50,9 @@ export const WeeklyCoachCard: React.FC<WeeklyCoachCardProps> = ({ theme, workout
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Compass className="h-4 w-4" style={{ color: theme.primary }} />
-          <h3 className="gh-title" style={{ fontSize: '1.05rem' }}>
+          <h2 className="gh-title" style={{ fontSize: '1.05rem' }}>
             Weekly coach
-          </h3>
+          </h2>
         </div>
         <div className="flex gap-1 rounded-xl border border-[#1A1E26] bg-black/60 p-1" role="group" aria-label="Which week to review">
           {(['last', 'this'] as const).map((w) => (
@@ -61,7 +61,7 @@ export const WeeklyCoachCard: React.FC<WeeklyCoachCardProps> = ({ theme, workout
               type="button"
               onClick={() => setWhich(w)}
               aria-pressed={which === w}
-              className={`rounded-lg px-3 py-1 text-[11px] font-semibold ${which === w ? 'border border-neutral-700 bg-neutral-900' : 'text-neutral-400'}`}
+              className={`rounded-lg px-3 py-1 text-xs font-semibold ${which === w ? 'border border-neutral-700 bg-neutral-900' : 'text-neutral-400'}`}
               style={{ color: which === w ? theme.primary : undefined }}
             >
               {w === 'last' ? 'Last week' : 'This week'}
@@ -76,11 +76,11 @@ export const WeeklyCoachCard: React.FC<WeeklyCoachCardProps> = ({ theme, workout
         </Ring>
         <div>
           <div className="text-base font-bold text-white">{report.label}</div>
-          <div className="text-[11px] text-[#7E889B]">
+          <div className="text-xs text-[#9AA3B2]">
             {shortMonthDay(report.from)} – {shortMonthDay(report.to)}
             {report.days < 7 ? ` · ${report.days} day${report.days === 1 ? '' : 's'} so far` : ''}
           </div>
-          {report.score === null && <div className="mt-1 text-[11px] text-neutral-400">Log workouts, sleep or food and a review appears here.</div>}
+          {report.score === null && <div className="mt-1 text-xs text-neutral-400">Log workouts, sleep or food and a review appears here.</div>}
         </div>
       </div>
 
@@ -92,11 +92,11 @@ export const WeeklyCoachCard: React.FC<WeeklyCoachCardProps> = ({ theme, workout
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-xs font-semibold text-white">{p.label}</span>
-                  <span className="text-[10px] font-semibold" style={{ color: DOT[p.status] }}>
+                  <span className="text-xs font-semibold" style={{ color: DOT[p.status] }}>
                     {STATUS_WORD[p.status]}
                   </span>
                 </div>
-                <div className="text-[11px] text-[#7E889B]">{p.detail}</div>
+                <div className="text-xs text-[#9AA3B2]">{p.detail}</div>
               </div>
             </li>
           ))}
@@ -105,7 +105,7 @@ export const WeeklyCoachCard: React.FC<WeeklyCoachCardProps> = ({ theme, workout
 
       {report.wins.length > 0 && (
         <div>
-          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B]">Went well</h4>
+          <h4 className="text-sm font-bold text-neutral-200">Went well</h4>
           <ul className="mt-1.5 space-y-1.5">
             {report.wins.map((w) => (
               <li key={w} className="flex items-start gap-2 text-xs leading-snug text-neutral-200">
@@ -119,11 +119,11 @@ export const WeeklyCoachCard: React.FC<WeeklyCoachCardProps> = ({ theme, workout
 
       {report.focus.length > 0 && (
         <div>
-          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B]">{which === 'last' ? 'Focus for this week' : 'Focus for the rest of the week'}</h4>
+          <h4 className="text-sm font-bold text-neutral-200">{which === 'last' ? 'Focus for this week' : 'Focus for the rest of the week'}</h4>
           <ol className="mt-1.5 space-y-2">
             {report.focus.map((f, i) => (
               <li key={f} className="flex items-start gap-2.5 text-xs leading-snug text-neutral-100">
-                <span className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-black" style={{ background: theme.primary }}>
+                <span className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black" style={{ background: theme.primary }}>
                   {i + 1}
                 </span>
                 {f}
@@ -133,7 +133,7 @@ export const WeeklyCoachCard: React.FC<WeeklyCoachCardProps> = ({ theme, workout
         </div>
       )}
 
-      <p className="text-[10px] leading-relaxed text-neutral-600">Worked out on this phone from what you logged; days with nothing logged are left out. General guidance, not medical advice.</p>
+      <p className="text-xs leading-relaxed text-neutral-400">Worked out on this phone from what you logged; days with nothing logged are left out. General guidance, not medical advice.</p>
     </section>
   );
 };

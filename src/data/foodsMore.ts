@@ -53,7 +53,6 @@ export const MORE_FOODS: FoodItem[] = [
   { name: 'Edamame', serving: '1 cup', calories: 188, proteinG: 18, carbsG: 14, fatG: 8 },
   { name: 'Chickpeas, cooked', serving: '1 cup', calories: 269, proteinG: 15, carbsG: 45, fatG: 4.2 },
   { name: 'Protein powder, whey', serving: '1 scoop', calories: 120, proteinG: 24, carbsG: 3, fatG: 1.5 },
-  { name: 'Protein bar', serving: '1 bar', calories: 210, proteinG: 20, carbsG: 22, fatG: 7 },
   { name: 'Egg whites', serving: '3 large', calories: 51, proteinG: 11, carbsG: 0.7, fatG: 0.2 },
   // Dairy
   { name: 'Milk, whole', serving: '1 cup', calories: 149, proteinG: 8, carbsG: 12, fatG: 8 },

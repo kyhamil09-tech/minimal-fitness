@@ -38,6 +38,16 @@ public class PhoneListenerService extends WearableListenerService {
             ActivityDetect.onPeerNotified(this);
             return;
         }
+        if ("/ky/food/voice".equals(event.getPath())) {
+            // A meal said into the watch: kept as text for the app to turn into food entries when it opens.
+            FoodInbox.add(this, new String(event.getData(), StandardCharsets.UTF_8));
+            return;
+        }
+        if ("/ky/breath/saved".equals(event.getPath())) {
+            // A breathing session done on the watch: kept for the app to add to its history when it opens.
+            BreatheInbox.add(this, new String(event.getData(), StandardCharsets.UTF_8));
+            return;
+        }
         if ("/ky/water/add".equals(event.getPath())) {
             // The watch's Fuel tile added water: show it on the widget, keep it for the app's log, and send the new total back.
             try {
@@ -48,6 +58,14 @@ public class PhoneListenerService extends WearableListenerService {
             } catch (NumberFormatException ignored) {
                 // malformed message: ignore
             }
+            return;
+        }
+        if ("/ky/water/undo".equals(event.getPath())) {
+            // The watch's Fuel tile took the last drink back: drop it from the waiting list (or leave a request for the app), show it
+            // on the widget and send the new total back.
+            WaterStore.undoLast(this);
+            WaterWidgetProvider.refreshAll(this);
+            WaterStore.pushToWatch(this);
             return;
         }
         if (!"/ky/steps".equals(event.getPath())) return;

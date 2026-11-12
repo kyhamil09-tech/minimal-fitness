@@ -1,11 +1,13 @@
-import { ActivePlan, Routine, UserProfile, WorkoutPlan } from '../types/tracking';
-import { getExercise } from '../data/exercises';
+import { ActivePlan, ExerciseLog, Routine, UserProfile, WorkoutPlan } from '../types/tracking';
+import { cleanDays } from './liftSchedule';
+import { WorkoutSession } from '../types/health';
+import { EXERCISES, LIBRARY_GROUPS, getExercise } from '../data/exercises';
 import { STRENGTH_TEMPLATES } from '../data/templates';
 import { getPlan } from '../data/plans';
 import { planDaysForWeek } from './planBuilder';
 import { startOfMondayWeek, weekdayIndex } from './dates';
 import { incrementKg } from './strengthProgress';
-import { kgToDisplay } from './units';
+import { kgToDisplay, weightUnit } from './units';
 import { afterGroupedSetDone } from './supersets';
 
 /**
@@ -201,6 +203,8 @@ export interface WatchRoutine {
   name: string;
   sub: string;
   ids: string[];
+  /** Sets to start from for some of the exercises (display units), instead of the ones last used: a program's planned workout. */
+  sets?: Record<string, { r: number; w: number }[]>;
 }
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -213,9 +217,17 @@ export const currentPlanWeek = (active: ActivePlan, now: number = Date.now()): n
  * The strength sessions to offer on the watch, most useful first: today's day of the active plan, the rest of this week's strength
  * days, your own routines, then the starter templates. The same list is rebuilt on the phone when the watch picks one by id.
  */
-export const buildWatchRoutines = (opts: { routines: Routine[]; activePlan: ActivePlan | null; now?: number }): WatchRoutine[] => {
+export const buildWatchRoutines = (opts: { routines: Routine[]; activePlan: ActivePlan | null; now?: number; program?: WatchRoutine | null }): WatchRoutine[] => {
   const out: WatchRoutine[] = [];
+  // The next workout of the program you follow comes first: it already knows the weights.
+  if (opts.program && opts.program.ids.length > 0) out.push(opts.program);
+  const todayIdx = weekdayIndex(opts.now ?? Date.now());
   const count = (ids: string[]) => `${ids.length} exercise${ids.length === 1 ? '' : 's'}`;
+  // Routines scheduled for today lead the list.
+  for (const r of opts.routines) {
+    const ids = r.exerciseIds.filter((id) => !!getExercise(id));
+    if (ids.length > 0 && cleanDays(r.days).includes(todayIdx)) out.push({ id: `r:${r.id}`, name: `Today: ${r.name}`, sub: count(ids), ids });
+  }
   const plan: WorkoutPlan | undefined = opts.activePlan ? opts.activePlan.plan ?? getPlan(opts.activePlan.planId) : undefined;
   if (plan && opts.activePlan) {
     const today = weekdayIndex(opts.now ?? Date.now());
@@ -231,13 +243,92 @@ export const buildWatchRoutines = (opts: { routines: Routine[]; activePlan: Acti
   }
   for (const r of opts.routines) {
     const ids = r.exerciseIds.filter((id) => !!getExercise(id));
-    if (ids.length > 0) out.push({ id: `r:${r.id}`, name: r.name, sub: count(ids), ids });
+    if (ids.length > 0 && !out.some((o) => o.id === `r:${r.id}`)) out.push({ id: `r:${r.id}`, name: r.name, sub: count(ids), ids });
   }
   for (const t of STRENGTH_TEMPLATES) out.push({ id: `t:${t.id}`, name: t.name, sub: count(t.exerciseIds), ids: t.exerciseIds });
   return out.slice(0, 14);
 };
 
-/** What the watch gets: names only, and the id to send back. */
-export const watchRoutinesJson = (list: WatchRoutine[]): string => JSON.stringify(list.map(({ id, name, sub }) => ({ id, name, sub })));
+/** One exercise as the watch needs it to run a session without the phone: its name, the weight step and the sets last used. */
+export interface WatchExerciseDetail {
+  id: string;
+  n: string;
+  step: number;
+  sets: { r: number; w: number }[];
+}
+
+/**
+ * What the watch gets: the name and id to send back, and, when {@code detail} is given, each routine's exercises with the sets last
+ * used (in the display units named by {@code unit}) so the watch can run the session on its own.
+ */
+export const watchRoutinesJson = (list: WatchRoutine[], detail?: (exerciseId: string) => WatchExerciseDetail | null, unit: 'kg' | 'lb' = 'kg'): string =>
+  JSON.stringify(
+    list.map(({ id, name, sub, ids, sets }) => {
+      const base = { id, name, sub };
+      if (!detail) return base;
+      const ex = ids
+        .map((x) => detail(x))
+        .filter((x): x is WatchExerciseDetail => !!x)
+        .map((x) => (sets?.[x.id] ? { ...x, sets: sets[x.id] } : x));
+      return { ...base, u: unit, ex };
+    })
+  );
 
 export const resolveWatchRoutine = (id: string, list: WatchRoutine[]): WatchRoutine | null => list.find((r) => r.id === id) ?? null;
+
+
+/* ---------- the exercise library on the watch ---------- */
+
+export interface WatchLibraryExercise {
+  /** Position in the app's exercise list: the watch sends it back to add this exercise to a session the phone is running. */
+  i: number;
+  id: string;
+  n: string;
+  g: string;
+  /** How much one tap on the weight buttons changes it, in display units. */
+  step: number;
+  /** The sets last done, [reps, weight in display units], newest session first; empty when never done. */
+  sets: [number, number][];
+}
+
+export interface WatchLibrary {
+  u: 'kg' | 'lb';
+  groups: string[];
+  ex: WatchLibraryExercise[];
+}
+
+/** The latest completed log of every exercise, in one pass over the workouts. */
+const latestLogs = (workouts: WorkoutSession[]): Map<string, ExerciseLog> => {
+  const best = new Map<string, { t: number; log: ExerciseLog }>();
+  for (const w of workouts) {
+    const t = w.startedAt ?? 0;
+    for (const log of w.exercises ?? []) {
+      if (!log.sets.some((s) => s.done)) continue;
+      const have = best.get(log.exerciseId);
+      if (!have || t > have.t) best.set(log.exerciseId, { t, log });
+    }
+  }
+  return new Map([...best].map(([id, v]) => [id, v.log]));
+};
+
+/**
+ * Every exercise, with the sets you last did, for the picker on the watch. It lets the watch add an exercise to a session of its own
+ * (when the phone is not there) with your last weights filled in, or ask the phone to add it by its position in the list.
+ */
+export const buildWatchExercises = (workouts: WorkoutSession[], units: UserProfile['units']): WatchLibrary => {
+  const last = latestLogs(workouts);
+  return {
+    u: weightUnit(units) === 'lb' ? 'lb' : 'kg',
+    groups: LIBRARY_GROUPS,
+    ex: EXERCISES.map((e, i) => {
+      const log = last.get(e.id);
+      const sets: [number, number][] = log
+        ? log.sets
+            .filter((s) => s.reps > 0)
+            .slice(0, 5)
+            .map((s): [number, number] => [Math.round(s.reps), s.weightKg ? kgToDisplay(s.weightKg, units) : 0])
+        : [];
+      return { i, id: e.id, n: e.name, g: e.muscle, step: weightStep(e.id, units), sets };
+    }),
+  };
+};

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 /** A settings row: icon, title, a line of help, and an optional control on the right. */
 export const Row: React.FC<{ icon: React.ReactNode; title: string; sub: React.ReactNode; action?: React.ReactNode }> = ({
@@ -13,7 +14,7 @@ export const Row: React.FC<{ icon: React.ReactNode; title: string; sub: React.Re
       <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center shrink-0">{icon}</div>
       <div className="min-w-0">
         <div className="text-sm font-semibold text-white">{title}</div>
-        <div className="text-xs text-[#7E889B] mt-0.5 leading-relaxed">{sub}</div>
+        <div className="text-xs text-[#9AA3B2] mt-0.5 leading-relaxed">{sub}</div>
       </div>
     </div>
     {action}
@@ -28,10 +29,8 @@ export const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void; lab
     onClick={() => onChange(!on)}
     className="relative w-14 h-8 rounded-full shrink-0 transition-colors"
     style={{
-      background: on ? 'var(--accent)' : 'rgba(255,255,255,0.22)',
-      boxShadow: on
-        ? '0 0 0 2px var(--accent), 0 0 14px 3px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 30px 8px color-mix(in srgb, var(--accent) 28%, transparent)'
-        : 'inset 0 0 0 2px rgba(255,255,255,0.45)',
+      background: on ? 'var(--accent)' : 'var(--card-2)',
+      boxShadow: on ? 'none' : 'inset 0 0 0 2px rgba(255,255,255,0.35)',
     }}
   >
     <span
@@ -73,7 +72,7 @@ export const ChoiceRow: React.FC<{ title: string; sub?: string; children: React.
   <div className="p-4 space-y-2.5">
     <div>
       <div className="text-sm font-semibold text-white">{title}</div>
-      {sub && <div className="text-xs text-[#7E889B] mt-0.5 leading-relaxed">{sub}</div>}
+      {sub && <div className="text-xs text-[#9AA3B2] mt-0.5 leading-relaxed">{sub}</div>}
     </div>
     {children}
   </div>
@@ -81,20 +80,14 @@ export const ChoiceRow: React.FC<{ title: string; sub?: string; children: React.
 
 /** A small heading that splits a long settings group into parts you can scan. */
 export const SubHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <h3 className="px-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-[#7E889B]">{children}</h3>
+  <h3 className="px-1 pt-1 text-sm font-bold text-neutral-200">{children}</h3>
 );
 
-const OPEN_KEY = 'kyfit_settings_open';
-
-const readOpen = (): Record<string, boolean> => {
-  try {
-    return JSON.parse(localStorage.getItem(OPEN_KEY) || '{}') as Record<string, boolean>;
-  } catch {
-    return {};
-  }
-};
-
-/** A collapsible group of settings. Which groups are open is remembered. */
+/**
+ * One row of the settings list: an icon, a title and one line saying what is inside. Tapping it opens that part of the settings as its
+ * own page, with a Back button (the phone's Back button works too). Other parts of the app can ask for a page to be opened (the
+ * On-device badge opens Privacy & data).
+ */
 export const SettingsGroup: React.FC<{
   id: string;
   title: string;
@@ -102,46 +95,59 @@ export const SettingsGroup: React.FC<{
   icon: React.ReactNode;
   defaultOpen?: boolean;
   children: React.ReactNode;
-}> = ({ id, title, summary, icon, defaultOpen = false, children }) => {
-  const [open, setOpen] = useState<boolean>(() => readOpen()[id] ?? defaultOpen);
-  const ref = React.useRef<HTMLElement>(null);
-  // Other parts of the app can ask for a group to be opened (the On-device badge opens Privacy & data).
+}> = ({ id, title, summary, icon, children }) => {
+  const [open, setOpen] = useState(false);
+  const rowRef = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
     const onOpen = (e: Event) => {
-      if ((e as CustomEvent<string>).detail !== id) return;
-      setOpen(true);
-      try {
-        localStorage.setItem(OPEN_KEY, JSON.stringify({ ...readOpen(), [id]: true }));
-      } catch {
-        // storage unavailable
-      }
-      setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+      if ((e as CustomEvent<string>).detail === id) setOpen(true);
     };
     window.addEventListener('kyfit-open-settings-group', onOpen);
     return () => window.removeEventListener('kyfit-open-settings-group', onOpen);
   }, [id]);
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    try {
-      localStorage.setItem(OPEN_KEY, JSON.stringify({ ...readOpen(), [id]: next }));
-    } catch {
-      // storage unavailable
-    }
-  };
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      rowRef.current?.focus();
+    };
+  }, [open]);
   return (
-    <section ref={ref} className="rounded-[26px] border border-[#1A1E26] bg-[#0B0D11] overflow-hidden">
-      <button onClick={toggle} aria-expanded={open} className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left">
-        <span className="flex items-center gap-3 min-w-0">
-          <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 border border-neutral-800 bg-neutral-900">{icon}</span>
-          <span className="min-w-0">
-            <span className="block gh-title !text-[1.25rem] truncate">{title}</span>
-            <span className="block text-[11px] text-[#7E889B] mt-0.5 truncate">{summary}</span>
-          </span>
+    <>
+      <button
+        ref={rowRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className="flex w-full min-h-[64px] items-center gap-3.5 rounded-2xl border px-4 py-3 text-left"
+        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' }}
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: 'var(--card-2)' }}>
+          {icon}
         </span>
-        <ChevronDown className={`w-5 h-5 text-neutral-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-bold text-white">{title}</span>
+          <span className="block truncate text-xs text-[#A1A1AA]">{summary}</span>
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-[#A1A1AA]" aria-hidden="true" />
       </button>
-      {open && <div className="px-3 pb-4 space-y-4 border-t border-[#1A1E26] pt-4">{children}</div>}
-    </section>
+      {open &&
+        createPortal(
+          <div role="dialog" aria-modal="true" aria-label={title} className="animate-fadeIn fixed inset-0 z-50 overflow-y-auto" style={{ backgroundColor: 'var(--page-bg)', color: 'var(--ink)' }}>
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b px-4 pb-3" style={{ backgroundColor: 'var(--page-bg)', borderColor: 'var(--hairline)', paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Back" className="flex h-11 w-11 items-center justify-center rounded-full border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)' }}>
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <h2 className="text-lg font-extrabold">{title}</h2>
+            </div>
+            <div className="mx-auto max-w-lg space-y-4 px-4 pb-16 pt-4">{children}</div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 };

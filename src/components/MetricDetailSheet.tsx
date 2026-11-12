@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { GrabHandle } from './ui/GrabHandle';
 import { Activity, ArrowDown, ArrowUp, Droplets, Flame, Footprints, HeartPulse, Mountain, Route, Scale, Timer, Utensils, X } from 'lucide-react';
 import { ColorPalette } from '../types/theme';
 import { Goals, UnitSystem } from '../types/tracking';
@@ -6,6 +7,7 @@ import { BarChart, EmptyState, LineChart } from './ui/charts';
 import { MetricId, SeriesInput, buildSeries, seriesStats } from '../lib/metricSeries';
 import { distanceUnit, kgToDisplay, kmToDisplay, mlToDisplay, volumeUnit, weightUnit } from '../lib/units';
 import { shortMonthDay, shortWeekday, todayKey } from '../lib/dates';
+import { Segmented } from './ui/Segmented';
 
 interface MetricDef {
   title: string;
@@ -32,6 +34,12 @@ const DEFS: Record<MetricId, MetricDef> = {
   hrv: { title: 'Heart rate variability', color: '#81C995', icon: <Activity className="h-4 w-4" />, chart: 'line', upIsGood: true, sums: false, explain: 'The small beat-to-beat variation in your heart rate. It is personal: watch your own trend, not other people’s numbers.' },
   weight: { title: 'Weight', color: '#FDD663', icon: <Scale className="h-4 w-4" />, chart: 'line', upIsGood: false, sums: false, explain: 'Your weigh-ins from this app and from Health Connect. Day-to-day changes are mostly water, so look at the trend.' },
   water: { title: 'Water', color: '#7dd3fc', icon: <Droplets className="h-4 w-4" />, chart: 'bar', upIsGood: true, sums: true, explain: 'Water you logged each day.' },
+  protein: { title: 'Protein', color: '#F28B82', icon: <Utensils className="h-4 w-4" />, chart: 'bar', upIsGood: true, sums: true, explain: 'Grams of protein from the food you logged each day.' },
+  carbs: { title: 'Carbs', color: '#FDD663', icon: <Utensils className="h-4 w-4" />, chart: 'bar', upIsGood: true, sums: true, explain: 'Grams of carbohydrate from the food you logged each day.' },
+  fat: { title: 'Fat', color: '#8AB4F8', icon: <Utensils className="h-4 w-4" />, chart: 'bar', upIsGood: true, sums: true, explain: 'Grams of fat from the food you logged each day.' },
+  systolic: { title: 'Blood pressure (top number)', color: '#F28B82', icon: <HeartPulse className="h-4 w-4" />, chart: 'line', upIsGood: false, sums: false, explain: 'The average top (systolic) number of the readings you logged each day. A log for you and your doctor, not a diagnosis.' },
+  glucose: { title: 'Blood glucose', color: '#78D9EC', icon: <Droplets className="h-4 w-4" />, chart: 'line', upIsGood: false, sums: false, explain: 'The average of the glucose readings you logged each day, in mg/dL. A log for you and your doctor, not a diagnosis.' },
+  fasting: { title: 'Fasting', color: '#C58AF9', icon: <Timer className="h-4 w-4" />, chart: 'bar', upIsGood: true, sums: true, explain: 'Hours you spent fasting each day, from the fasts you completed.' },
   eaten: { title: 'Calories eaten', color: '#ffd23f', icon: <Utensils className="h-4 w-4" />, chart: 'bar', upIsGood: true, sums: true, explain: 'Food you logged each day. Days with nothing logged are left out of the average.' },
 };
 
@@ -47,9 +55,11 @@ interface MetricDetailSheetProps {
   onClose: () => void;
   /** An extra button under the numbers, such as "Edit today's steps". */
   action?: { label: string; onClick: () => void };
+  /** Big buttons shown right under the number, for things you do right here (such as adding water). */
+  quick?: React.ReactNode;
 }
 
-export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, theme, units, goals, input, onClose, action }) => {
+export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, theme, units, goals, input, onClose, action, quick }) => {
   const def = DEFS[metric];
   const [range, setRange] = useState<Range>(7);
   const today = todayKey();
@@ -88,11 +98,15 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
             : metric === 'floors' ? 'floors'
               : metric === 'resting' || metric === 'heart' ? 'bpm'
                 : metric === 'hrv' ? 'ms'
+                  : metric === 'fasting' ? 'h' : metric === 'protein' || metric === 'carbs' || metric === 'fat' ? 'g'
+                    : metric === 'systolic' ? 'mmHg'
+                      : metric === 'glucose' ? 'mg/dL'
                   : metric === 'weight' ? weightUnit(units)
                     : volumeUnit(units);
 
   const goal =
     metric === 'steps' ? goals.dailySteps
+      : metric === 'protein' ? goals.dailyProteinG || undefined
       : metric === 'exercise' ? 30
         : metric === 'eaten' ? goals.dailyCalories
           : metric === 'water' ? goals.dailyWaterMl
@@ -104,13 +118,13 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
     metric === 'distance' ? kmToDisplay(v, units, 2) : metric === 'weight' ? kgToDisplay(v, units, 2) : metric === 'water' ? mlToDisplay(v, units) : v;
 
   const label = (date: string) => (range <= 7 ? shortWeekday(date) : String(Number(date.slice(8, 10))));
-  const bars = series.map((p, i) => ({ label: label(p.date), value: toUnit(p.value ?? 0), highlight: i === series.length - 1 }));
+  const bars = series.map((p, i) => ({ label: label(p.date), value: toUnit(p.value ?? 0), highlight: i === series.length - 1, title: shortMonthDay(p.date) }));
   const points = series.filter((p) => p.value !== undefined).map((p) => ({ label: shortMonthDay(p.date), value: toUnit(p.value as number) }));
 
   const trend = stats.trendPct;
   const trendGood = trend === undefined ? true : def.upIsGood ? trend >= 0 : trend <= 0;
   // For heart rate lower is the better extreme; for everything else higher is.
-  const lowerIsBetter = metric === 'resting' || metric === 'heart';
+  const lowerIsBetter = metric === 'resting' || metric === 'heart' || metric === 'systolic' || metric === 'glucose';
   const bestLabel = lowerIsBetter ? 'Lowest' : metric === 'weight' || metric === 'hrv' ? 'Highest' : 'Best day';
   const bestValue = lowerIsBetter ? stats.min : stats.max;
   const when = (date?: string) => (!date ? '' : date === today ? 'Today' : shortMonthDay(date));
@@ -125,7 +139,8 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fadeIn"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-[32px] border border-b-0 border-[#1A1E26] bg-[#0B0D11] p-5 pb-8 text-white shadow-2xl">
+      <div className="w-full max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-[32px] border border-b-0 border-[#1A1E26] bg-[#0B0D11] px-5 pb-8 pt-0 text-white shadow-2xl">
+        <GrabHandle onClose={onClose} />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: `${def.color}22`, color: def.color }}>
@@ -133,7 +148,7 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
             </span>
             <h2 className="text-base font-bold">{def.title}</h2>
           </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-neutral-400 hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-full text-neutral-300 hover:text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -141,13 +156,13 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
         <div className="mt-4 flex items-end justify-between gap-3">
           <div className="flex items-baseline gap-1.5">
             <span className="hero-num text-[3rem] leading-none">{show(stats.latest)}</span>
-            <span className="text-sm text-[#7E889B]">{unit}</span>
+            <span className="text-sm text-[#9AA3B2]">{unit}</span>
           </div>
           <div className="text-right">
-            <div className="text-[11px] text-[#7E889B]">{when(stats.latestDate)}</div>
+            <div className="text-xs text-[#9AA3B2]">{when(stats.latestDate)}</div>
             {trend !== undefined && trend !== 0 && (
               <span
-                className="mt-1 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                className="mt-1 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold"
                 style={{ background: trendGood ? '#81C99524' : '#F28B8224', color: trendGood ? '#81C995' : '#F28B82' }}
                 title="The last 7 days compared with the days before"
               >
@@ -158,27 +173,25 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
           </div>
         </div>
 
-        <div className="mt-4 flex gap-1 rounded-full bg-white/[0.06] p-0.5" role="group" aria-label="Time range">
-          {RANGES.map((n) => (
-            <button
-              key={n}
-              onClick={() => setRange(n)}
-              aria-pressed={range === n}
-              className="flex-1 rounded-full py-1.5 text-[11px] font-bold"
-              style={{ background: range === n ? '#fff' : 'transparent', color: range === n ? '#000' : '#9AA3B2' }}
-            >
-              {n} days
-            </button>
-          ))}
-        </div>
+        {quick && <div className="mt-4 flex gap-2">{quick}</div>}
+
+        <Segmented<string>
+          className="mt-4"
+          ariaLabel="Time range"
+          size="sm"
+          semantics="group"
+          value={String(range)}
+          onChange={(id) => setRange(Number(id) as Range)}
+          options={RANGES.map((n) => ({ id: String(n), label: `${n} days` }))}
+        />
 
         <div className="mt-3">
           {stats.count === 0 ? (
             <EmptyState title={`No ${def.title.toLowerCase()} recorded in the last ${range} days`} hint="It appears here once your watch, Health Connect or a log entry provides it." />
           ) : def.chart === 'bar' ? (
-            <BarChart data={bars} color={def.color} goal={goalShown} format={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v * 10) / 10))} ariaLabel={`${def.title} per day`} />
+            <BarChart data={bars} color={def.color} goal={goalShown} unit={' ' + unit} format={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v * 10) / 10))} ariaLabel={`${def.title} per day`} />
           ) : (
-            <LineChart points={points} color={def.color} ariaLabel={`${def.title} per day`} />
+            <LineChart points={points} color={def.color} unit={' ' + unit} ariaLabel={`${def.title} per day`} />
           )}
         </div>
 
@@ -187,22 +200,22 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
             <div className={cell}>
               <div className="stat-label">Average</div>
               <div className="mt-1 text-lg font-bold tabular-nums">
-                {show(stats.avg)} <span className="text-xs font-normal text-[#7E889B]">{unit}</span>
+                {show(stats.avg)} <span className="text-xs font-normal text-[#9AA3B2]">{unit}</span>
               </div>
-              <div className="text-[10px] text-neutral-500">{stats.count} day{stats.count === 1 ? '' : 's'} with data</div>
+              <div className="text-xs text-neutral-400">{stats.count} day{stats.count === 1 ? '' : 's'} with data</div>
             </div>
             <div className={cell}>
               <div className="stat-label">{bestLabel}</div>
               <div className="mt-1 text-lg font-bold tabular-nums">
-                {show(bestValue)} <span className="text-xs font-normal text-[#7E889B]">{unit}</span>
+                {show(bestValue)} <span className="text-xs font-normal text-[#9AA3B2]">{unit}</span>
               </div>
-              <div className="text-[10px] text-neutral-500">{when(lowerIsBetter ? series.find((p) => p.value === stats.min)?.date : stats.maxDate)}</div>
+              <div className="text-xs text-neutral-400">{when(lowerIsBetter ? series.find((p) => p.value === stats.min)?.date : stats.maxDate)}</div>
             </div>
             {def.sums && (
               <div className={cell}>
                 <div className="stat-label">Total, {range} days</div>
                 <div className="mt-1 text-lg font-bold tabular-nums">
-                  {show(stats.total)} <span className="text-xs font-normal text-[#7E889B]">{unit}</span>
+                  {show(stats.total)} <span className="text-xs font-normal text-[#9AA3B2]">{unit}</span>
                 </div>
               </div>
             )}
@@ -211,7 +224,7 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
                 <div className="stat-label">Goal reached</div>
                 <div className="mt-1 text-lg font-bold tabular-nums">
                   {series.filter((p) => (p.value ?? 0) >= goal).length}
-                  <span className="text-xs font-normal text-[#7E889B]"> of {range} days</span>
+                  <span className="text-xs font-normal text-[#9AA3B2]"> of {range} days</span>
                 </div>
               </div>
             )}
@@ -219,14 +232,16 @@ export const MetricDetailSheet: React.FC<MetricDetailSheetProps> = ({ metric, th
         )}
 
         {action && (
-          <button onClick={action.onClick} className="mt-4 w-full rounded-xl border border-neutral-700 py-2.5 text-xs font-semibold text-neutral-100 hover:text-white">
+          <button onClick={action.onClick} className="mt-4 w-full min-h-11 rounded-xl border border-neutral-700 py-3 text-sm font-semibold text-neutral-100 hover:text-white">
             {action.label}
           </button>
         )}
 
-        <p className="mt-4 text-[11px] leading-relaxed text-neutral-400">{def.explain}</p>
-        <p className="mt-2 text-[10px] leading-relaxed text-neutral-600">For general information, not medical advice.</p>
+        <p className="mt-4 text-xs leading-relaxed text-neutral-400">{def.explain}</p>
+        <p className="mt-2 text-xs leading-relaxed text-neutral-400">For general information, not medical advice.</p>
       </div>
     </div>
   );
 };
+
+

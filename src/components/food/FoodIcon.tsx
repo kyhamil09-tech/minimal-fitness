@@ -1,7 +1,7 @@
 import React from 'react';
 import { Apple, Beef, Carrot, Cookie, CupSoda, Croissant, Droplet, Drumstick, Egg, Fish, Milk, Nut, Popcorn, Soup, Utensils, Wheat, Wine } from 'lucide-react';
 
-/** One icon and one colour per food group (indexes match GROUPS in lib/foodDb). The colours are the palette's data colours. */
+/** One icon and one color per food group (indexes match GROUPS in lib/foodDb). The colors are the palette's data colors. */
 const ICONS = [Utensils, Milk, Egg, Beef, Drumstick, Fish, Wheat, Croissant, Apple, Carrot, Nut, Droplet, Cookie, Popcorn, CupSoda, Wine, Soup];
 const COLORS = [
   'var(--ink-dim)', 'var(--g-blue)', 'var(--g-yellow)', 'var(--g-red)', 'var(--accent-2)', 'var(--g-cyan)', 'var(--g-yellow)', 'var(--accent-2)', 'var(--g-red)',

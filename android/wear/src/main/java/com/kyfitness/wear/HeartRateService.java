@@ -60,7 +60,7 @@ public class HeartRateService extends Service {
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Minimal Fitness")
             .setContentText("Sending heart rate to your phone")
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_logo)
             .setOngoing(true)
             .setContentIntent(open)
             .build();

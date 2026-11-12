@@ -17,7 +17,7 @@ const toneClass = (tone: 'good' | 'bad') => (tone === 'good' ? 'bg-emerald-400/1
 export const FeelingChips: React.FC<{ tags: string[] }> = ({ tags }) => (
   <div className="flex flex-wrap gap-1.5">
     {tags.map((t) => (
-      <span key={t} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${toneClass(feelingTone(t))}`}>
+      <span key={t} className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${toneClass(feelingTone(t))}`}>
         {feelingLabel(t)}
       </span>
     ))}
@@ -46,7 +46,7 @@ export const FastingCheckInCard: React.FC<CheckInProps> = ({ theme, session, now
           <SmilePlus className="w-4 h-4" style={{ color: theme.primary }} />
           <h3 className="gh-title" style={{ fontSize: '1.05rem' }}>How do you feel?</h3>
         </div>
-        <span className="text-[11px] text-neutral-400 text-right">
+        <span className="text-xs text-neutral-400 text-right">
           {stage.name} · {hm(hours)} in
         </span>
       </div>
@@ -91,16 +91,16 @@ export const FastingCheckInCard: React.FC<CheckInProps> = ({ theme, session, now
 
       {done.length > 0 && (
         <div className="space-y-2 pt-1">
-          <div className="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">This fast</div>
+          <div className="text-sm text-neutral-200 font-bold">This fast</div>
           {[...done].reverse().map((c) => (
             <div key={c.at} className="rounded-2xl glass-inset p-3 flex items-start justify-between gap-3">
               <div className="space-y-1.5 min-w-0">
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-xs text-neutral-400">
                   {clock(c.at)} · {hm(hoursInto(session, c.at))} in · {FAST_STAGES[stageIndexAt(hoursInto(session, c.at))].short}
                 </div>
                 <FeelingChips tags={c.tags} />
               </div>
-              <button type="button" onClick={() => onRemove(c.at)} aria-label="Remove this check-in" className="text-neutral-500 hover:text-rose-400 shrink-0 p-1">
+              <button type="button" onClick={() => onRemove(c.at)} aria-label="Remove this check-in" className="text-neutral-400 hover:text-rose-400 shrink-0 p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -119,7 +119,7 @@ export const FeelingMapCard: React.FC<{ theme: ColorPalette; sessions: FastingSe
     <section className="rounded-3xl border p-5 space-y-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
       <div className="flex items-center justify-between">
         <h3 className="gh-title" style={{ fontSize: '1.05rem' }}>Feelings by stage</h3>
-        <span className="text-[11px] text-neutral-400">{total} check-in{total === 1 ? '' : 's'}</span>
+        <span className="text-xs text-neutral-400">{total} check-in{total === 1 ? '' : 's'}</span>
       </div>
       {total === 0 ? (
         <p className="text-xs text-neutral-400 leading-relaxed">
@@ -131,22 +131,22 @@ export const FeelingMapCard: React.FC<{ theme: ColorPalette; sessions: FastingSe
             <div key={st.stageId} className="rounded-2xl glass-inset p-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white">{st.name}</span>
-                <span className="text-[10px] text-neutral-500">{st.checkIns} check-in{st.checkIns === 1 ? '' : 's'}</span>
+                <span className="text-xs text-neutral-400">{st.checkIns} check-in{st.checkIns === 1 ? '' : 's'}</span>
               </div>
               {st.tags.length === 0 ? (
-                <div className="text-[11px] text-neutral-600 mt-1">Nothing logged here yet</div>
+                <div className="text-xs text-neutral-400 mt-1">Nothing logged here yet</div>
               ) : (
                 <div className="mt-2 space-y-1.5">
                   {st.tags.slice(0, 4).map((t) => (
                     <div key={t.id} className="flex items-center gap-2">
-                      <span className="w-24 shrink-0 text-[11px] text-neutral-300 truncate">{feelingLabel(t.id)}</span>
+                      <span className="w-24 shrink-0 text-xs text-neutral-300 truncate">{feelingLabel(t.id)}</span>
                       <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
                         <div
                           className="h-full rounded-full"
                           style={{ width: `${t.share}%`, backgroundColor: feelingTone(t.id) === 'good' ? '#6EE7B7' : '#FBBF24' }}
                         />
                       </div>
-                      <span className="w-9 text-right text-[10px] tabular-nums text-neutral-400">{t.share}%</span>
+                      <span className="w-9 text-right text-xs tabular-nums text-neutral-400">{t.share}%</span>
                     </div>
                   ))}
                 </div>

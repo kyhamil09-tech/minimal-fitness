@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Dumbbell, Plus, Search, Trash2, X } from 'lucide-react';
 import { Modal, fieldClass } from './ui/Modal';
-import { EXERCISES, MUSCLE_GROUPS, getExercise } from '../data/exercises';
+import { EXERCISES, LIBRARY_GROUPS, getExercise } from '../data/exercises';
 import { MuscleGroup, WorkoutPlan } from '../types/tracking';
 import { ColorPalette } from '../types/theme';
 import {
@@ -18,6 +18,7 @@ import {
   designFromPlan,
   planFromDesign,
 } from '../lib/liftingPlan';
+import { Segmented } from './ui/Segmented';
 
 type Mode = 'quick' | 'design' | 'routine';
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -45,16 +46,16 @@ const ExerciseAdder: React.FC<{ chosen: string[]; onAdd: (id: string) => void; t
   return (
     <div className="rounded-2xl border border-[#1A1E26] bg-black/40 p-3 space-y-2">
       <div className="relative">
-        <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+        <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
         <input aria-label="Search exercises" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search exercises" className={fieldClass + ' !pl-8'} />
       </div>
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-        {(['All', ...MUSCLE_GROUPS] as const).map((m) => (
+        {(['All', ...LIBRARY_GROUPS] as const).map((m) => (
           <button
             key={m}
             onClick={() => setMuscle(m)}
             aria-pressed={muscle === m}
-            className="px-2.5 py-1 rounded-full text-[11px] whitespace-nowrap border"
+            className="px-2.5 py-1 rounded-full text-xs whitespace-nowrap border"
             style={{ background: muscle === m ? theme.primary : 'transparent', color: muscle === m ? 'var(--on-accent)' : '#9aa3b2', borderColor: muscle === m ? 'transparent' : '#1A1E26' }}
           >
             {m}
@@ -68,12 +69,12 @@ const ExerciseAdder: React.FC<{ chosen: string[]; onAdd: (id: string) => void; t
             <li key={e.id}>
               <button onClick={() => !on && onAdd(e.id)} disabled={on} className="w-full text-left py-2 px-1 flex items-center justify-between gap-2 disabled:opacity-40">
                 <span className="text-xs text-white truncate">{e.name}</span>
-                <span className="text-[10px] font-mono text-neutral-500 shrink-0">{on ? 'Added' : `${e.muscle} · ${e.equipment}`}</span>
+                <span className="text-xs font-mono text-neutral-400 shrink-0">{on ? 'Added' : `${e.muscle} · ${e.equipment}`}</span>
               </button>
             </li>
           );
         })}
-        {list.length === 0 && <li className="py-3 text-center text-xs text-neutral-500">No matches</li>}
+        {list.length === 0 && <li className="py-3 text-center text-xs text-neutral-400">No matches</li>}
       </ul>
     </div>
   );
@@ -88,12 +89,12 @@ const ExerciseOrder: React.FC<{ ids: string[]; onChange: (ids: string[]) => void
     [next[i], next[j]] = [next[j], next[i]];
     onChange(next);
   };
-  if (ids.length === 0) return <p className="text-[11px] text-neutral-500">No exercises yet. Add some below.</p>;
+  if (ids.length === 0) return <p className="text-xs text-neutral-400">No exercises yet. Add some below.</p>;
   return (
     <ol className="space-y-1.5">
       {ids.map((id, i) => (
         <li key={id} className="flex items-center gap-2 rounded-xl border border-[#1A1E26] bg-black/40 px-2.5 py-1.5">
-          <span className="w-5 text-[11px] font-mono text-neutral-500">{i + 1}</span>
+          <span className="w-5 text-xs font-mono text-neutral-400">{i + 1}</span>
           <span className="flex-1 min-w-0 text-xs text-white truncate">{getExercise(id)?.name ?? id}</span>
           <button onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up" className="p-1 text-neutral-400 disabled:opacity-30">
             <ArrowUp className="w-3.5 h-3.5" />
@@ -101,7 +102,7 @@ const ExerciseOrder: React.FC<{ ids: string[]; onChange: (ids: string[]) => void
           <button onClick={() => move(i, 1)} disabled={i === ids.length - 1} aria-label="Move down" className="p-1 text-neutral-400 disabled:opacity-30">
             <ArrowDown className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => onChange(ids.filter((x) => x !== id))} aria-label={`Remove ${getExercise(id)?.name ?? id}`} className="p-1 text-neutral-500 hover:text-rose-400">
+          <button onClick={() => onChange(ids.filter((x) => x !== id))} aria-label={`Remove ${getExercise(id)?.name ?? id}`} className="p-1 text-neutral-400 hover:text-rose-400">
             <X className="w-3.5 h-3.5" />
           </button>
         </li>
@@ -197,20 +198,12 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
     <Modal isOpen={isOpen} onClose={onClose} title={editing ? `Edit ${editing.name}` : 'Lifting plans'} icon={<Dumbbell className="w-4 h-4" style={{ color: theme.primary }} />}>
       <div className="space-y-4">
         {modes.length > 1 && (
-          <div className="grid gap-1 p-1 rounded-xl border border-[#1A1E26] bg-black/40" style={{ gridTemplateColumns: `repeat(${modes.length}, 1fr)` }} role="tablist" aria-label="How to make it">
-            {modes.map((m) => (
-              <button
-                key={m.id}
-                role="tab"
-                aria-selected={mode === m.id}
-                onClick={() => setMode(m.id)}
-                className="py-2 rounded-lg text-[11px] font-bold"
-                style={{ background: mode === m.id ? theme.primary : 'transparent', color: mode === m.id ? 'var(--on-accent)' : '#9aa3b2' }}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
+          <Segmented<typeof mode>
+            ariaLabel="How to make it"
+            value={mode}
+            onChange={setMode}
+            options={modes.map((m) => ({ id: m.id, label: m.label }))}
+          />
         )}
 
         {mode === 'quick' && (
@@ -218,7 +211,7 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
             <div>
               <span className="stat-label">Split</span>
               <Pills value={split} label="Split" onChange={(s) => { setSplit(s); setDays(clampDays(s, days)); }} options={(Object.keys(SPLIT_INFO) as LiftSplit[]).map((s) => ({ id: s, label: SPLIT_INFO[s].label }))} />
-              <p className="text-[11px] text-neutral-500 mt-1.5">{SPLIT_INFO[split].blurb}</p>
+              <p className="text-xs text-neutral-400 mt-1.5">{SPLIT_INFO[split].blurb}</p>
             </div>
             <div>
               <span className="stat-label">Days a week</span>
@@ -227,7 +220,7 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
             <div>
               <span className="stat-label">Goal</span>
               <Pills value={goal} label="Goal" onChange={setGoal} options={(Object.keys(GOAL_INFO) as LiftGoal[]).map((g) => ({ id: g, label: GOAL_INFO[g].label }))} />
-              <p className="text-[11px] text-neutral-500 mt-1.5">{GOAL_INFO[goal].blurb}</p>
+              <p className="text-xs text-neutral-400 mt-1.5">{GOAL_INFO[goal].blurb}</p>
             </div>
             <div>
               <span className="stat-label">Equipment</span>
@@ -252,16 +245,16 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
                 {preview.days.map((x) => (
                   <li key={x.day} className="px-3 py-2 bg-black/40">
                     <div className="text-xs font-semibold text-white flex gap-2">
-                      <span className="font-mono text-neutral-500 w-8">{DAY_NAMES[x.day].slice(0, 3)}</span>
+                      <span className="font-mono text-neutral-400 w-8">{DAY_NAMES[x.day].slice(0, 3)}</span>
                       <span className="truncate">{x.title}</span>
                     </div>
                     {x.kind === 'strength' && (
-                      <div className="text-[10px] text-[#7E889B] ml-10 leading-snug">{(x.exerciseIds ?? []).map((id) => getExercise(id)?.name).filter(Boolean).join(' · ')}</div>
+                      <div className="text-xs text-[#9AA3B2] ml-10 leading-snug">{(x.exerciseIds ?? []).map((id) => getExercise(id)?.name).filter(Boolean).join(' · ')}</div>
                     )}
                   </li>
                 ))}
               </ul>
-              <p className="text-[10px] text-neutral-500 mt-1.5">{lifting.length} lifting days. The exercises rotate a little from week to week, and every fourth week is a lighter deload. The logger suggests your weights from what you lifted last time.</p>
+              <p className="text-xs text-neutral-400 mt-1.5">{lifting.length} lifting days. The exercises rotate a little from week to week, and every fourth week is a lighter deload. The logger suggests your weights from what you lifted last time.</p>
             </div>
 
             <div className="flex gap-2">
@@ -299,7 +292,7 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
                     <button onClick={() => setOpenDay(isOpen ? null : i)} aria-expanded={isOpen} className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
                       <span className="min-w-0">
                         <span className="text-xs font-bold text-white">{DAY_NAMES[i]}</span>
-                        <span className="block text-[11px] text-[#7E889B] truncate">{on ? `${day.title || 'Strength'} · ${day.exerciseIds.length} exercises` : 'Rest day'}</span>
+                        <span className="block text-xs text-[#9AA3B2] truncate">{on ? `${day.title || 'Strength'} · ${day.exerciseIds.length} exercises` : 'Rest day'}</span>
                       </span>
                       <Plus className={`w-4 h-4 shrink-0 text-neutral-400 transition-transform ${isOpen ? 'rotate-45' : ''}`} />
                     </button>
@@ -309,7 +302,7 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
                         <ExerciseOrder ids={day.exerciseIds} onChange={(ids) => setDay(i, { exerciseIds: ids })} />
                         <ExerciseAdder chosen={day.exerciseIds} onAdd={(id) => setDay(i, { exerciseIds: [...day.exerciseIds, id] })} theme={theme} />
                         {on && (
-                          <button onClick={() => setDay(i, { title: '', exerciseIds: [] })} className="text-[11px] font-bold text-neutral-500 hover:text-rose-400 flex items-center gap-1">
+                          <button onClick={() => setDay(i, { title: '', exerciseIds: [] })} className="text-xs font-bold text-neutral-400 hover:text-rose-400 flex items-center gap-1">
                             <Trash2 className="w-3.5 h-3.5" /> Make this a rest day
                           </button>
                         )}
@@ -327,13 +320,13 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
             >
               {editing ? 'Save changes' : 'Start this plan'}
             </button>
-            {designLifting === 0 && <p className="text-[11px] text-neutral-500 text-center">Add exercises to at least one day.</p>}
+            {designLifting === 0 && <p className="text-xs text-neutral-400 text-center">Add exercises to at least one day.</p>}
           </div>
         )}
 
         {mode === 'routine' && (
           <div className="space-y-4">
-            <p className="text-[11px] text-[#7E889B]">A routine is one saved workout you can start any time, on the phone or from your watch.</p>
+            <p className="text-xs text-[#9AA3B2]">A routine is one saved workout you can start any time, on the phone or from your watch.</p>
             <label className="block">
               <span className="stat-label">Routine name</span>
               <input value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="e.g. Chest and triceps" aria-label="Routine name" className={fieldClass + ' mt-1'} />
@@ -349,3 +342,4 @@ export const LiftingBuilder: React.FC<Props> = ({ isOpen, onClose, theme, initia
     </Modal>
   );
 };
+

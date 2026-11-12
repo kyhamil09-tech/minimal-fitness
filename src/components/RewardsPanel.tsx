@@ -36,10 +36,10 @@ export const RewardsPanel: React.FC<Props> = ({ theme, workouts, fasts, goals, o
         return (
           <section key={g.id} className="rounded-3xl border p-4 space-y-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5">
+              <h3 className="text-sm font-bold text-neutral-200 flex items-center gap-1.5">
                 <Icon className="w-3.5 h-3.5" style={{ color: theme.primary }} /> {g.title}
               </h3>
-              <span className="text-[11px] font-mono text-neutral-400">
+              <span className="text-xs font-mono text-neutral-400">
                 {earned.length}/{list.length}
               </span>
             </div>
@@ -48,15 +48,15 @@ export const RewardsPanel: React.FC<Props> = ({ theme, workouts, fasts, goals, o
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-2xl bg-black/40 border border-[#1A1E26] p-2.5">
                   <div className="text-lg font-bold font-mono text-white">{fs.streakDays}</div>
-                  <div className="text-[10px] text-neutral-400">day streak</div>
+                  <div className="text-xs text-neutral-400">day streak</div>
                 </div>
                 <div className="rounded-2xl bg-black/40 border border-[#1A1E26] p-2.5">
                   <div className="text-lg font-bold font-mono text-white">{fs.goalMet}</div>
-                  <div className="text-[10px] text-neutral-400">goals met</div>
+                  <div className="text-xs text-neutral-400">goals met</div>
                 </div>
                 <div className="rounded-2xl bg-black/40 border border-[#1A1E26] p-2.5">
                   <div className="text-lg font-bold font-mono text-white">{fs.longestHours}</div>
-                  <div className="text-[10px] text-neutral-400">longest (h)</div>
+                  <div className="text-xs text-neutral-400">longest (h)</div>
                 </div>
               </div>
             )}
@@ -65,13 +65,13 @@ export const RewardsPanel: React.FC<Props> = ({ theme, workouts, fasts, goals, o
               <div className="rounded-2xl border p-3" style={{ borderColor: theme.primary }}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: theme.primary }}>
+                    <div className="text-xs font-extrabold uppercase tracking-wider" style={{ color: theme.primary }}>
                       Next up
                     </div>
                     <div className="text-sm font-bold text-white truncate">{next.title}</div>
-                    <div className="text-[11px] text-[#7E889B]">{next.description}</div>
+                    <div className="text-xs text-[#9AA3B2]">{next.description}</div>
                   </div>
-                  <span className="text-[11px] font-mono text-neutral-300 shrink-0">{next.progressLabel}</span>
+                  <span className="text-xs font-mono text-neutral-300 shrink-0">{next.progressLabel}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-black/60 overflow-hidden mt-2">
                   <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(4, next.progress * 100)}%`, backgroundColor: theme.primary }} />
@@ -94,13 +94,13 @@ export const RewardsPanel: React.FC<Props> = ({ theme, workouts, fasts, goals, o
                     <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: a.unlocked ? theme.primary : '#64748b' }} />
                     <span className="truncate">{a.title}</span>
                   </div>
-                  <div className="text-[10px] text-[#7E889B] mt-0.5 leading-snug">{a.description}</div>
+                  <div className="text-xs text-[#9AA3B2] mt-0.5 leading-snug">{a.description}</div>
                   {a.unlocked ? (
-                    <button onClick={() => onShare(a)} className="mt-1.5 text-[11px] font-bold flex items-center gap-1" style={{ color: 'var(--accent)' }}>
+                    <button onClick={() => onShare(a)} className="mt-1.5 text-xs font-bold flex items-center gap-1" style={{ color: 'var(--accent)' }}>
                       <Share2 className="w-3 h-3" /> Share
                     </button>
                   ) : (
-                    <div className="text-[10px] font-mono text-neutral-500 mt-1.5">{a.progressLabel}</div>
+                    <div className="text-xs font-mono text-neutral-400 mt-1.5">{a.progressLabel}</div>
                   )}
                 </li>
               ))}

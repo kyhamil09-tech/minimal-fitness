@@ -101,6 +101,15 @@ public class WatchHeartRatePlugin extends Plugin implements MessageClient.OnMess
                 if (cmd.has("action")) out.put("action", cmd.optString("action"));
                 if (cmd.has("delta")) out.put("delta", cmd.optDouble("delta", 0));
                 if (cmd.has("index")) out.put("index", cmd.optInt("index", 0));
+                if (cmd.has("at")) out.put("at", cmd.optLong("at", 0));
+                // A stop from the watch ends the recording now, even if the app's screen is asleep and cannot act on it until it is opened:
+                // nothing after that moment belongs to the workout, and GPS should not keep running (or draw the drive home).
+                String name = cmd.optString("cmd");
+                long pressedAt = cmd.optLong("at", 0);
+                if (("stop".equals(name) || "discard".equals(name)) && pressedAt > 0 && SampleBuffer.isRecording() && pressedAt > SampleBuffer.beganAt()) {
+                    SampleBuffer.endAt(pressedAt);
+                    getContext().stopService(new android.content.Intent(getContext(), GpsTrackerService.class));
+                }
                 notifyListeners("watchCommand", out);
             }
         } catch (NumberFormatException | JSONException e) {
@@ -220,3 +229,4 @@ public class WatchHeartRatePlugin extends Plugin implements MessageClient.OnMess
         }
     }
 }
+

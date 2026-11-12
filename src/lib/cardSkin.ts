@@ -4,8 +4,8 @@ import { adaptForLight, mix, readableOn } from './colorMath';
 import { DEFAULT_LOGO, LogoColors, LogoStyle } from './appLogo';
 
 /**
- * The colours the share cards are drawn with: the background and palette you chose, so a card made on a cream and sage look comes out
- * cream and sage. These are the colours as they should appear in the picture (nothing here goes through the page's light filter).
+ * The colors the share cards are drawn with: the background and palette you chose, so a card made on a cream and sage look comes out
+ * cream and sage. These are the colors as they should appear in the picture (nothing here goes through the page's light filter).
  */
 export interface CardSkin {
   bg: string;
@@ -17,19 +17,19 @@ export interface CardSkin {
   accent2: string;
   onAccent: string;
   light: boolean;
-  /** The logo in the shape and colours chosen in Settings, drawn on the cards. */
+  /** The logo in the shape and colors chosen in Settings, drawn on the cards. */
   logo: { style: LogoStyle; colors: LogoColors };
 }
 
 export const DARK_SKIN: CardSkin = {
-  bg: '#17181B',
-  card: '#212226',
-  ink: '#F2EDE3',
-  dim: '#A29E95',
-  hair: '#34353B',
-  accent: '#CBFF00',
-  accent2: '#FF5A1F',
-  onAccent: '#14130F',
+  bg: '#09090B',
+  card: '#121316',
+  ink: '#F4F4F6',
+  dim: '#A1A1AA',
+  hair: '#23252B',
+  accent: '#FF5500',
+  accent2: '#00E5FF',
+  onAccent: '#09090B',
   light: false,
   logo: DEFAULT_LOGO,
 };

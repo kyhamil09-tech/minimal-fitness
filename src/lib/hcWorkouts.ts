@@ -18,13 +18,24 @@ const TYPE_MAP: Record<number, WorkoutType> = {
   25: 'Elliptical',
   36: 'HIIT',
   37: 'Hiking',
-  48: 'Mobility', // pilates
+  39: 'IceSkating',
+  46: 'Kayaking', // paddling
+  60: 'IceSkating', // skating
+  61: 'AlpineSkiing', // skiing (Health Connect has one type for downhill and cross-country)
+  62: 'Snowboarding',
+  63: 'Snowshoeing',
+  16: 'Dance',
+  48: 'Pilates',
   53: 'Rowing',
   54: 'Rowing', // rowing machine
   56: 'Running',
   57: 'Treadmill',
   70: 'Strength',
-  71: 'Mobility', // stretching
+  68: 'StairClimbing',
+  69: 'StairClimbing', // stair machine
+  71: 'Stretching',
+  73: 'OpenWaterSwim',
+  74: 'Swimming',
   79: 'Walking',
   81: 'Strength', // weightlifting
   83: 'Yoga',
@@ -83,3 +94,5 @@ export const SEEN_KEY = 'hc_seen_workouts';
 export const FIRST_DAYS = 90;
 export const LATER_DAYS = 14;
 export const PER_READ = 8;
+
+

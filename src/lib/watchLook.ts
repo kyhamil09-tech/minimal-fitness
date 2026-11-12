@@ -4,7 +4,7 @@ import { WatchLook } from './appearance';
 import { readableOn } from './colorMath';
 
 /**
- * Sends the colours you chose (palette and background) to the watch so the watch app, tile and workout screens match the phone.
+ * Sends the colors you chose (palette and background) to the watch so the watch app, tile and workout screens match the phone.
  * It goes over the Bluetooth link to your own watch; nothing uses the internet. A watch screen is always dark, so a pastel background
  * is sent as its dark tone. See LookPlugin.java.
  */

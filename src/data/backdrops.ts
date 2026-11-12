@@ -1,7 +1,7 @@
 import { isLight, mix, readableOn } from '../lib/colorMath';
 
 /**
- * Page backgrounds. Every colour in a backdrop is the colour you SEE: the theme system turns these into the right values for the
+ * Page backgrounds. Every color in a backdrop is the color you SEE: the theme system turns these into the right values for the
  * dark and light families (see lib/appearance.ts). Dark backdrops are soft off-blacks rather than pure black (AMOLED stays as an
  * option for OLED screens), and the light family is a set of pastels and warm creams rather than pure white.
  */
@@ -27,16 +27,19 @@ export interface Backdrop {
 const CREAM_INK = '#F2EDE3';
 
 export const DARK_BACKDROPS: Backdrop[] = [
+  { id: 'obsidian', name: 'Obsidian', family: 'dark', bg: '#09090B', card: '#121316', card2: '#1A1C21', hairline: '#23252B', hairlineStrong: '#34363D', ink: '#F4F4F6', inkDim: '#A1A1AA' },
   { id: 'charcoal', name: 'Charcoal', family: 'dark', bg: '#17181B', card: '#212226', card2: '#2B2C31', hairline: '#34353B', hairlineStrong: '#47484F', ink: CREAM_INK, inkDim: '#A29E95' },
   { id: 'amoled', name: 'AMOLED black', family: 'dark', bg: '#000000', card: '#111111', card2: '#181818', hairline: '#232323', hairlineStrong: '#343434', ink: CREAM_INK, inkDim: '#9A968D' },
   { id: 'slate', name: 'Midnight slate', family: 'dark', bg: '#11151C', card: '#1A202A', card2: '#232B37', hairline: '#2B3442', hairlineStrong: '#3B475A', ink: '#E9EEF5', inkDim: '#8E9AAB' },
   { id: 'forest', name: 'Deep sage', family: 'dark', bg: '#131A16', card: '#1C2621', card2: '#25312A', hairline: '#2F3C34', hairlineStrong: '#41524A', ink: '#EEF0E4', inkDim: '#98A69B' },
   { id: 'plum', name: 'Dusk plum', family: 'dark', bg: '#1A161C', card: '#251F28', card2: '#2F2833', hairline: '#3A3340', hairlineStrong: '#4E4557', ink: '#F1E9EE', inkDim: '#A596A3' },
   { id: 'ocean', name: 'Deep ocean', family: 'dark', bg: '#0F171E', card: '#18232C', card2: '#212F3B', hairline: '#2A3A4A', hairlineStrong: '#3B4F63', ink: '#E7F0F5', inkDim: '#8DA3B3' },
+  { id: 'galaxy', name: 'Deep space', family: 'dark', bg: '#04050C', card: '#0B0F1F', card2: '#141A30', hairline: '#232B4A', hairlineStrong: '#33406C', ink: '#EAF0FF', inkDim: '#8E9BC4' },
   { id: 'espresso', name: 'Espresso', family: 'dark', bg: '#1C1713', card: '#27201B', card2: '#322A24', hairline: '#3E352D', hairlineStrong: '#54483D', ink: '#F4EBE0', inkDim: '#AC9F90' },
 ];
 
 export const LIGHT_BACKDROPS: Backdrop[] = [
+  { id: 'google_white', name: 'Clean white', family: 'light', bg: '#FFFFFF', card: '#F8F9FA', card2: '#F1F3F4', hairline: '#E8EAED', hairlineStrong: '#DADCE0', ink: '#202124', inkDim: '#5F6368' },
   { id: 'cream', name: 'Warm cream', family: 'light', bg: '#F6F0E4', card: '#FBF8F1', card2: '#EFE8DA', hairline: '#E2D9C6', hairlineStrong: '#CFC4AC', ink: '#2A2823', inkDim: '#7A7466' },
   { id: 'alabaster', name: 'Alabaster', family: 'light', bg: '#F3F1ED', card: '#FAF9F6', card2: '#ECE9E3', hairline: '#DEDAD2', hairlineStrong: '#C9C4B9', ink: '#26262A', inkDim: '#76757B' },
   { id: 'sage_mist', name: 'Sage mist', family: 'light', bg: '#E3EBE0', card: '#F0F5ED', card2: '#D8E2D4', hairline: '#C7D4C2', hairlineStrong: '#B0C0AA', ink: '#1F2A22', inkDim: '#66756A' },
@@ -49,13 +52,13 @@ export const LIGHT_BACKDROPS: Backdrop[] = [
 
 export const ALL_BACKDROPS: Backdrop[] = [...DARK_BACKDROPS, ...LIGHT_BACKDROPS];
 
-export const DEFAULT_DARK = 'charcoal';
+export const DEFAULT_DARK = 'obsidian';
 export const DEFAULT_LIGHT = 'cream';
 
 export const findBackdrop = (id: string, custom: Record<string, Backdrop> = {}): Backdrop | undefined =>
   custom[id] ?? ALL_BACKDROPS.find((b) => b.id === id);
 
-/** A backdrop from one chosen background colour: the card, edge and text colours are worked out to match. */
+/** A backdrop from one chosen background color: the card, edge and text colors are worked out to match. */
 export const makeBackdrop = (id: string, name: string, bg: string): Backdrop => {
   if (isLight(bg)) {
     const ink = readableOn(bg, '#2A2823', '#F6F1E7');

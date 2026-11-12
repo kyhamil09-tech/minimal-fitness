@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Award, BarChart3, Flame, HeartPulse, Scale, Share2, Trash2, Trophy } from 'lucide-react';
 import { StoryData, buildMilestoneStory, buildStreakStory, weekDots } from '../lib/storyCards';
 import { StoryShareModal } from './StoryShareModal';
+import { YearInReview } from './YearInReview';
 import { FastingSession, SleepLogEntry, WorkoutSession } from '../types/health';
 import { RewardsPanel } from './RewardsPanel';
 import { BestsPanel } from './BestsPanel';
@@ -10,7 +11,8 @@ import { Achievement, ActivePlan, BodyEntry, FoodEntry, Goals, UserProfile, Wate
 import { WorkoutCalendar } from './WorkoutCalendar';
 import { NutritionTrendsCard } from './NutritionTrendsCard';
 import { WeeklyCoachCard } from './WeeklyCoachCard';
-import { PROGRESS_SECTIONS, ProgressSection } from '../lib/appMap';
+import { CalorieGuide } from './CalorieGuide';
+import { PROGRESS_GROUPS, ProgressSection, progressGroupOf } from '../lib/appMap';
 import { ColorPalette } from '../types/theme';
 import { BarChart, EmptyState, LineChart } from './ui/charts';
 import { Segmented } from './ui/Segmented';
@@ -47,11 +49,11 @@ import {
 type Segment = ProgressSection;
 
 const SECTION_LABEL: Record<ProgressSection, string> = {
-  trends: 'Trends',
+  trends: 'Trends & coach',
   calendar: 'Calendar',
   vitals: 'Vitals',
   insights: 'Insights',
-  body: 'Body',
+  body: 'Measurements',
   awards: 'Awards',
 };
 
@@ -77,6 +79,8 @@ interface ProgressScreenProps {
   fasts: FastingSession[];
   /** The training plan you are on, so the calendar can show its planned days. */
   activePlan: ActivePlan | null;
+  /** Saves new daily targets (the calorie guide). */
+  onSetGoals?: (patch: Partial<Goals>) => void;
 }
 
 const RANGE_LABEL: Record<TrendRange, string> = { '7d': '7 days', '30d': '30 days', '1y': '12 months' };
@@ -99,6 +103,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
   insightsSlot,
   fasts,
   activePlan,
+  onSetGoals,
 }) => {
   const units = profile.units;
   const today = todayKey();
@@ -168,8 +173,8 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
       style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
     >
       <div className="flex items-baseline justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">{title}</h3>
-        <span className="text-[10px] font-mono text-neutral-500">{sub}</span>
+        <h3 className="text-sm font-bold text-neutral-200">{title}</h3>
+        <span className="text-xs font-mono text-neutral-400">{sub}</span>
       </div>
       {hasAny(rows) ? (
         <BarChart
@@ -255,34 +260,40 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
     <div className="space-y-4 pb-8 max-w-lg mx-auto">
       <div>
         <h1 className="text-xl font-bold text-white tracking-tight">Progress</h1>
-        <p className="text-xs text-[#7E889B] mt-0.5">Trends, body measurements, streaks and health insights.</p>
+        <p className="text-xs text-[#9AA3B2] mt-0.5">How it is going: trends, your body, and your streaks.</p>
       </div>
 
+      <Segmented<(typeof PROGRESS_GROUPS)[number]['id']>
+        ariaLabel="Progress parts"
+        theme={theme}
+        value={progressGroupOf(segment).id}
+        onChange={(id) => setSegment(PROGRESS_GROUPS.find((g) => g.id === id)!.sections[0])}
+        options={PROGRESS_GROUPS.map((g) => ({ id: g.id, label: g.label }))}
+      />
       <Segmented<Segment>
         ariaLabel="Progress sections"
         theme={theme}
         value={segment}
         onChange={setSegment}
-        options={PROGRESS_SECTIONS.map((id) => ({ id, label: SECTION_LABEL[id] }))}
+        options={progressGroupOf(segment).sections.map((id) => ({ id, label: SECTION_LABEL[id] }))}
       />
 
       {segment === 'trends' && (
         <>
           <WeeklyCoachCard theme={theme} workouts={workouts} sleepLogs={sleepLogs} food={food} stepsLog={stepsLog} goals={goals} activePlan={activePlan} />
           <WeeklyRecapCard theme={theme} workouts={workouts} sleepLogs={sleepLogs} units={units} goals={goals} />
-          <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 rounded-xl border border-[#1A1E26]" role="group" aria-label="Time range">
-            {(['7d', '30d', '1y'] as TrendRange[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                aria-pressed={range === r}
-                className={`py-1.5 rounded-lg text-xs font-semibold ${range === r ? 'bg-neutral-900 border border-neutral-700' : 'text-neutral-400'}`}
-                style={{ color: range === r ? theme.primary : undefined }}
-              >
-                {r === '7d' ? 'Week' : r === '30d' ? 'Month' : 'Year'}
-              </button>
-            ))}
-          </div>
+          <Segmented<TrendRange>
+            ariaLabel="Time range"
+            size="sm"
+            semantics="group"
+            value={range}
+            onChange={setRange}
+            options={[
+              { id: '7d', label: 'Week' },
+              { id: '30d', label: 'Month' },
+              { id: '1y', label: 'Year' },
+            ]}
+          />
 
           {card('Active minutes', range === '1y' ? 'per month' : 'per day', trends.minutes, { color: theme.primary })}
           {card('Calories burned', 'workouts', trends.burned, { color: theme.tertiary })}
@@ -311,23 +322,23 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
           <section className="rounded-3xl border p-5 space-y-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-black/50 rounded-2xl border border-neutral-900 p-3">
-                <div className="text-[10px] text-neutral-400 uppercase">Weight</div>
+                <div className="text-xs text-neutral-400 uppercase">Weight</div>
                 <div className="text-lg font-bold font-mono text-white">{formatWeight(currentWeightKg, units)}</div>
               </div>
               <div className="bg-black/50 rounded-2xl border border-neutral-900 p-3">
-                <div className="text-[10px] text-neutral-400 uppercase">BMI</div>
+                <div className="text-xs text-neutral-400 uppercase">BMI</div>
                 <div className="text-lg font-bold font-mono text-white">{bmiVal.toFixed(1)}</div>
-                <div className="text-[9px]" style={{ color: theme.primary }}>
+                <div className="text-xs" style={{ color: theme.primary }}>
                   {bmiCategory(bmiVal)}
                 </div>
               </div>
               <div className="bg-black/50 rounded-2xl border border-neutral-900 p-3">
-                <div className="text-[10px] text-neutral-400 uppercase">Target</div>
+                <div className="text-xs text-neutral-400 uppercase">Target</div>
                 <div className="text-lg font-bold font-mono text-white">{formatWeight(targetKg, units)}</div>
               </div>
             </div>
             <div>
-              <div className="flex justify-between text-[11px] font-mono text-neutral-400">
+              <div className="flex justify-between text-xs font-mono text-neutral-400">
                 <span>Goal progress</span>
                 <span>{Math.round(goalPct * 100)}%</span>
               </div>
@@ -335,11 +346,13 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
                 <div className="h-full rounded-full" style={{ width: `${goalPct * 100}%`, backgroundColor: theme.primary }} />
               </div>
             </div>
-            <p className="text-[10px] text-neutral-600">BMI is a rough screening number and ignores muscle mass.</p>
+            <p className="text-xs text-neutral-400">BMI is a rough screening number and ignores muscle mass.</p>
           </section>
 
+          {onSetGoals && <CalorieGuide theme={theme} profile={profile} goals={goals} currentKg={currentWeightKg} body={body} food={food} onSetGoals={onSetGoals} />}
+
           <section className="rounded-3xl border p-4 space-y-2" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">Weight trend ({weightUnit(units)})</h3>
+            <h3 className="text-sm font-bold text-neutral-200">Weight trend ({weightUnit(units)})</h3>
             {sortedBody.length >= 2 ? (
               <LineChart
                 ariaLabel="Weight over time"
@@ -360,7 +373,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
             className="rounded-3xl border p-4 space-y-3"
             style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}
           >
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">Add measurement</h3>
+            <h3 className="text-sm font-bold text-neutral-200">Add measurement</h3>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label htmlFor="b-date" className={labelClass}>
@@ -405,7 +418,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
 
           {sortedBody.length > 0 && (
             <section className="rounded-3xl border p-4 space-y-2" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">History</h3>
+              <h3 className="text-sm font-bold text-neutral-200">History</h3>
               <ul className="divide-y divide-[#1A1E26]">
                 {[...sortedBody].reverse().map((b) => (
                   <li key={b.id} className="py-2 flex items-center justify-between gap-2">
@@ -413,7 +426,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
                       <div className="text-xs text-white font-mono">
                         {shortMonthDay(b.date)} · {formatWeight(b.weightKg, units)}
                       </div>
-                      <div className="text-[10px] text-neutral-500 font-mono">
+                      <div className="text-xs text-neutral-400 font-mono">
                         {[
                           b.bodyFatPct ? `${b.bodyFatPct}% fat` : '',
                           b.waistCm ? `waist ${cmToDisplay(b.waistCm, units)}` : '',
@@ -428,7 +441,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
                     <button
                       onClick={() => onDeleteBody(b.id)}
                       aria-label={`Delete entry from ${shortMonthDay(b.date)}`}
-                      className="text-neutral-600 hover:text-rose-400"
+                      className="text-neutral-400 hover:text-rose-400"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -446,19 +459,19 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
             <div className="bg-black/50 rounded-2xl border border-neutral-900 p-3">
               <Flame className="w-4 h-4 mx-auto text-orange-400" />
               <div className="text-xl font-bold font-mono text-white">{streak}</div>
-              <div className="text-[10px] text-neutral-400">day streak</div>
+              <div className="text-xs text-neutral-400">day streak</div>
             </div>
             <div className="bg-black/50 rounded-2xl border border-neutral-900 p-3">
               <Trophy className="w-4 h-4 mx-auto text-amber-400" />
               <div className="text-xl font-bold font-mono text-white">{best}</div>
-              <div className="text-[10px] text-neutral-400">best streak</div>
+              <div className="text-xs text-neutral-400">best streak</div>
             </div>
             <div className="bg-black/50 rounded-2xl border border-neutral-900 p-3">
               <Award className="w-4 h-4 mx-auto" style={{ color: theme.primary }} />
               <div className="text-xl font-bold font-mono text-white">
                 {weekCount}/{goals.weeklyWorkouts}
               </div>
-              <div className="text-[10px] text-neutral-400">this week</div>
+              <div className="text-xs text-neutral-400">this week</div>
             </div>
             <button
               type="button"
@@ -474,10 +487,12 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
             </button>
           </section>
 
+          <YearInReview theme={theme} workouts={workouts} fasts={fasts} units={units} onShare={(data) => setStory({ data, name: 'year' })} />
+
           <RewardsPanel theme={theme} workouts={workouts} fasts={fasts} goals={goals} onShare={(a) => setStory({ data: buildMilestoneStory(a), name: 'milestone' })} />
 
           <section className="rounded-3xl border p-4 space-y-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7E889B]">
+            <h3 className="text-sm font-bold text-neutral-200">
               Achievements ({achievements.filter((a) => a.unlocked).length}/{achievements.length})
             </h3>
             <ul className="space-y-2">
@@ -489,9 +504,9 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
                         {a.unlocked && <Award className="w-3.5 h-3.5" style={{ color: theme.primary }} aria-label="Unlocked" />}
                         {a.title}
                       </div>
-                      <div className="text-[11px] text-[#7E889B]">{a.description}</div>
+                      <div className="text-xs text-[#9AA3B2]">{a.description}</div>
                     </div>
-                    <span className="text-[10px] font-mono text-neutral-400 shrink-0">{a.progressLabel}</span>
+                    <span className="text-xs font-mono text-neutral-400 shrink-0">{a.progressLabel}</span>
                   </div>
                   <div className="h-1 rounded-full bg-black/60 overflow-hidden mt-2">
                     <div className="h-full rounded-full" style={{ width: `${a.progress * 100}%`, backgroundColor: a.unlocked ? theme.primary : '#475569' }} />
@@ -500,7 +515,7 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({
                     <button
                       type="button"
                       onClick={() => setStory({ data: buildMilestoneStory(a), name: 'milestone' })}
-                      className="mt-2 text-[11px] font-bold flex items-center gap-1"
+                      className="mt-2 text-xs font-bold flex items-center gap-1"
                       style={{ color: 'var(--accent)' }}
                     >
                       <Share2 className="w-3 h-3" /> Share this badge

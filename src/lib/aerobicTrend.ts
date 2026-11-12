@@ -6,7 +6,7 @@ import { median } from './robust';
 
 /**
  * How much harder than the flat a track was, on average, from its slopes (Minetti cost, weighted by distance). Altitude is smoothed
- * over about 60 m first, because GPS and barometer altitude jump a few metres and would otherwise look like cliffs. 1.0 is flat;
+ * over about 60 m first, because GPS and barometer altitude jump a few meters and would otherwise look like cliffs. 1.0 is flat;
  * a hilly run is above 1, so its flat-equivalent speed is higher than the speed you actually ran.
  */
 export const trackEffortFactor = (track: TrackPoint[]): number => {
@@ -42,7 +42,7 @@ export const trackEffortFactor = (track: TrackPoint[]): number => {
 export interface WorkoutEfficiency {
   workoutId: string;
   at: number;
-  /** Metres per minute per beat per minute at the pace actually run. */
+  /** Meters per minute per beat per minute at the pace actually run. */
   ef: number;
   /** The same on flat ground: a fairer number to compare between a hilly run and a flat one. */
   adjustedEf: number;

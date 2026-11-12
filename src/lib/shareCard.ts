@@ -2,6 +2,7 @@ import { WorkoutSession } from '../types/health';
 import { UnitSystem } from '../types/tracking';
 import { distanceUnit, kmToDisplay } from './units';
 import { climbFromTrack, formatDuration, formatPaceSec, summarizeWorkout } from './workoutStats';
+import { isSpeedSport } from './sports';
 import { CardSkin, getCardSkin } from './cardSkin';
 import { drawLogo } from './appLogo';
 
@@ -65,7 +66,7 @@ export const buildShareData = (w: WorkoutSession, units: UnitSystem, colors?: { 
   const stats: ShareCardData['stats'] = [];
   if (hasDistance) stats.push({ label: 'Distance', value: String(kmToDisplay(w.distanceKm as number, units, 2)), unit: du });
   stats.push({ label: 'Time', value: formatDuration(s.totalSeconds) });
-  if (s.avgPaceSec && w.type !== 'Cycling') stats.push({ label: 'Avg pace', value: formatPaceSec(s.avgPaceSec), unit: `/${du}` });
+  if (s.avgPaceSec && !isSpeedSport(w.type)) stats.push({ label: 'Avg pace', value: formatPaceSec(s.avgPaceSec), unit: `/${du}` });
   else if (s.avgSpeed) stats.push({ label: 'Avg speed', value: s.avgSpeed.toFixed(1), unit: `${du}/h` });
   if (s.avgHr) stats.push({ label: 'Avg heart rate', value: String(s.avgHr), unit: 'bpm' });
   if (w.caloriesBurned) stats.push({ label: 'Energy', value: String(Math.round(w.caloriesBurned)), unit: 'kcal' });
@@ -109,7 +110,7 @@ export const drawShareCard = (canvas: HTMLCanvasElement, d: ShareCardData) => {
   const { accent, accent2 } = d.colors;
   const skin: CardSkin = d.skin ?? getCardSkin();
 
-  // Background: your chosen backdrop with a soft glow of each palette colour
+  // Background: your chosen backdrop with a soft glow of each palette color
   ctx.fillStyle = skin.bg;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
   const glow = (x: number, y: number, r: number, color: string, alpha: number) => {
@@ -119,7 +120,7 @@ export const drawShareCard = (canvas: HTMLCanvasElement, d: ShareCardData) => {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
   };
-  const hex = (c: string) => (/^#[0-9a-f]{6}$/i.test(c) ? c : '#cbff00');
+  const hex = (c: string) => (/^#[0-9a-f]{6}$/i.test(c) ? c : '#ff5500');
   glow(120, 80, 760, hex(accent), 0.28);
   glow(CARD_W - 60, CARD_H - 120, 800, hex(accent2), 0.24);
 

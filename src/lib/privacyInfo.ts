@@ -13,6 +13,8 @@ export interface AndroidPrivacyInfo {
   /** When that count started (the phone's last start). */
   countedSince: number;
   version: string;
+  /** Whether Google Play services is on this phone. */
+  playServices?: boolean;
 }
 
 const Native = registerPlugin<{ info(): Promise<AndroidPrivacyInfo> }>('Privacy');
@@ -50,7 +52,6 @@ const FRIENDLY: Record<string, string> = {
   VIBRATE: 'Buzz for goals and intervals',
   CAMERA: 'Scan food barcodes (the picture is never saved or sent)',
   RECORD_AUDIO: "Voice logging with Android's on-device recogniser (never an online one; nothing is recorded or saved)",
-  SEND_SMS: 'Send text messages: only the location texts of Live share, to the contacts you chose, and only once you switch it on',
   USE_BIOMETRIC: 'Unlock the app with your fingerprint, face or screen lock',
   USE_FINGERPRINT: 'Unlock the app with your fingerprint',
   RECEIVE_BOOT_COMPLETED: 'Restore reminders after a restart',
@@ -91,7 +92,7 @@ export interface LocalDataSummary {
 const GROUPS: { label: string; match: RegExp }[] = [
   { label: 'Workouts and routes', match: /^kyfit_(workouts|live_run|shoes|routines|plans?|active_plan)/ },
   { label: 'Sleep, heart rate and watch readings', match: /^kyfit_(sleep|hc_vitals|own_|auto_steps|watch)/ },
-  { label: 'Food, water and fasting', match: /^kyfit_(food|water|fasting|saved_meals|fav_foods|my_foods|health_log|body)/ },
+  { label: 'Food, water and fasting', match: /^kyfit_(food|water|fasting|saved_meals|fav_foods|my_foods|recipes|barcode_cache|health_log|body)/ },
 ];
 
 /** How much this app keeps on the phone, from the saved keys (name to size in characters, about one byte each). */

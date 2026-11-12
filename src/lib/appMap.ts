@@ -13,8 +13,18 @@ export type RunSection = (typeof RUN_SECTIONS)[number];
 export const PROGRESS_SECTIONS = ['trends', 'calendar', 'vitals', 'insights', 'body', 'awards'] as const;
 export type ProgressSection = (typeof PROGRESS_SECTIONS)[number];
 
+/** The three parts of Progress, each with the sections inside it. */
+export const PROGRESS_GROUPS: { id: 'overview' | 'body' | 'activity'; label: string; sections: ProgressSection[] }[] = [
+  { id: 'overview', label: 'Overview', sections: ['trends', 'insights'] },
+  { id: 'body', label: 'Body', sections: ['vitals', 'body'] },
+  { id: 'activity', label: 'Activity', sections: ['calendar', 'awards'] },
+];
+
+/** Which part of Progress a section lives in. */
+export const progressGroupOf = (s: ProgressSection) => PROGRESS_GROUPS.find((g) => g.sections.includes(s)) ?? PROGRESS_GROUPS[0];
+
 /** The groups in Settings, in the order they are shown. */
-export const SETTINGS_GROUPS = ['profile', 'devices', 'workouts', 'look', 'data', 'privacy'] as const;
+export const SETTINGS_GROUPS = ['profile', 'devices', 'workouts', 'friends', 'look', 'data', 'privacy'] as const;
 export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number];
 
 export interface MapTarget {
@@ -24,6 +34,10 @@ export interface MapTarget {
   settings?: SettingsGroupId;
   /** Open the meal plan sheet in Food & water. */
   mealPlan?: boolean;
+  /** Open the Eat app (on its Today page). */
+  eat?: boolean;
+  /** Play the app tour. */
+  tour?: boolean;
 }
 
 export interface MapItem {
@@ -62,7 +76,7 @@ export const APP_MAP: MapArea[] = [
     title: 'Fuel',
     blurb: 'Food, water and fasting',
     items: [
-      { id: 'food', label: 'Food and water', sub: 'Log meals and drinks, see calories and macros', target: { tab: 'nutrition' }, keywords: 'calories macros protein eat drink hydration barcode' },
+      { id: 'food', label: 'Eat', sub: 'Log meals and water, plan the week, cook, and see how you eat', target: { tab: 'nutrition', eat: true }, keywords: 'calories macros protein eat drink hydration barcode' },
       { id: 'mealplan', label: 'Meal plan and groceries', sub: 'Plan the week and get a shopping list', target: { tab: 'nutrition', mealPlan: true }, keywords: 'plan meals shopping list grocery' },
       { id: 'fasting', label: 'Fasting', sub: 'Timer, stages and history', target: { tab: 'fasting' }, keywords: 'intermittent 16:8 timer fast' },
     ],
@@ -73,6 +87,7 @@ export const APP_MAP: MapArea[] = [
     blurb: 'Sleep, vitals and measurements',
     items: [
       { id: 'sleep', label: 'Sleep', sub: 'Nights, stages and a smart alarm', target: { tab: 'sleep' }, keywords: 'bed rest alarm hrv' },
+      { id: 'breathe', label: 'Breathe', sub: 'Guided breathing to settle down, with a calm check from your heart rate', target: { tab: 'breathe' }, keywords: 'breathing calm stress relax meditate box 4-7-8 anxiety mindfulness' },
       { id: 'healthlog', label: 'Health log', sub: 'Blood pressure, glucose, medications and symptoms', target: { tab: 'healthlog' }, keywords: 'bp glucose medication symptom pills' },
       { id: 'body', label: 'Body and photos', sub: 'Weight, measurements and progress photos', target: { tab: 'progress', progress: 'body' }, keywords: 'weight bmi waist photo measurements' },
       { id: 'vitals', label: 'Vitals', sub: 'Live heart rate, resting heart rate, VO2 max and daily fitness numbers', target: { tab: 'progress', progress: 'vitals' }, keywords: 'heart rate hrv vo2 calories floors resting sensor' },
@@ -86,6 +101,7 @@ export const APP_MAP: MapArea[] = [
       { id: 'trends', label: 'Trends and weekly coach', sub: 'Weekly review, charts and your nutrition against targets', target: { tab: 'progress', progress: 'trends' }, keywords: 'coach score week recap charts nutrition' },
       { id: 'insights', label: 'Insights', sub: 'Patterns the app finds in your own data', target: { tab: 'progress', progress: 'insights' }, keywords: 'patterns sleep training readiness' },
       { id: 'awards', label: 'Awards and records', sub: 'Streaks, badges and personal bests', target: { tab: 'progress', progress: 'awards' }, keywords: 'badges streak pr personal best records' },
+      { id: 'friends', label: 'Friends and challenges', sub: 'Optional step and workout challenges you share with short codes, with no accounts', target: { tab: 'settings', settings: 'friends' }, keywords: 'challenge friends leaderboard compete social group share code' },
     ],
   },
   {
@@ -96,9 +112,10 @@ export const APP_MAP: MapArea[] = [
       { id: 'profile', label: 'Profile and goals', sub: 'Your details, targets and reminders', target: { tab: 'settings', settings: 'profile' }, keywords: 'name age weight height units goals reminders notifications' },
       { id: 'devices', label: 'Watch, steps and data sources', sub: 'Watch link, step counting, sleep, Health Connect and Strava', target: { tab: 'settings', settings: 'devices' }, keywords: 'watch pixel bluetooth heart rate steps health connect strava sync' },
       { id: 'workouts', label: 'Workout options', sub: 'Auto-pause, spoken updates, haptics and safety sharing', target: { tab: 'settings', settings: 'workouts' }, keywords: 'voice auto-pause gps live share safety countdown' },
-      { id: 'look', label: 'Look and feel', sub: 'Colours, dark or light, text size and motion', target: { tab: 'settings', settings: 'look' }, keywords: 'theme dark light colour text size accessibility swipe' },
+      { id: 'look', label: 'Look and feel', sub: 'Colors, dark or light, text size and motion', target: { tab: 'settings', settings: 'look' }, keywords: 'theme dark light color text size accessibility swipe' },
       { id: 'data', label: 'Backup and data', sub: 'Back up, restore, export, import and storage', target: { tab: 'settings', settings: 'data' }, keywords: 'backup restore export import csv gpx strava takeout storage erase' },
       { id: 'privacy', label: 'Privacy', sub: 'Proof that everything stays on this phone', target: { tab: 'settings', settings: 'privacy' }, keywords: 'private local network security lock' },
+      { id: 'tour', label: 'App tour', sub: 'A short walk through everything, any time you want it again', target: { tab: 'settings', tour: true }, keywords: 'help guide tutorial walkthrough intro onboarding how to learn explain' },
     ],
   },
 ];

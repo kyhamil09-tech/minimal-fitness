@@ -6,7 +6,7 @@ import { usePrefs } from '../lib/prefs';
 import { STEP_SOURCES, STEP_SOURCE_HELP, STEP_SOURCE_LABEL, StepSource, resolveDay } from '../lib/steps';
 import { addDays, todayKey } from '../lib/dates';
 import { Choice, ChoiceRow, Row } from './ui/SettingsParts';
-import { StepPeriods } from './StepPeriods';
+import { DriveSteps } from './DriveSteps';
 
 interface StepsSettingsProps {
   theme: ColorPalette;
@@ -74,11 +74,11 @@ export const StepsSettings: React.FC<StepsSettingsProps> = ({ theme, automation,
       </ChoiceRow>
       <div className="px-4 py-3">
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="text-xs font-semibold text-neutral-300 hover:text-white">
-          {open ? 'Hide step corrections' : 'Correct your steps: edit a day or remove a drive'}
+          {open ? 'Hide step corrections' : 'Correct your steps: driving, or edit a day'}
         </button>
         {open && (
           <div className="mt-4 space-y-5">
-            <StepPeriods theme={theme} automation={automation} />
+            <DriveSteps theme={theme} automation={automation} android={android} />
             <h4 className="pt-1 text-sm font-semibold text-white">Recent days</h4>
           <ul className="-mt-3 divide-y divide-[#1A1E26]">
             {days.map((date) => {
@@ -89,7 +89,7 @@ export const StepsSettings: React.FC<StepsSettingsProps> = ({ theme, automation,
                 <li key={date} className="py-2 flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-xs text-neutral-300">{dayLabel(date, today)}</div>
-                    {adjusted && <div className="text-[10px] text-amber-300">Set by you · counted {auto.toLocaleString()}</div>}
+                    {adjusted && <div className="text-xs text-amber-300">Set by you · counted {auto.toLocaleString()}</div>}
                   </div>
                   {editing === date ? (
                     <>
@@ -102,7 +102,7 @@ export const StepsSettings: React.FC<StepsSettingsProps> = ({ theme, automation,
                         onKeyDown={(e) => e.key === 'Enter' && commit(date)}
                         className="w-24 px-2 py-1.5 rounded-lg bg-black/60 border border-neutral-700 text-xs text-white tabular-nums"
                       />
-                      <button onClick={() => commit(date)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-black" style={{ backgroundColor: theme.primary }}>
+                      <button onClick={() => commit(date)} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-black" style={{ backgroundColor: theme.primary }}>
                         Save
                       </button>
                     </>

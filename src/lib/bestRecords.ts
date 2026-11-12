@@ -110,7 +110,7 @@ export const allBests = (workouts: WorkoutSession[], units: UnitSystem): BestRec
       for (const s of ex.sets) {
         if (!s.done || s.weightKg <= 0 || s.reps <= 0) continue;
         if (!l.heavy || s.weightKg > l.heavy.kg || (s.weightKg === l.heavy.kg && s.reps > l.heavy.reps)) l.heavy = { kg: s.weightKg, reps: s.reps, w };
-        const e1 = estimateOneRepMax(s.weightKg, s.reps);
+        const e1 = estimateOneRepMax(s.weightKg, s.reps, s.rpe);
         if (!l.e1 || e1 > l.e1.v) l.e1 = { v: e1, kg: s.weightKg, reps: s.reps, w };
         const vol = s.weightKg * s.reps;
         if (!l.vol || vol > l.vol.v) l.vol = { v: vol, kg: s.weightKg, reps: s.reps, w };

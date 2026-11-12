@@ -2,7 +2,7 @@ import { WorkoutSession } from '../types/health';
 import type { MonthlyGoalSetting, UnitSystem } from '../types/tracking';
 import { KM_PER_MI, distanceUnit } from './units';
 
-/** A target for the calendar month: kilometres covered, workouts done, or minutes moving. Distance is stored in km. */
+/** A target for the calendar month: kilometers covered, workouts done, or minutes moving. Distance is stored in km. */
 export type MonthlyGoal = MonthlyGoalSetting;
 export type MonthlyGoalKind = MonthlyGoal['kind'];
 

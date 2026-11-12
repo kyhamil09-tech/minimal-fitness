@@ -4,6 +4,7 @@ import { TrackBuilder, TrackPoint, decimate } from '../lib/geo';
 import {
   computeSplits,
   downsampleHr,
+  edwardsLoad,
   formatDuration,
   formatPaceSec,
   googleMapsRouteUrl,
@@ -122,6 +123,26 @@ test('zoneSeconds buckets time by percentage of max heart rate', () => {
   assert.equal(z[0], 10);
   assert.equal(z[1], 10);
   assert.equal(z[4], 5);
+});
+
+test('edwardsLoad weights each minute by its zone and ignores time under half of max', () => {
+  // One reading per second for a minute at each level, max heart rate 200.
+  const minute = (bpm: number, startMs: number): [number, number][] => Array.from({ length: 60 }, (_, s) => [startMs + s * 1000, bpm]);
+  const hr = [
+    ...minute(90, 0), // 45% -> counts nothing
+    ...minute(110, 60_000), // 55% -> zone 1
+    ...minute(130, 120_000), // 65% -> zone 2
+    ...minute(150, 180_000), // 75% -> zone 3
+    ...minute(170, 240_000), // 85% -> zone 4
+    ...minute(190, 300_000), // 95% -> zone 5
+  ];
+  // The last reading covers 5 s, not a whole second, so the final minute is 59 s + 5 s long.
+  const expected = 1 + 2 + 3 + 4 + 5 * (64 / 60);
+  assert.equal(edwardsLoad(hr, 200), Math.round(expected));
+  assert.equal(edwardsLoad(undefined, 200), 0);
+  assert.equal(edwardsLoad(hr, 0), 0);
+  // A gap in the data is not counted as exercise: two readings an hour apart add 15 s + 5 s at most.
+  assert.ok(edwardsLoad([[0, 190], [3_600_000, 190]], 200) <= 2);
 });
 
 test('downsampleHr averages readings into 5 second buckets', () => {

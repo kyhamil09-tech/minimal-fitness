@@ -89,7 +89,7 @@ test('quality change is reported when timing is steady', () => {
   assert.match(r.text, /Self-rated quality was down 2\.0 stars versus your average\./);
 });
 
-test('a stale latest log is labelled with its date', () => {
+test('a stale latest log is labeled with its date', () => {
   const logs = [night(5, '23:00', '07:00', 480), ...steady(6)];
   const r = buildSleepInsight(logs, day(0))!;
   assert.match(r.text, /^Last logged night \(/);

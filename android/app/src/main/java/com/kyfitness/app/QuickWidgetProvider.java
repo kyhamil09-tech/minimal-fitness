@@ -42,7 +42,7 @@ public class QuickWidgetProvider extends AppWidgetProvider {
         int weekGoal = p.getInt("weekGoal", 4);
         int streak = p.getInt("streak", 0);
         v.setTextViewText(R.id.widget_steps, NumberFormat.getIntegerInstance().format(steps));
-        v.setTextViewText(R.id.widget_sub, "of " + NumberFormat.getIntegerInstance().format(goal) + " steps · " + week + "/" + weekGoal + " workouts this week");
+        v.setTextViewText(R.id.widget_sub, "of " + NumberFormat.getIntegerInstance().format(goal) + " steps · " + week + "/" + weekGoal + " this week");
         v.setTextViewText(R.id.widget_streak, streak > 0 ? "\uD83D\uDD25 " + streak : "");
         int readiness = p.getInt("readiness", -1);
         int monthPct = p.getInt("monthPct", -1);
@@ -54,6 +54,9 @@ public class QuickWidgetProvider extends AppWidgetProvider {
         }
         v.setTextViewText(R.id.widget_extra, extra.toString().trim());
         v.setViewVisibility(R.id.widget_extra, extra.length() > 0 ? android.view.View.VISIBLE : android.view.View.GONE);
+        v.setContentDescription(R.id.widget_run, "Start a run");
+        v.setContentDescription(R.id.widget_walk, "Start a walk");
+        v.setContentDescription(R.id.widget_root, NumberFormat.getIntegerInstance().format(steps) + " steps of " + NumberFormat.getIntegerInstance().format(goal) + " today. Open the app.");
         v.setOnClickPendingIntent(R.id.widget_run, launch(c, "start:Running", 1));
         v.setOnClickPendingIntent(R.id.widget_walk, launch(c, "start:Walking", 2));
         v.setOnClickPendingIntent(R.id.widget_root, launch(c, "open", 3));

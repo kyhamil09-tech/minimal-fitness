@@ -1,5 +1,6 @@
 import { Lap, WorkoutSession, WorkoutType } from '../types/health';
-import { UserProfile } from '../types/tracking';
+import { ExerciseLog, UserProfile } from '../types/tracking';
+import { getExercise } from '../data/exercises';
 import { TrackPoint, decimateRoute } from './geo';
 import { currentRestingHr, getMaxHr, trimp } from './calc';
 import { downsampleHr } from './workoutStats';
@@ -24,13 +25,30 @@ export interface WatchWorkoutPayload {
   laps?: number[][];
   /** The shoes or bike picked on the watch before it started. */
   shoeId?: string;
+  /** A strength session run on the watch alone: each exercise with its done sets as [reps, weight in kg]. */
+  exercises?: { id: string; n: string; sets: number[][] }[];
   /** Recorded while the phone was recording the same workout: only its route is used, to fill gaps in the phone's. */
   shared?: boolean;
 }
 
-const TYPES: WorkoutType[] = ['Walking', 'Running', 'Cycling', 'Rowing', 'Hiking', 'Strength', 'Calisthenics', 'HIIT', 'Core', 'Mobility', 'Treadmill', 'IndoorCycling', 'Elliptical', 'Yoga'];
+const TYPES: WorkoutType[] = ['Walking', 'Running', 'Cycling', 'Rowing', 'Hiking', 'Strength', 'Calisthenics', 'HIIT', 'Core', 'Mobility', 'Treadmill', 'IndoorCycling', 'Elliptical', 'Yoga', 'Swimming', 'OpenWaterSwim', 'StairClimbing', 'Dance', 'Pilates', 'Stretching', 'AlpineSkiing', 'CrossCountrySkiing', 'Snowboarding', 'Snowshoeing', 'IceSkating', 'Kayaking', 'Paddleboarding'];
 
 export const watchImportId = (p: { id: string }) => `w-watch-${p.id}`;
+
+/** The sets a watch-only strength session logged, as this app's exercise logs. Names are taken from the library when the id is known. */
+const strengthLogs = (p: WatchWorkoutPayload): ExerciseLog[] | undefined => {
+  const out: ExerciseLog[] = [];
+  for (const e of p.exercises ?? []) {
+    const sets = (e.sets ?? [])
+      .filter((s) => s.length >= 2 && s[0] > 0)
+      .map((s) => ({ reps: Math.round(s[0]), weightKg: Math.max(0, s[1]), done: true }));
+    if (sets.length === 0) continue;
+    const known = e.id ? getExercise(e.id) : undefined;
+    const slug = (e.n || 'exercise').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    out.push({ exerciseId: known ? known.id : `watch-${slug}`, name: known?.name ?? (e.n || 'Exercise'), sets });
+  }
+  return out.length > 0 ? out : undefined;
+};
 
 /** Converts a payload from the watch into a saved workout. Returns null if it is unusable. */
 export const watchWorkoutToSession = (p: WatchWorkoutPayload, profile: UserProfile): WorkoutSession | null => {
@@ -66,6 +84,7 @@ export const watchWorkoutToSession = (p: WatchWorkoutPayload, profile: UserProfi
     caloriesBurned: Math.round(p.kcal ?? 0),
     isManualEntry: false,
     notes: 'Recorded on your watch',
+    exercises: strengthLogs(p),
     cardioLoadPoints: avgHr > 0 ? trimp(minutes, avgHr, maxHrProfile, currentRestingHr()) : undefined,
     laps: laps.length > 0 ? laps : undefined,
     // The shoes or bike picked on the watch, so the mileage lands on the right pair.
@@ -119,3 +138,7 @@ export const mergeWatchWorkouts = (existing: WorkoutSession[], incoming: Workout
   const fresh = incoming.filter((w) => !have.has(w.id));
   return fresh.length === 0 ? existing : [...fresh, ...existing].sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
 };
+
+
+
+

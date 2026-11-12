@@ -19,7 +19,7 @@
             android:layout_weight="1"
             android:letterSpacing="0.14"
             android:text="FASTING"
-            android:textColor="#FFCBFF00"
+            android:textColor="#FFFF5500"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -76,7 +76,7 @@
         android:max="100"
         android:progress="0"
         android:progressBackgroundTint="#33FFFFFF"
-        android:progressTint="#FFCBFF00" />
+        android:progressTint="#FFFF5500" />
 
     <LinearLayout
         android:layout_width="match_parent"

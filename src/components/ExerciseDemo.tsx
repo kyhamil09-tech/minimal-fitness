@@ -97,11 +97,11 @@ export const ExerciseDemo: React.FC<{ pattern: NonNullable<Exercise['pattern']>;
       <div className="grid grid-cols-2 gap-2">
         <figure>
           <FigureSvg motion={motion} pose={motion.frames[0]} size={size / 2 + 40} label="Start position" />
-          <figcaption className="text-[10px] text-center text-neutral-400">Start</figcaption>
+          <figcaption className="text-xs text-center text-neutral-400">Start</figcaption>
         </figure>
         <figure>
           <FigureSvg motion={motion} pose={last} size={size / 2 + 40} label="End position" />
-          <figcaption className="text-[10px] text-center text-neutral-400">End</figcaption>
+          <figcaption className="text-xs text-center text-neutral-400">End</figcaption>
         </figure>
       </div>
     );
@@ -115,7 +115,7 @@ export const ExerciseGuide: React.FC<{ exercise: Exercise | null; onClose: () =>
   const motion = exercise.pattern ? MOTIONS[exercise.pattern] : null;
   return (
     <Modal isOpen onClose={onClose} title={exercise.name} icon={<Info className="w-4 h-4" style={{ color: 'var(--accent)' }} />}>
-      <div className="text-[11px] text-neutral-400 mb-2">
+      <div className="text-xs text-neutral-400 mb-2">
         {exercise.muscle} · {exercise.equipment}
       </div>
       {motion && exercise.pattern ? (
@@ -123,21 +123,21 @@ export const ExerciseGuide: React.FC<{ exercise: Exercise | null; onClose: () =>
           <div className="rounded-2xl border border-[#1A1E26] bg-black/30 py-3">
             <ExerciseDemo pattern={exercise.pattern} />
           </div>
-          {motion.note && <p className="text-[11px] text-neutral-500 mt-2">{motion.note}</p>}
+          {motion.note && <p className="text-xs text-neutral-400 mt-2">{motion.note}</p>}
           <ol className="mt-3 space-y-2.5">
             {['Set up', 'Move', 'Watch for'].map((h, i) => (
               <li key={h} className="flex gap-3">
-                <span className="w-6 h-6 rounded-full text-[11px] font-extrabold flex items-center justify-center shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+                <span className="w-6 h-6 rounded-full text-xs font-extrabold flex items-center justify-center shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
                   {i + 1}
                 </span>
                 <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">{h}</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-400">{h}</div>
                   <div className="text-sm text-neutral-200 leading-snug">{motion.cues[i]}</div>
                 </div>
               </li>
             ))}
           </ol>
-          <p className="text-[10px] text-neutral-600 mt-4 leading-relaxed">A simple side-view animation of the movement, not a filmed demonstration. Start light, move with control and stop if something hurts.</p>
+          <p className="text-xs text-neutral-400 mt-4 leading-relaxed">A simple side-view animation of the movement, not a filmed demonstration. Start light, move with control and stop if something hurts.</p>
         </>
       ) : (
         <p className="text-sm text-neutral-300">There is no animation for this exercise yet. Start light, move with control and stop if something hurts.</p>

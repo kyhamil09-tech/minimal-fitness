@@ -9,6 +9,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:localeConfig="@xml/locales_config"
         android:theme="@style/AppTheme">
 
         <meta-data android:name="com.kyfitness.app.build" android:value="7dd5fe69daa00743" />
@@ -21,7 +22,7 @@
             android:launchMode="singleTask"
             android:exported="true">
 
-            <!-- The launcher entry is an alias below, one per icon colour, so the icon can be changed in Look & feel -->
+            <!-- The launcher entry is an alias below, one per icon color, so the icon can be changed in Look & feel -->
 
             <!-- Health Connect asks apps to explain how they use health data -->
             <intent-filter>
@@ -43,8 +44,21 @@
 
         <!-- ICON-ALIASES:START (written by tools/gen-launcher-icons.ts) -->
         <activity-alias
-            android:name=".IconForest"
+            android:name=".IconRunclub"
             android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_runclub"
+            android:roundIcon="@mipmap/ic_launcher_runclub"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconForest"
+            android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_forest"
             android:roundIcon="@mipmap/ic_launcher_forest"
@@ -146,6 +160,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+
+
         <!-- ICON-ALIASES:END -->
 
         <!-- Receives the watch's daily steps even when the app is closed -->
@@ -166,6 +182,10 @@
                     android:scheme="wear"
                     android:host="*"
                     android:pathPrefix="/ky/water/" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/ky/food/" />
             </intent-filter>
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
@@ -206,6 +226,30 @@
                 android:resource="@xml/widget_water_info" />
         </receiver>
 
+        <!-- Eat widget: calories left, with water and food logging in one tap -->
+        <receiver
+            android:name=".EatWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_eat_info" />
+        </receiver>
+
+        <!-- Lift widget: start a workout in one tap -->
+        <receiver
+            android:name=".LiftWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_lift_info" />
+        </receiver>
+
         <!-- Fasting widget -->
         <receiver
             android:name=".FastingWidgetProvider"
@@ -234,6 +278,8 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <!-- Rings when a rest between sets ends, even with the app closed -->
+        <receiver android:name=".LiftRestReceiver" android:exported="false" />
         <!-- Sleep periods detected by Google Play services on this phone -->
         <receiver android:name=".SleepReceiver" android:exported="false" />
 
@@ -242,6 +288,78 @@
             android:name=".GpsTrackerService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- Quick Settings tile: start or end a fast -->
+        <service
+            android:name=".FastTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_fast"
+            android:label="Fast"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Quick Settings tile: calories left, opens the food finder -->
+        <service
+            android:name=".EatTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_eat"
+            android:label="Eat"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Quick Settings tile: add a glass of water in one tap -->
+        <service
+            android:name=".WaterTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_water"
+            android:label="Water"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Quick Settings tile: start a breathing session -->
+        <service
+            android:name=".BreatheTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_breathe"
+            android:label="Breathe"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Breathe widget -->
+        <receiver
+            android:name=".BreatheWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_breathe_info" />
+        </receiver>
+
+        <!-- Quick Settings tile: start a run from the notification shade -->
+        <service
+            android:name=".RunTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_run"
+            android:label="Start run"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -256,6 +374,9 @@
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
     </queries>
 
     <!-- Permissions -->
@@ -264,24 +385,27 @@
     <!-- GPS workout tracking -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Optional: add planned workouts and meals to a calendar on this phone (a Google account calendar syncs through Google) -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <!-- Reminders and rest-timer vibration -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Keeps the cadence beat steady with the screen off -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Lets a long GPS run keep recording instead of being stopped to save battery -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Reminders that fire at the exact time even when the app is closed -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
-    <!-- Safety live share (off until you add a contact and switch it on): texts a map link to the people you choose, by SMS through the phone. Never uses the internet. -->
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <!-- Voice logging of food and water, with Android's on-device recogniser only (never an online one) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Barcode scanning in Food: the camera picture is read on the phone and never saved or sent. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <!-- Health Connect: only what the app reads or writes. Read: sleep and overnight readings, heart rate, daily totals, workouts, body measurements and the blood pressure and glucose you log. -->
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
@@ -311,6 +435,7 @@
     <uses-permission android:name="android.permission.health.WRITE_BODY_FAT" />
     <uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
     <uses-permission android:name="android.permission.health.WRITE_HYDRATION" />
+    <uses-permission android:name="android.permission.health.WRITE_MINDFULNESS" />
     <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
     <uses-permission android:name="android.permission.health.WRITE_BLOOD_PRESSURE" />
     <uses-permission android:name="android.permission.health.WRITE_BLOOD_GLUCOSE" />
@@ -325,3 +450,4 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 </manifest>
+

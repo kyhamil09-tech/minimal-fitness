@@ -3,10 +3,13 @@ apply plugin: 'com.android.application'
 // Pixel Watch / Wear OS companion. Uses the same applicationId as the phone app so the Wear OS
 // Data Layer routes messages between the two; both must be signed with the same key (the default
 // debug key is shared automatically when both are built on the same machine).
+apply from: '../upload-signing.gradle'
+
 android {
     // One stable key for every build (the key your installed apps already use), so updates install over the top
     // and keep your data. Keep a copy of ../signing/ky-fitness-signing.keystore somewhere safe.
     signingConfigs {
+        configureUploadKey(signingConfigs)
         ky {
             storeFile rootProject.file('../signing/ky-fitness-signing.keystore')
             storePassword 'android'
@@ -31,7 +34,7 @@ android {
             signingConfig signingConfigs.ky
         }
         release {
-            signingConfig signingConfigs.ky
+            signingConfig hasUploadKey ? signingConfigs.upload : null
             minifyEnabled false
         }
     }
@@ -40,18 +43,30 @@ android {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
     }
+
+    testOptions {
+        // The logic tests run on the computer, not the watch: Android calls they do not use return empty values.
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
     implementation "androidx.core:core:$androidxCoreVersion"
-    implementation 'androidx.health:health-services-client:1.0.0'
+    implementation 'androidx.health:health-services-client:1.1.0'
     implementation 'com.google.android.gms:play-services-wearable:19.0.0'
     // Activity recognition on the watch: notices a run or ride so the app can offer to record it
     implementation 'com.google.android.gms:play-services-location:21.3.0'
     implementation 'com.google.guava:guava:33.4.0-android'
     implementation 'androidx.wear:wear-ongoing:1.0.0'
+    // Ambient (always-on) mode while a workout runs, and the activity base class that gives the screen a lifecycle to attach it to
+    implementation 'androidx.wear:wear:1.3.0'
+    implementation 'androidx.activity:activity:1.9.3'
     implementation 'androidx.wear.tiles:tiles:1.4.1'
     implementation 'androidx.viewpager2:viewpager2:1.1.0'
     implementation 'androidx.wear.protolayout:protolayout:1.2.1'
     implementation 'androidx.wear.watchface:watchface-complications-data-source:1.2.1'
+
+    testImplementation 'junit:junit:4.13.2'
+    // The real JSON library, because the one inside Android's test jar only has empty stubs
+    testImplementation 'org.json:json:20240303'
 }

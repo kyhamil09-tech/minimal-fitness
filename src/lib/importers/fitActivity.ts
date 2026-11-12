@@ -1,44 +1,53 @@
-import { Decoder, Stream } from '@garmin/fitsdk';
 import { ParsedActivity, ParsedPoint } from './types';
+import { FitFields, fitSportName, fitSubSportName, fitTimeMs, isFit, readFit } from './fitReader';
 
 const SEMICIRCLE = 180 / 2 ** 31;
 
-type Mesg = Record<string, unknown>;
-
-const n = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-const ms = (v: unknown): number | undefined => (v instanceof Date ? v.getTime() : n(v));
+const num = (f: FitFields | undefined, field: number): number | undefined => {
+  const v = f?.get(field);
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+};
+const scaled = (f: FitFields | undefined, field: number, scale: number, offset = 0): number | undefined => {
+  const v = num(f, field);
+  return v === undefined ? undefined : v / scale - offset;
+};
 
 /** A Garmin FIT activity file (also what Strava archives, Wahoo, Coros, Polar and Suunto export). Returns [] for anything that is not a usable activity. */
 export const parseFit = (bytes: Uint8Array, key = 'file.fit'): ParsedActivity[] => {
-  let messages: Record<string, Mesg[]>;
+  if (!isFit(bytes)) return [];
+  let messages: ReturnType<typeof readFit>;
   try {
-    const stream = Stream.fromByteArray(Array.from(bytes.length > 4_000_000 ? bytes : bytes));
-    const decoder = new Decoder(stream);
-    if (!decoder.isFIT()) return [];
-    messages = decoder.read({ mergeHeartRates: true, applyScaleAndOffset: true, convertTypesToStrings: true, convertDateTimesToDates: true }).messages as Record<string, Mesg[]>;
+    messages = readFit(bytes);
   } catch {
     return [];
   }
-  const records = messages.recordMesgs ?? [];
-  const sessions = messages.sessionMesgs ?? [];
   const points: ParsedPoint[] = [];
   const hr: [number, number][] = [];
-  for (const r of records) {
-    const t = ms(r.timestamp);
+  for (const r of messages.records) {
+    const t = fitTimeMs(r.get(253));
     if (!t) continue;
-    const bpm = n(r.heartRate);
+    const bpm = num(r, 3);
     if (bpm) hr.push([t, bpm]);
-    const la = n(r.positionLat);
-    const lo = n(r.positionLong);
+    const la = num(r, 0);
+    const lo = num(r, 1);
     if (la === undefined || lo === undefined) continue;
-    points.push({ t, lat: la * SEMICIRCLE, lng: lo * SEMICIRCLE, alt: n(r.enhancedAltitude) ?? n(r.altitude), hr: bpm, dist: n(r.distance) });
+    points.push({ t, lat: la * SEMICIRCLE, lng: lo * SEMICIRCLE, alt: scaled(r, 78, 5, 500) ?? scaled(r, 2, 5, 500), hr: bpm, dist: scaled(r, 5, 100) });
   }
-  const s = sessions[0] ?? {};
-  const start = ms(s.startTime) ?? points[0]?.t ?? hr[0]?.[0];
+  // Heart-rate messages from a chest strap stand in when the records carry no heart rate of their own.
+  if (hr.length === 0) {
+    for (const m of messages.hrs) {
+      const t = fitTimeMs(m.get(253));
+      const bpm = m.get(6);
+      const first = Array.isArray(bpm) ? bpm[0] : bpm;
+      if (t && typeof first === 'number' && first > 0) hr.push([t, first]);
+    }
+  }
+  const s = messages.sessions[0];
+  const start = fitTimeMs(s?.get(2)) ?? fitTimeMs(s?.get(253)) ?? points[0]?.t ?? hr[0]?.[0];
   if (!start) return [];
-  const sport = [s.sport, s.subSport].filter((x) => typeof x === 'string' && x !== 'generic').join(' ') || undefined;
-  const dist = n(s.totalDistance) ?? (points.length ? points[points.length - 1].dist : undefined);
-  const elapsed = n(s.totalElapsedTime) ?? (points.length > 1 ? (points[points.length - 1].t - points[0].t) / 1000 : undefined);
+  const sport = [fitSportName(s?.get(5)), fitSubSportName(s?.get(6))].filter(Boolean).join(' ') || undefined;
+  const dist = scaled(s, 9, 100) ?? (points.length ? points[points.length - 1].dist : undefined);
+  const elapsed = scaled(s, 7, 1000) ?? (points.length > 1 ? (points[points.length - 1].t - points[0].t) / 1000 : undefined);
   if (points.length < 2 && hr.length < 2 && !elapsed) return [];
   return [
     {
@@ -47,12 +56,12 @@ export const parseFit = (bytes: Uint8Array, key = 'file.fit'): ParsedActivity[] 
       sport,
       start,
       elapsedSec: elapsed,
-      movingSec: n(s.totalTimerTime),
+      movingSec: scaled(s, 8, 1000),
       distanceKm: dist !== undefined ? dist / 1000 : undefined,
-      calories: n(s.totalCalories),
-      avgHr: n(s.avgHeartRate),
-      maxHr: n(s.maxHeartRate),
-      ascentM: n(s.totalAscent),
+      calories: num(s, 11),
+      avgHr: num(s, 16),
+      maxHr: num(s, 17),
+      ascentM: num(s, 22),
       points,
       hr: hr.length ? hr : undefined,
     },

@@ -55,6 +55,9 @@ public class WaterWidgetProvider extends AppWidgetProvider {
         v.setProgressBar(R.id.water_progress, 100, Math.min(100, Math.round(total * 100f / goal)), false);
         v.setTextViewText(R.id.water_add1, "+" + WaterStore.format(step1, imperial).replace(" fl oz", " oz"));
         v.setTextViewText(R.id.water_add2, "+" + WaterStore.format(step2, imperial).replace(" fl oz", " oz"));
+        v.setContentDescription(R.id.water_add1, "Add " + WaterStore.format(step1, imperial) + " of water");
+        v.setContentDescription(R.id.water_add2, "Add " + WaterStore.format(step2, imperial) + " of water");
+        v.setContentDescription(R.id.water_root, "Water today, " + WaterStore.format(total, imperial) + " of " + WaterStore.format(goal, imperial) + ". Open the app.");
         v.setOnClickPendingIntent(R.id.water_add1, add(c, step1, 7421));
         v.setOnClickPendingIntent(R.id.water_add2, add(c, step2, 7422));
         v.setOnClickPendingIntent(R.id.water_root, FastingNotifier.open(c, "open:water", 7423));

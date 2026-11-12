@@ -10,41 +10,58 @@ import {
   DEFAULT_RUN_OPTIONS,
   ReminderSettings,
   Routine,
+  RoutineSet,
   HealthLogEntry,
   WorkoutPlan,
   RunOptions,
   UserProfile,
+  Exercise,
+  ExerciseLog,
 } from './types/tracking';
+import { setCustomExercises } from './data/exercises';
+import { setOneRepMaxFormula } from './lib/oneRepMax';
 import { DEFAULT_GOALS, DEFAULT_PROFILE, DEFAULT_REMINDERS } from './data/defaults';
-import { usePersistentState } from './hooks/usePersistentState';
+import { readStored, usePersistentState } from './hooks/usePersistentState';
 import { useBleHeartRate } from './hooks/useBleHeartRate';
 import { useWatchHeartRate } from './hooks/useWatchHeartRate';
 import { useAutomaticData } from './hooks/useAutomaticData';
 import { useAutoBackup } from './hooks/useAutoBackup';
-import { isAndroidApp } from './lib/native';
+import { LiftSession, isAndroidApp } from './lib/native';
+import { ProgramState, completeSession, getProgram } from './lib/programs';
+import { dayIndex, reminderPlan, routinesForDay } from './lib/liftSchedule';
+import { workoutsPerWeek } from './lib/lifting';
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { notify, syncFastElectrolytes, syncBreatheReminder, syncCoachNotes, syncFastPlanReminders, syncLiftReminders, syncStreakSaver, syncWindDown } from './lib/notifications';
+import { SleepPrefs, normalizeSleepPrefs, windDownAt } from './lib/sleepPlan';
+import { EatPrefs, normalizeEatPrefs } from './eat/state';
+import { dayGoal, eatSummary, isTrainingDay } from './eat/model';
+import { electrolyteNotices, lowDayKcal } from './fasting/model';
+import { BreatheReminder, DEFAULT_REMINDER } from './lib/breatheReminder';
 import { workoutsCodec } from './lib/storageCodec';
 import { StorageNotice } from './components/StorageNotice';
 import { AppMapScreen } from './components/AppMapScreen';
 import { useAppNavigation } from './hooks/useAppNavigation';
+import { usePullToRefresh } from './hooks/usePullToRefresh';
+import { PullIndicator } from './components/PullIndicator';
 import { useNativeSync } from './hooks/useNativeSync';
 import { useNutritionLog } from './hooks/useNutritionLog';
 import { makeId } from './lib/ids';
+import { loadDraft } from './lib/liftDraft';
 import { useWatchWorkoutImport, useWidgetLaunchActions } from './hooks/useWatchAndWidgetInput';
 import { progressSectionFor } from './lib/appMap';
 import { App as CapApp } from '@capacitor/app';
-import { AuroraGlow } from './components/AuroraGlow';
 import { RewardsHost } from './components/RewardsHost';
 import { wipePhotos } from './lib/photoStore';
 import { afterWorkout } from './lib/rewards';
 import { announce } from './lib/rewardsBus';
 import { watchSystemInsets } from './lib/systemInsets';
-import { pickRestingHr, setZoneConfig, workoutsOnDay } from './lib/calc';
+import { currentStreak, pickRestingHr, setFrozenDays, setZoneConfig, workoutDateKeys, workoutsOnDay } from './lib/calc';
+import { addFreeze } from './lib/streakFreeze';
 import { dayProgress } from './lib/dayProgress';
 import { clearAppData, clearSecrets } from './lib/backup';
 import { useReminders } from './hooks/useReminders';
 import { setWeekStartsOnSunday, toDateKey, todayKey } from './lib/dates';
 import { AppPrefs, PrefsContext, readPrefs, sanitizePrefs, writePrefs } from './lib/prefs';
-import { NutritionScreen, NutritionSegment } from './components/NutritionScreen';
 import { ProgressScreen } from './components/ProgressScreen';
 import { FitnessMetricsScreen } from './components/FitnessMetricsScreen';
 import { ProfileModal } from './components/ProfileModal';
@@ -52,30 +69,51 @@ import { RemindersModal } from './components/RemindersModal';
 import { BackupModal } from './components/BackupModal';
 import { ImportModal } from './components/ImportModal';
 import { AppLockGate } from './components/AppLockGate';
-import { cleanStarts } from './lib/cycle';
 import { SavedRoute, upsertRoute } from './lib/savedRoutes';
 import { mergeImportedNights, mergeImportedWorkouts } from './lib/importers/merge';
 import { hcWorkoutToSession } from './lib/hcWorkouts';
 import { syncAutoDetect } from './lib/autoDetect';
+import { useDriveSteps } from './hooks/useDriveSteps';
 import { useAppearance } from './hooks/useAppearance';
 import { Onboarding } from './components/Onboarding';
+import { PrivacyWelcome } from './components/PrivacyWelcome';
 import { installTapHaptics } from './lib/haptics';
 import { setCardSkin, skinFrom } from './lib/cardSkin';
 import { sendWatchLook } from './lib/watchLook';
 import { buildWatchLook } from './lib/appearance';
 import { AmoledTopBar } from './components/AmoledTopBar';
+import { GalaxyBackground } from './components/scenes/GalaxyBackground';
 import { BottomNavBar } from './components/BottomNavBar';
+import { DEFAULT_LAYOUT, DashboardLayout, sanitizeLayout, withTodayFirst } from './lib/dashboardLayout';
+import { focusSetting } from './lib/focusSetting';
 import { TodayScreen } from './components/TodayScreen';
-import { StepPeriods } from './components/StepPeriods';
+import { DriveSteps } from './components/DriveSteps';
 import { FitnessScreen } from './components/FitnessScreen';
 import { SleepScreen } from './components/SleepScreen';
-import { FastingScreen } from './components/FastingScreen';
 import { HealthScreen } from './components/HealthScreen';
 import { SettingsScreen } from './components/SettingsScreen';
+import { HealthHub, HealthSection } from './components/HealthHub';
+import { BreatheApp } from './breathe/BreatheApp';
+import { FastingApp } from './fasting/FastingApp';
+import { EatApp } from './eat/EatApp';
+import { Tour } from './components/Tour';
+import { useWatchFoodLog } from './hooks/useWatchFoodLog';
+import { TourGo, shouldShowTour } from './lib/tour';
+import { plannedTrainingToday } from './lib/planToday';
+import { EatLauncher } from './eat/Launcher';
+import { DEFAULT_PLAN, FastPlan } from './fasting/model';
+import { FastQuick } from './components/FastQuick';
+import { endFast, startFast } from './lib/fasting';
+import { ensureNotificationPermission } from './lib/notifications';
+import { LiftWorkout } from './lift/LiftWorkout';
+import { LiftApp } from './lift/LiftApp';
+import type { BreathSession } from './lib/breathing';
+import { BreatheWatch } from './lib/native';
+import { useLangFor, useTFor } from './lib/i18n';
 import { TabEditorModal } from './components/TabEditorModal';
 import { ThemeSelectorModal } from './components/ThemeSelectorModal';
 import { Segmented } from './components/ui/Segmented';
-import type { Shoe } from './lib/shoes';
+import { gearAlerts, type GearNotified, type Shoe } from './lib/shoes';
 import { HealthLogScreen } from './components/HealthLogScreen';
 import { dismissSleepId } from './lib/sleepDetect';
 import { useWeather } from './hooks/useWeather';
@@ -93,9 +131,11 @@ import {
   writeBodyToHc,
   deleteHealthLogFromHc,
   writeHealthLogToHc,
+  writeBreathingToHc,
   writeSleepToHc,
   writeWorkoutToHc,
   setHealthWriteEnabled,
+  setHealthShare,
 } from './lib/healthWrite';
 import { markSynced, unsyncedWorkouts } from './lib/hcSync';
 
@@ -116,8 +156,8 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('large-text', prefs.largeText);
     document.documentElement.classList.toggle('reduce-motion', prefs.reduceMotion);
-    document.documentElement.classList.toggle('liquid-glass', prefs.liquidGlass);
-  }, [prefs.largeText, prefs.reduceMotion, prefs.liquidGlass]);
+    document.documentElement.classList.remove('liquid-glass');
+  }, [prefs.largeText, prefs.reduceMotion]);
 
   useEffect(() => watchSystemInsets(), []);
 
@@ -140,6 +180,8 @@ export default function App() {
     runOpen,
     mealPlanToken,
     setMealPlanToken,
+    eatToken,
+    setEatToken,
     navigateTo,
   } = useAppNavigation(prefs.swipeTabs);
 
@@ -180,15 +222,27 @@ export default function App() {
         localStorage.setItem('kyfit_ui_v2', '1');
         if (localStorage.getItem('aegis_theme_id') === 'hyper_mint') localStorage.removeItem('aegis_theme_id');
       }
-      return localStorage.getItem('aegis_theme_id') || 'volt';
+      // The Kinetic look (obsidian and orange): everyone moves to it once, and can pick another theme afterwards.
+      if (!localStorage.getItem('kyfit_ui_v3')) {
+        localStorage.setItem('kyfit_ui_v3', '1');
+        localStorage.setItem('aegis_theme_id', 'kinetic');
+        localStorage.setItem('kyfit_backdrop_dark', JSON.stringify('obsidian'));
+        try {
+          const raw = localStorage.getItem('kyfit_dashboard_layout');
+          if (raw) localStorage.setItem('kyfit_dashboard_layout', JSON.stringify(withTodayFirst(sanitizeLayout(JSON.parse(raw)))));
+        } catch {
+          // a layout that cannot be read is replaced by the default anyway
+        }
+      }
+      return localStorage.getItem('aegis_theme_id') || 'kinetic';
     } catch {
-      return 'volt';
+      return 'kinetic';
     }
   });
 
   const allThemes = { ...MODERN_THEMES, ...customThemes };
   const baseTheme = allThemes[currentThemeId] || MODERN_THEMES.volt;
-  // Background (off-black, AMOLED, pastels, your own) + accent palette: sets the page's colour variables and gives the screens their colours.
+  // Background (off-black, AMOLED, pastels, your own) + accent palette: sets the page's color variables and gives the screens their colors.
   const look = useAppearance(baseTheme);
   // The watch app, tile and workout screens use the same palette and (dark) background.
   useEffect(() => {
@@ -232,12 +286,38 @@ export default function App() {
       return updated;
     });
     if (currentThemeId === id) {
-      handleSelectTheme('volt');
+      handleSelectTheme('kinetic');
     }
   };
 
   // ---- Persisted user data (survives reloads; included in Backup & Export) ----
   const [profile, setProfile] = usePersistentState<UserProfile>('profile', DEFAULT_PROFILE);
+  // The privacy welcome shows once, on the very first open (before the setup questions); Settings > Privacy can show it again.
+  const [welcomeSeen, setWelcomeSeen] = usePersistentState<boolean>('privacy_welcome_seen', false);
+  const [welcomeAgain, setWelcomeAgain] = useState(false);
+  // The app tour shows once after the first setup (and once for someone who already had the app), and can be replayed from Settings.
+  const [tourSeen, setTourSeen] = usePersistentState<boolean>('tour_seen', false);
+  const [tourAsked, setTourAsked] = useState(false);
+  useEffect(() => {
+    const show = () => setTourAsked(true);
+    window.addEventListener('kyfit-show-tour', show);
+    return () => window.removeEventListener('kyfit-show-tour', show);
+  }, []);
+  useEffect(() => {
+    const show = () => setWelcomeAgain(true);
+    window.addEventListener('kyfit-show-privacy-welcome', show);
+    return () => window.removeEventListener('kyfit-show-privacy-welcome', show);
+  }, []);
+  // Cycle tracking and the text-message live share were removed: delete what they kept (period dates, contact numbers), so nothing
+  // sensitive is left behind on the phone.
+  useEffect(() => {
+    try {
+      localStorage.removeItem('kyfit_cycle_starts');
+      localStorage.removeItem('kyfit_live_share');
+    } catch {
+      // storage unavailable
+    }
+  }, []);
   const [goals, setGoals] = usePersistentState<Goals>('goals', () => {
     // Carry over the step goal from the pre-profile version of the app.
     try {
@@ -255,18 +335,106 @@ export default function App() {
   const workoutsRef = useRef(workouts);
   workoutsRef.current = workouts;
   const [sleepLogs, setSleepLogs] = usePersistentState<SleepLogEntry[]>('sleep_logs', []);
+  // Days kept alive with a streak freeze. Set before anything below reads a streak, so every screen agrees.
+  const [streakFreezes, setStreakFreezes] = usePersistentState<string[]>('streak_freezes', []);
+  setFrozenDays(streakFreezes);
   const [fastingSessions, setFastingSessions] = usePersistentState<FastingSession[]>('fasting_sessions', []);
   // Food, water and saved meals, with adding and deleting. See hooks/useNutritionLog.
-  const { food, water, savedMeals, addFood: handleAddFood, deleteFood: handleDeleteFood, addWater: handleAddWater, deleteWater: handleDeleteWater, saveMeal: handleSaveMeal, deleteMeal: handleDeleteMeal } =
+  const { food, water, savedMeals, addFood: handleAddFood, deleteFood: handleDeleteFood, updateFood: handleUpdateFood, addWater: handleAddWater, deleteWater: handleDeleteWater, saveMeal: handleSaveMeal, deleteMeal: handleDeleteMeal } =
     useNutritionLog();
   const [body, setBody] = usePersistentState<BodyEntry[]>('body', []);
   const [stepsLog, setStepsLog] = usePersistentState<Record<string, number>>('steps', {});
   const [routines, setRoutines] = usePersistentState<Routine[]>('routines', []);
+  // Folder names for routines on the Lift side, in order (an empty folder is kept).
+  const [routineFolders, setRoutineFolders] = usePersistentState<string[]>('routine_folders', []);
   const weather = useWeather();
   const [shoes, setShoes] = usePersistentState<Shoe[]>('shoes', []);
-  const [cycleStarts, setCycleStarts] = usePersistentState<string[]>('cycle_starts', []);
   const [savedRoutes, setSavedRoutes] = usePersistentState<SavedRoute[]>('saved_routes', []);
   const [healthLog, setHealthLog] = usePersistentState<HealthLogEntry[]>('health_log', []);
+  const [breathLog, setBreathLog] = usePersistentState<BreathSession[]>('breathing_log', []);
+  // Exercises you made yourself (and ones brought in from a Hevy or Strong file). The lookup in data/exercises reads them from here.
+  const [customList, setCustomList] = usePersistentState<Exercise[]>('custom_exercises', []);
+  setCustomExercises(customList);
+  setOneRepMaxFormula(prefs.liftFormula);
+  // The strength logger: one screen for the whole app, started from the Run tab, the watch, or the Lift side.
+  const [strength, setStrength] = useState<{ open: boolean; ids: string[]; title?: string; logs?: ExerciseLog[]; fromWatch?: boolean; resume?: boolean; program?: { id: string; index: number } }>(() =>
+    // A workout that was in progress when the app closed (or crashed) comes straight back.
+    loadDraft(localStorage) ? { open: true, ids: [], resume: true } : { open: false, ids: [] }
+  );
+  const [strengthStopToken, setStrengthStopToken] = useState(0);
+  // The Lift side: a plain weightlifting app inside this one. It opens over everything, and "Import" briefly steps out to the main side.
+  const [liftOpen, setLiftOpen] = useState<boolean>(() => readPrefs().startInLift);
+  // Breathe is an app of its own inside the app (src/breathe): it opens over everything from the Health tab.
+  const [breatheOpen, setBreatheOpen] = useState(false);
+  // Fasting is an app of its own inside the app too (src/fasting).
+  const [fastingOpen, setFastingOpen] = useState(false);
+  // Eating is an app of its own inside the app too (src/eat).
+  const [eatOpen, setEatOpen] = useState(false);
+  // Eat settings live here too: the widget, the tile and the watch show today's calories against the same goal Eat uses.
+  const [eatPrefsRaw, setEatPrefsRaw] = usePersistentState<Partial<EatPrefs>>('eat_prefs', {});
+  // Sleep goal and the wind-down nudge: kept here so the nudge is scheduled even when the Sleep screen is closed.
+  const [sleepPrefsRaw, setSleepPrefsRaw] = usePersistentState<Partial<SleepPrefs>>('sleep_prefs', {});
+  const sleepPrefs = useMemo(() => normalizeSleepPrefs(sleepPrefsRaw), [sleepPrefsRaw]);
+  const windAt = windDownAt(sleepPrefs.windDown.bed, sleepPrefs.windDown.lead);
+  useEffect(() => {
+    void syncWindDown(sleepPrefs.windDown.on && profile.onboarded, windAt.hour, windAt.minute);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sleepPrefs.windDown.on, windAt.hour, windAt.minute, profile.onboarded]);
+  const [eatStart, setEatStart] = useState<{ tab?: 'today' | 'plan' | 'cook' | 'insights' | 'you'; add?: 'search' | 'scan' | 'recipe' | 'import' | 'create' | 'photo'; nonce: number } | null>(null);
+  const openEat = (start?: { tab?: 'today' | 'plan' | 'cook' | 'insights' | 'you'; add?: 'search' | 'scan' | 'recipe' | 'import' | 'create' | 'photo' }) => {
+    setEatStart(start ? { ...start, nonce: Date.now() } : null);
+    setEatOpen(true);
+  };
+  const [fastingLaunch, setFastingLaunch] = useState<{ action: string; nonce: number } | null>(null);
+  const [fastPlan, setFastPlan] = usePersistentState<FastPlan>('fasting_plan', DEFAULT_PLAN);
+  useEffect(() => {
+    if (currentTab === 'fasting') {
+      setFastingOpen(true);
+      setCurrentTab('nutrition');
+    }
+  }, [currentTab, setCurrentTab]);
+  // The map's "Meal plan and groceries" opens the plan page of the Eat app.
+  useEffect(() => {
+    if (mealPlanToken > 0) {
+      openEat({ tab: 'plan' });
+      setMealPlanToken(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mealPlanToken]);
+  useEffect(() => {
+    if (eatToken > 0) {
+      openEat();
+      setEatToken(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eatToken]);
+  const [breatheLaunch, setBreatheLaunch] = useState<{ action: string; nonce: number } | null>(null);
+  const [breatheReminder, setBreatheReminder] = usePersistentState<BreatheReminder>('breathe_reminder', DEFAULT_REMINDER);
+  // Anything that sends you to the old Breathe tab (the map of the app, a shortcut) opens the Breathe app instead.
+  useEffect(() => {
+    if (currentTab === 'breathe') {
+      setBreatheOpen(true);
+      setCurrentTab('nutrition');
+    }
+  }, [currentTab, setCurrentTab]);
+  const [returnToLift, setReturnToLift] = useState(false);
+  // A workout already under way (even minimized) is brought back, never replaced by starting another.
+  const [strengthResumeToken, setStrengthResumeToken] = useState(0);
+  // The program you are following (Lift side): which one, how far along, and the weights it works from.
+  const [program, setProgram] = usePersistentState<ProgramState | null>('lift_program', null);
+  const startStrength = (ids: string[], opts?: { title?: string; logs?: ExerciseLog[]; fromWatch?: boolean; program?: { id: string; index: number } }) => {
+    if (strength.open) setStrengthResumeToken((n) => n + 1);
+    else setStrength({ open: true, ids, ...opts });
+  };
+  // App is the one that provides the preferences, so it reads the language from its own state.
+  const t = useTFor(prefs.language);
+  const lang = useLangFor(prefs.language);
+  // Tell the page, and so screen readers and the browser engine, which language it is in.
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+  const [dashboardRaw, setDashboardLayout] = usePersistentState<DashboardLayout>('dashboard_layout', DEFAULT_LAYOUT);
+  const dashboardLayout = useMemo(() => sanitizeLayout(dashboardRaw), [dashboardRaw]);
   const [activePlan, setActivePlan] = usePersistentState<ActivePlan | null>('active_plan', null);
   const [reminders, setReminders] = usePersistentState<ReminderSettings>('reminders', DEFAULT_REMINDERS);
 
@@ -278,9 +446,13 @@ export default function App() {
   const automation = useAutomaticData(profile.onboarded, setSleepLogs, (sessions) => {
     const converted = sessions.map((s) => hcWorkoutToSession(s, profile)).filter((w): w is WorkoutSession => w !== null);
     if (converted.length > 0) setWorkouts((prev) => mergeImportedWorkouts(prev, converted).merged);
-  }, prefs.stepSource, prefs.useHealthConnect);
+  }, prefs.stepSource, prefs.useHealthConnect, prefs.sleepSource, prefs.sleepSecondary);
+  // Pull down at the top of any screen to bring in the latest steps, sleep and watch data (the same as Sync in Settings).
+  const pullState = usePullToRefresh(scrollRef, () => automation.syncNow());
   // The Health Connect master switch also guards every write and delete (see healthWrite).
-  setHealthWriteEnabled(prefs.useHealthConnect);
+  // Receiving is the default; saving anything back to Health Connect needs its own switch (Settings > Health Connect).
+  setHealthWriteEnabled(prefs.useHealthConnect && prefs.writeHealthConnect);
+  setHealthShare(prefs.hcShare);
 
   // "Looks like you started a run": the phone's own activity recognition offers to record (needs the physical-activity permission the step counter asks for).
   const stepsReady = automation.steps !== null;
@@ -288,6 +460,8 @@ export default function App() {
     if (!profile.onboarded) return;
     void syncAutoDetect(prefs.detectWorkouts, prefs.detectWalks);
   }, [profile.onboarded, prefs.detectWorkouts, prefs.detectWalks, stepsReady]);
+  // Steps counted while driving come off the day by themselves (the phone notices when you are in a vehicle).
+  useDriveSteps(profile.onboarded && prefs.autoDriveSteps, automation);
 
   // Zones and training load use your real resting heart rate when Health Connect or the watch has one.
   useEffect(() => {
@@ -295,8 +469,8 @@ export default function App() {
     const latestFit = Object.values(fit).filter((d) => d.restingHr).sort((a, b) => (a.date < b.date ? 1 : -1))[0]?.restingHr;
     const ownDays = Object.entries(automation.own).sort((a, b) => (a[0] < b[0] ? 1 : -1));
     const latestOwn = ownDays.find(([, d]) => d.restingHr)?.[1].restingHr;
-    setZoneConfig(prefs.zoneMethod, pickRestingHr(profile.restingHr, latestFit, automation.vitals?.restingBpm || undefined, latestOwn));
-  }, [prefs.zoneMethod, profile.restingHr, automation.vitals, automation.own]);
+    setZoneConfig(prefs.zoneMethod, pickRestingHr(profile.restingHr, latestFit, automation.vitals?.restingBpm || undefined, latestOwn), profile.sex);
+  }, [prefs.zoneMethod, profile.restingHr, profile.sex, automation.vitals, automation.own]);
   const backup = useAutoBackup(workouts.length);
   // Weights other apps wrote to Health Connect (a smart scale, the Google app) join the body log once.
   const hcWeightStamp = automation.vitals?.at;
@@ -398,7 +572,7 @@ export default function App() {
   );
   const enabledMetrics = useMemo(() => new Set<MetricKey>(enabledMetricList), [enabledMetricList]);
 
-  // Heart rate: live from the Pixel Watch (Wear OS Data Layer) first, then any Bluetooth LE sensor.
+  // Heart rate: live from the linked watch (Wear OS Data Layer) first, then any Bluetooth LE sensor.
   // With neither connected there is no reading (0), never a made-up number.
   const watch = useWatchHeartRate();
   const ble = useBleHeartRate();
@@ -495,8 +669,8 @@ export default function App() {
     void deleteFromHc('bodyFat', [`${id}-fat`]);
   };
 
-  const handleSaveRoutine = (name: string, exerciseIds: string[]) =>
-    setRoutines((prev) => [...prev, { id: makeId('r'), name, exerciseIds }]);
+  const handleSaveRoutine = (name: string, exerciseIds: string[], folder?: string, targets?: Record<string, RoutineSet[]>) =>
+    setRoutines((prev) => [...prev, { id: makeId('r'), name, exerciseIds, ...(folder ? { folder } : {}), ...(targets ? { targets } : {}) }]);
   const handleDeleteRoutine = (id: string) => setRoutines((prev) => prev.filter((r) => r.id !== id));
   // keepStart: changing the plan you are already on (editing it) keeps the week you are in instead of starting over.
   const handleActivatePlan = (planId: string | null, plan?: WorkoutPlan, opts?: { keepStart?: boolean }) =>
@@ -527,7 +701,128 @@ export default function App() {
   const isExerciseTab = currentTab === 'exercise';
 
   // What widgets and notifications ask for, and workouts that arrive from the watch. See hooks/useWatchAndWidgetInput.
-  useWidgetLaunchActions({ setCurrentTab, setLaunchRequest, setFastingSessions });
+  // The long-press shortcuts on the app icon: "Start empty workout" and your first routines.
+  const liftShortcutRef = useRef<(action: string) => void>(() => {});
+  liftShortcutRef.current = (action: string) => {
+    if (action === 'lift:empty') startStrength([]);
+    else if (action.startsWith('lift:routine:')) {
+      const r = routines.find((x) => x.id === action.slice('lift:routine:'.length));
+      if (r) startStrength(r.exerciseIds, { title: r.name });
+    }
+  };
+  useWidgetLaunchActions({
+    setCurrentTab,
+    setLaunchRequest,
+    setFastingSessions,
+    onLiftAction: (a) => liftShortcutRef.current(a),
+    onBreathe: (a) => {
+      setBreatheOpen(true);
+      setBreatheLaunch({ action: a, nonce: Date.now() });
+    },
+    onFasting: (a) => {
+      setFastingOpen(true);
+      setFastingLaunch({ action: a, nonce: Date.now() });
+    },
+    onEat: (a) => openEat(a === 'eat:add' ? { tab: 'today', add: 'search' } : a === 'eat:scan' ? { tab: 'today', add: 'scan' } : undefined),
+  });
+  // Breathing sessions done on the watch while the app was closed are added to the history now, and again whenever the app comes back.
+  useEffect(() => {
+    if (!isAndroidApp()) return undefined;
+    const take = async () => {
+      try {
+        const { items } = await BreatheWatch.takePending();
+        if (items.length === 0) return;
+        setBreathLog((prev) => {
+          const have = new Set(prev.map((s) => s.id));
+          const add = items
+            .map(([at, patternId, seconds, from, to]) => ({ id: `br-w-${at}`, at, patternId, seconds, bpmStart: from > 0 ? from : undefined, bpmEnd: from > 0 && to > 0 ? to : undefined }) as BreathSession)
+            .filter((s) => !have.has(s.id));
+          return add.length ? [...add, ...prev].sort((a, b) => b.at - a.at).slice(0, 500) : prev;
+        });
+      } catch {
+        // the watch bridge is not there (a browser)
+      }
+    };
+    void take();
+    const onShow = () => {
+      if (document.visibilityState === 'visible') void take();
+    };
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, []);
+  // The fasting plan's reminders: planned for the next week, and again whenever the plan changes or a fast starts or ends.
+  const fastRunning = fastingSessions.some((s) => !s.isCompleted);
+  useEffect(() => {
+    void syncFastPlanReminders(fastPlan, fastRunning);
+  }, [fastPlan, fastRunning]);
+  // The daily breathing reminder: planned for the next week, and again whenever a session is saved or the setting changes.
+  const lastBreathAt = breathLog.length > 0 ? Math.max(...breathLog.map((s) => s.at)) : null;
+  useEffect(() => {
+    void syncBreatheReminder(breatheReminder, lastBreathAt);
+  }, [breatheReminder.on, breatheReminder.time, breatheReminder.nudge, lastBreathAt]);
+  const scheduleKey = JSON.stringify([prefs.liftRemind, prefs.liftRemindTime, routines.map((r) => [r.name, r.days])]);
+  useEffect(() => {
+    void syncLiftReminders(prefs.liftRemind, prefs.liftRemindTime, reminderPlan(routines));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleKey]);
+  // Shoes and bikes: a notification when one reaches 85 % of its distance and again at the full distance (once each).
+  const [gearNotified, setGearNotified] = usePersistentState<GearNotified>('gear_alerts', {});
+  useEffect(() => {
+    const r = gearAlerts(shoes, workouts, gearNotified);
+    if (r.alerts.length === 0 && JSON.stringify(r.notified) === JSON.stringify(gearNotified)) return;
+    setGearNotified(r.notified);
+    for (const a of r.alerts) void notify(a.title, a.body, 'gear');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shoes, workouts]);
+  // The evening streak nudge: replaced whenever the streak changes or today's activity is logged.
+  const streakDays = useMemo(() => workoutDateKeys(workouts), [workouts]);
+  const streakNow = currentStreak(streakDays, todayKey());
+  const streakDoneToday = streakDays.has(todayKey());
+  useEffect(() => {
+    void syncStreakSaver(reminders.streakEnabled === true, reminders.streakTime ?? '19:30', streakNow, streakDoneToday);
+  }, [reminders.streakEnabled, reminders.streakTime, streakNow, streakDoneToday]);
+  // The kind daily note and the weekly review: scheduled for the next two weeks, and topped up each time the app opens.
+  const coachLang = useLangFor(prefs.language);
+  const coachKey = JSON.stringify([prefs.coachDaily, prefs.coachDailyTime, prefs.coachWeekly, prefs.coachWeeklyDay, prefs.coachWeeklyTime, coachLang]);
+  useEffect(() => {
+    void syncCoachNotes({ dailyOn: prefs.coachDaily, dailyTime: prefs.coachDailyTime, weeklyOn: prefs.coachWeekly, weeklyDay: prefs.coachWeeklyDay, weeklyTime: prefs.coachWeeklyTime, lang: coachLang });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachKey]);
+  // Tapping the weekly review notification opens the review.
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    let handle: { remove: () => Promise<void> } | undefined;
+    LocalNotifications.addListener('localNotificationActionPerformed', (e) => {
+      const tag = (e.notification.extra as { tag?: string } | undefined)?.tag;
+      if (tag === 'coach-weekly') setCurrentTab('progress');
+      // The wind-down nudge opens a few minutes of slow breathing.
+      else if (tag === 'winddown') {
+        setBreatheOpen(true);
+        setBreatheLaunch({ action: 'drift', nonce: Date.now() });
+      }
+    })
+      .then((h) => {
+        handle = h;
+      })
+      .catch(() => {});
+    return () => {
+      void handle?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // The Lift widget: this week's workouts and today's scheduled routine.
+  const widgetWeek = workoutsPerWeek(workouts, Date.now(), 1)[0]?.count ?? 0;
+  const todayRoutine = routinesForDay(routines, dayIndex(new Date()))[0];
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    LiftSession.widget({ week: widgetWeek, todayId: todayRoutine?.id ?? '', todayName: todayRoutine?.name ?? '' }).catch(() => {});
+  }, [widgetWeek, todayRoutine?.id, todayRoutine?.name]);
+  const shortcutKey = routines.slice(0, 3).map((r) => r.id + r.name).join('|');
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    LiftSession.setShortcuts({ emptyLabel: 'Start empty workout', routines: routines.slice(0, 3).map((r) => ({ id: r.id, name: r.name })) }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shortcutKey]);
   useWatchWorkoutImport({ profile, workoutsRef, setWorkouts, sendToHcRef: sendWorkoutsToHcRef });
 
   // Today's three quests (steps goal, water goal, a workout), drawn as a ring on the Home tab.
@@ -541,6 +836,40 @@ export default function App() {
   });
 
   // Widgets, the fasting notification, the watch's tile and complications, and water added there. See hooks/useNativeSync.
+  // Meals dictated on the watch are logged here (see hooks/useWatchFoodLog).
+  useWatchFoodLog({ enabled: profile.onboarded, onAddFood: handleAddFood, onAddWater: handleAddWater });
+  const eatNow = useMemo(() => {
+    const ep = normalizeEatPrefs(eatPrefsRaw);
+    const day = todayKey();
+    const training = isTrainingDay(workouts, day, day, plannedTrainingToday(activePlan));
+    return eatSummary({
+      food,
+      today: day,
+      goalKcal: goals.dailyCalories,
+      proteinGoal: goals.dailyProteinG,
+      split: ep.split,
+      training,
+      burnedKcal: workoutsOnDay(workouts, day).reduce((s, w) => s + w.caloriesBurned, 0),
+      activity: ep.activity,
+      lowKcal: lowDayKcal(fastPlan, day),
+    });
+  }, [food, workouts, goals.dailyCalories, goals.dailyProteinG, eatPrefsRaw, activePlan, fastPlan]);
+
+  // Water-and-salts reminders for a long fast that is running (set in Fasting > Insights).
+  const [fastPrefsVersion, setFastPrefsVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setFastPrefsVersion((v) => v + 1);
+    window.addEventListener('kyfit-fasting-prefs', bump);
+    return () => window.removeEventListener('kyfit-fasting-prefs', bump);
+  }, []);
+  const runningFast = fastingSessions.find((s) => !s.isCompleted);
+  const runningStart = runningFast?.startTimestamp ?? 0;
+  const runningGoal = runningFast?.targetDurationHours ?? 0;
+  useEffect(() => {
+    const on = readStored<{ electrolytes?: boolean }>('fasting_prefs', {}).electrolytes !== false;
+    void syncFastElectrolytes(runningFast && on ? electrolyteNotices(runningStart, runningGoal, Date.now()) : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runningStart, runningGoal, fastPrefsVersion]);
   useNativeSync({
     workouts,
     goals,
@@ -551,6 +880,15 @@ export default function App() {
     reminders,
     water,
     onAddWater: handleAddWater,
+    onUndoWater: (count) => {
+      // The newest drinks logged today, newest first (what the watch's tile took back while the app was closed).
+      const today = todayKey();
+      for (const w of water.filter((x) => x.date === today).slice(-count)) handleDeleteWater(w.id);
+    },
+    sleepLogs,
+    accent: theme.primary,
+    sleepGoalMin: sleepPrefs.goalMin,
+    eat: eatNow,
   });
 
   // Render the phone's active screen
@@ -559,13 +897,23 @@ export default function App() {
       case 'today':
         return (
           <TodayScreen
+            fasts={fastingSessions}
+            frozenDays={streakFreezes}
+            onOpenSport={(type) => {
+              setCurrentTab('exercise');
+              setLaunchRequest({ type, nonce: Date.now() });
+            }}
+            onPlanMove={(m) => setActivePlan((prev) => (prev ? { ...prev, moves: [...(prev.moves ?? []).filter((x) => !(x.week === m.week && (x.from === m.from || x.to === m.to))), m] } : prev))}
+            onFreezeDay={(k) => setStreakFreezes((prev) => addFreeze(prev, k))}
             enabledMetrics={enabledMetrics}
             onOpenTabEditor={() => setIsTabEditorOpen(true)}
             onNavigateToTab={setCurrentTab}
             onOpenMap={() => setMapOpen(true)}
+            onOpenLift={() => setLiftOpen(true)}
             liveBpm={liveBpm}
             hrFromSensor={hrFromSensor}
             hrSource={hrSource}
+            watchName={watch.nodeName || undefined}
             theme={theme}
             workouts={workouts}
             onAddWorkout={handleAddWorkout}
@@ -578,10 +926,14 @@ export default function App() {
             stepsAdjusted={todayKey() in automation.stepOverrides}
             onEditSteps={(n) => handleSetDaySteps(todayKey(), n)}
             onResetSteps={() => handleSetDaySteps(todayKey(), null)}
-            stepPeriods={<StepPeriods theme={theme} automation={automation} />}
+            stepPeriods={<DriveSteps theme={theme} automation={automation} android={isAndroidApp()} />}
             metricInput={metricInput}
             food={food}
             water={water}
+            onAddWater={handleAddWater}
+            onDeleteWater={handleDeleteWater}
+            layout={dashboardLayout}
+            onLayoutChange={setDashboardLayout}
             activePlan={activePlan}
             vitals={automation.vitals}
             weather={weather}
@@ -593,16 +945,11 @@ export default function App() {
               setCurrentTab('progress');
             }}
             onSetMonthlyGoal={handleSetMonthlyGoal}
-            cycleOn={prefs.cycleTracking && profile.sex === 'female'}
-            onTurnOffCycle={() => setPrefs({ cycleTracking: false })}
-            cycleStarts={cycleStarts}
-            onLogPeriod={(d) => setCycleStarts((prev) => cleanStarts([...prev, d]))}
-            onRemovePeriod={(d) => setCycleStarts((prev) => prev.filter((x) => x !== d))}
             backupNudge={
               !isAndroidApp() || !backup.status
                 ? null
                 : !backup.status.folder
-                  ? { kind: 'none', onFix: () => setCurrentTab('settings') }
+                  ? { kind: 'none', onFix: () => { setCurrentTab('settings'); focusSetting('data', 'drive-backup'); } }
                   : Date.now() - backup.status.lastBackupAt > 7 * 24 * 3600 * 1000
                     ? { kind: 'stale', days: Math.floor((Date.now() - backup.status.lastBackupAt) / (24 * 3600 * 1000)), onFix: () => void backup.backupNow() }
                     : null
@@ -612,54 +959,55 @@ export default function App() {
       case 'nutrition':
       case 'fasting':
       case 'sleep':
-      case 'healthlog': {
+      case 'healthlog':
+      case 'breathe': {
         // One Health hub: food & water, fasting and sleep behind a single switcher.
-        const segment: NutritionSegment = currentTab === 'fasting' ? 'fasting' : 'food';
         return (
           <div className="space-y-4 max-w-lg mx-auto">
             <div className="px-1 pt-1">
-              <p className="gh-eyebrow">Health</p>
+              <p className="gh-eyebrow">{t('hub.eyebrow')}</p>
               <h1 className="mt-1.5">
-                {currentTab === 'sleep' ? 'Sleep' : currentTab === 'fasting' ? 'Fasting' : currentTab === 'healthlog' ? 'Health log' : 'Fuel'}
+                {currentTab === 'sleep' ? t('hub.title.sleep') : currentTab === 'fasting' ? t('hub.title.fasting') : currentTab === 'healthlog' ? t('hub.title.healthlog') : currentTab === 'breathe' ? t('hub.title.breathe') : t('hub.title.food')}
               </h1>
             </div>
-            <Segmented<'nutrition' | 'fasting' | 'sleep' | 'healthlog'>
-              ariaLabel="Health sections"
+            <HealthHub
               theme={theme}
-              value={currentTab as 'nutrition' | 'fasting' | 'sleep' | 'healthlog'}
-              onChange={(id) => setCurrentTab(id)}
-              options={[
-                { id: 'nutrition', label: 'Food & water' },
-                { id: 'fasting', label: 'Fasting' },
-                { id: 'sleep', label: 'Sleep' },
-                { id: 'healthlog', label: 'Log' },
-              ]}
+              current={currentTab as HealthSection}
+              onChange={(id) => (id === 'breathe' ? setBreatheOpen(true) : id === 'fasting' ? setFastingOpen(true) : id === 'nutrition' ? openEat() : setCurrentTab(id))}
+              food={food}
+              goals={goals}
+              fasts={fastingSessions}
+              sleepLogs={sleepLogs}
+              healthLog={healthLog}
+              breathLog={breathLog}
             />
-            {currentTab === 'healthlog' ? (
-              <HealthLogScreen theme={theme} entries={healthLog} onAdd={handleAddHealthLog} onDelete={handleDeleteHealthLog} />
-            ) : currentTab === 'sleep' ? (
-              <SleepScreen theme={theme} sleepLogs={sleepLogs} setSleepLogs={setSleepLogsSynced} hideHeader />
-            ) : (
-              <NutritionScreen
-                hideHeader
-                openPlanToken={mealPlanToken}
-                onPlanOpened={() => setMealPlanToken(0)}
-                savedMeals={savedMeals}
-                onSaveMeal={handleSaveMeal}
-                onDeleteMeal={handleDeleteMeal}
+            {currentTab !== 'fasting' && (
+              <FastQuick
                 theme={theme}
-                profile={profile}
-                goals={goals}
+                sessions={fastingSessions}
+                onStart={(opts) => {
+                  void ensureNotificationPermission();
+                  setFastingSessions((prev) => startFast(prev, opts));
+                }}
+                onEnd={() => setFastingSessions((prev) => endFast(prev))}
+              />
+            )}
+            {currentTab === 'healthlog' ? (
+              <HealthLogScreen theme={theme} units={profile.units} goals={goals} entries={healthLog} onAdd={handleAddHealthLog} onDelete={handleDeleteHealthLog} sleepLogs={sleepLogs} />
+            ) : currentTab === 'sleep' ? (
+              <SleepScreen theme={theme} sleepLogs={sleepLogs} setSleepLogs={setSleepLogsSynced} hideHeader sleepPrefs={sleepPrefs} onSleepPrefs={setSleepPrefsRaw} />
+            ) : (
+              <EatLauncher
+                key={eatOpen ? 'open' : 'closed'}
                 food={food}
                 water={water}
-                workouts={workouts}
-                segment={segment}
-                onSegmentChange={(s) => setCurrentTab(s === 'fasting' ? 'fasting' : 'nutrition')}
-                onAddFood={handleAddFood}
-                onDeleteFood={handleDeleteFood}
-                onAddWater={handleAddWater}
-                onDeleteWater={handleDeleteWater}
-                fastingSlot={<FastingScreen theme={theme} sessions={fastingSessions} setSessions={setFastingSessions} hideHeader />}
+                goals={goals}
+                units={profile.units}
+                name={profile.name}
+                appAccent={theme.primary}
+                onOpen={() => openEat()}
+                onAdd={() => openEat({ tab: 'today', add: 'search' })}
+                onWater={(ml) => handleAddWater(todayKey(), ml)}
               />
             )}
           </div>
@@ -685,6 +1033,7 @@ export default function App() {
             body={body}
             onAddBody={handleAddBody}
             onDeleteBody={handleDeleteBody}
+            onSetGoals={(patch) => setGoals((g) => ({ ...g, ...patch }))}
             fitnessSlot={
               <FitnessMetricsScreen
                 theme={theme}
@@ -714,7 +1063,6 @@ export default function App() {
       case 'settings':
         return (
           <SettingsScreen
-            showCycle={profile.sex === 'female'}
             ble={ble}
             watch={watch}
             automation={stepsAutomation}
@@ -740,6 +1088,7 @@ export default function App() {
             onResetAllData={handleResetAllData}
             workouts={workouts}
             units={profile.units}
+            steps={mergedSteps}
           />
         );
       default:
@@ -756,14 +1105,14 @@ export default function App() {
             <p className="mt-2 text-sm text-gray-400">A workout in progress keeps recording in the background.</p>
             <div className="mt-5 flex gap-3">
               <button onClick={() => setConfirmExit(false)} className="flex-1 rounded-2xl bg-white/10 py-3 font-bold text-white">Stay</button>
-              <button onClick={() => { void CapApp.exitApp(); }} className="flex-1 rounded-2xl bg-[#cbff00] py-3 font-extrabold text-black">Close</button>
+              <button onClick={() => { void CapApp.exitApp(); }} className="flex-1 rounded-2xl bg-[#FF5500] py-3 font-extrabold text-black">Close</button>
             </div>
           </div>
         </div>
       )}
     <div className="h-dvh text-white flex flex-col font-sans">
       <AppLockGate enabled={prefs.appLock} hideInRecents={prefs.hideInRecents} />
-      <AuroraGlow mode={prefs.reduceMotion ? 'off' : prefs.glow} burstKey={glowKey} still={prefs.liquidGlass} />
+      {baseTheme.scene === 'galaxy' && <GalaxyBackground still={prefs.reduceMotion} />}
       <RewardsHost workouts={workouts} fasts={fastingSessions} goals={goals} enabled={profile.onboarded} />
 
       {/* Top Application Bar (hidden by default for a clean mobile screen; toggleable from Settings) */}
@@ -782,13 +1131,13 @@ export default function App() {
       <StorageNotice
         onOpenBackup={() => {
           setCurrentTab('settings');
-          // Settings has to be on screen before the group can be asked to open.
-          window.setTimeout(() => window.dispatchEvent(new CustomEvent('kyfit-open-settings-group', { detail: 'data' })), 200);
+          focusSetting('data', 'drive-backup');
         }}
       />
 
       {/* Main View Area */}
       <main className="relative z-[1] flex-1 min-h-0 flex overflow-hidden">
+        <PullIndicator pull={pullState.pull} busy={pullState.busy} accent={theme.primary} />
         <div
           ref={scrollRef}
           onTouchStart={handleSwipeStart}
@@ -796,19 +1145,24 @@ export default function App() {
           className="flex-1 flex flex-col items-center justify-start overflow-y-auto no-scrollbar touch-pan-y"
         >
           {/* Phone container - seamless full-width on mobile with max-w-md on desktop */}
-          <div className="w-full max-w-md min-h-full flex flex-col relative sm:border-x sm:border-white/5">
+          <div className="w-full max-w-md min-[760px]:max-w-[1040px] min-h-full flex flex-col relative sm:border-x sm:border-white/5">
             {/* Screen Body (re-keyed per tab so each screen eases in) */}
             <div
               key={currentTab}
               hidden={isExerciseTab}
-              className={`flex-1 px-4 screen-top pb-4 ${slideDir ? `animate-slide-${slideDir}` : 'animate-rise'}`}
+              className={`flex-1 px-4 screen-top pb-nav ${slideDir ? `animate-slide-${slideDir}` : 'animate-rise'}`}
             >
               {renderScreen()}
             </div>
 
             {/* Stays mounted so a live workout (timer, GPS, watch sync) survives switching tabs. */}
-            <div hidden={!isExerciseTab} className="flex-1 px-4 screen-top pb-4">
+            <div hidden={!isExerciseTab} className="flex-1 px-4 screen-top pb-nav">
               <FitnessScreen
+                strengthOpen={strength.open}
+                onStartStrength={startStrength}
+                onCloseStrength={() => setStrength((s) => ({ ...s, open: false }))}
+                onOpenLift={() => setLiftOpen(true)}
+                onStrengthStop={() => setStrengthStopToken((n) => n + 1)}
                 workouts={workouts}
                 onAddWorkout={handleAddWorkout}
                 onDeleteWorkout={handleDeleteWorkout}
@@ -822,6 +1176,7 @@ export default function App() {
                 profile={profile}
                 activePlan={activePlan}
                 routines={routines}
+                program={program}
                 onActivatePlan={handleActivatePlan}
                 onSaveRoutine={handleSaveRoutine}
                 onDeleteRoutine={handleDeleteRoutine}
@@ -874,6 +1229,39 @@ export default function App() {
         theme={theme}
       />
 
+      {((!profile.onboarded && !welcomeSeen) || welcomeAgain) && (
+        <PrivacyWelcome
+          onDone={() => {
+            setWelcomeSeen(true);
+            setWelcomeAgain(false);
+          }}
+        />
+      )}
+
+      {shouldShowTour(profile.onboarded, tourSeen, tourAsked, (!profile.onboarded && !welcomeSeen) || welcomeAgain) && (
+        <Tour
+          onClose={() => {
+            setTourSeen(true);
+            setTourAsked(false);
+          }}
+          onAllowNotifications={ensureNotificationPermission}
+          onGo={(to: TourGo) => {
+            setTourSeen(true);
+            setTourAsked(false);
+            if (to === 'home') setCurrentTab('today');
+            else if (to === 'run') setCurrentTab('exercise');
+            else if (to === 'lift') setLiftOpen(true);
+            else if (to === 'eat') openEat();
+            else if (to === 'fasting') setFastingOpen(true);
+            else if (to === 'breathe') setBreatheOpen(true);
+            else if (to === 'sleep') setCurrentTab('sleep');
+            else if (to === 'progress') setCurrentTab('progress');
+            else if (to === 'look') navigateTo({ tab: 'settings', settings: 'look' });
+            else if (to === 'privacy') navigateTo({ tab: 'settings', settings: 'privacy' });
+          }}
+        />
+      )}
+
       {!profile.onboarded && (
         <Onboarding
           theme={theme}
@@ -912,14 +1300,158 @@ export default function App() {
         workouts={workouts}
       />
 
+      {fastingOpen && (
+        <FastingApp
+          sessions={fastingSessions}
+          setSessions={setFastingSessions}
+          sleepLogs={sleepLogs}
+          workouts={workouts}
+          body={body}
+          plan={fastPlan}
+          onPlan={setFastPlan}
+          onAddWater={(ml) => handleAddWater(todayKey(), ml)}
+          onRemoveWater={(ml, at) => {
+            const day = toDateKey(at);
+            const match = [...water].reverse().find((w) => w.date === day && w.ml === ml);
+            if (match) handleDeleteWater(match.id);
+          }}
+          units={profile.units}
+          appAccent={theme.primary}
+          food={food}
+          onOpenEat={() => {
+            setFastingOpen(false);
+            openEat();
+          }}
+          onLogMeal={() => {
+            setFastingOpen(false);
+            openEat();
+          }}
+          launch={fastingLaunch}
+          onExit={() => setFastingOpen(false)}
+        />
+      )}
+      {eatOpen && (
+        <EatApp
+          theme={theme}
+          profile={profile}
+          goals={goals}
+          food={food}
+          water={water}
+          savedMeals={savedMeals}
+          workouts={workouts}
+          body={body}
+          fast={(() => {
+            const f = fastingSessions.find((x) => !x.isCompleted && !x.endTimestamp);
+            return f ? { startedAt: f.startTimestamp, targetHours: f.targetDurationHours } : null;
+          })()}
+          prefsRaw={eatPrefsRaw}
+          onPrefsRaw={setEatPrefsRaw}
+          fastPlan={fastPlan}
+          fastsUsed={fastingSessions.length > 0}
+          plannedTraining={plannedTrainingToday(activePlan)}
+          onAddBody={handleAddBody}
+          onEndFast={() => setFastingSessions((prev) => endFast(prev))}
+          onAddFood={handleAddFood}
+          onDeleteFood={handleDeleteFood}
+          onUpdateFood={handleUpdateFood}
+          onAddWater={handleAddWater}
+          onDeleteWater={handleDeleteWater}
+          onSaveMeal={handleSaveMeal}
+          onDeleteMeal={handleDeleteMeal}
+          onSetGoals={(patch) => setGoals((g) => ({ ...g, ...patch }))}
+          openFasting={() => setFastingOpen(true)}
+          start={eatStart}
+          onExit={() => setEatOpen(false)}
+        />
+      )}
+      {breatheOpen && (
+        <BreatheApp
+          log={breathLog}
+          onAdd={(s) => {
+            setBreathLog((prev) => [s, ...prev].slice(0, 500));
+            void writeBreathingToHc(s);
+          }}
+          onUpdate={(s) => setBreathLog((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
+          onDelete={(id) => setBreathLog((prev) => prev.filter((x) => x.id !== id))}
+          liveBpm={liveBpm}
+          fitness={automation.vitals?.fitness}
+          reminder={breatheReminder}
+          onReminder={setBreatheReminder}
+          launch={breatheLaunch}
+          onExit={() => setBreatheOpen(false)}
+        />
+      )}
+      {liftOpen && (
+        <LiftApp
+          profile={profile}
+          workouts={workouts}
+          routines={routines}
+          folders={routineFolders}
+          onFoldersChange={setRoutineFolders}
+          onRoutinesChange={setRoutines}
+          custom={customList}
+          onCustomChange={setCustomList}
+          onStart={(ids, opts) => startStrength(ids, opts)}
+          body={body}
+          onAddBody={handleAddBody}
+          onDeleteBody={handleDeleteBody}
+          program={program}
+          onProgramChange={setProgram}
+          onUpdateWorkout={handleUpdateWorkout}
+          onDeleteWorkout={handleDeleteWorkout}
+          onSaveRoutine={handleSaveRoutine}
+          onOpenImport={() => {
+            setLiftOpen(false);
+            setReturnToLift(true);
+            setIsImportOpen(true);
+          }}
+          onExit={() => setLiftOpen(false)}
+        />
+      )}
+
+      <LiftWorkout
+        isOpen={strength.open}
+        onClose={() => setStrength((s) => ({ ...s, open: false }))}
+        profile={profile}
+        workouts={workouts}
+        initialExerciseIds={strength.ids}
+        initialLogs={strength.logs}
+        planDayTitle={strength.title}
+        liveBpm={liveBpm}
+        hrFromSensor={hrFromSensor}
+        watchKcal={watch.kcal}
+        watchLaunch={!strength.fromWatch}
+        remoteStopToken={strengthStopToken}
+        resume={strength.resume}
+        resumeToken={strengthResumeToken}
+        programRef={strength.program}
+        onSave={(s) => {
+          handleAddWorkout(s);
+          // Finishing the program's next workout moves the program on and updates its weights.
+          const def = s.program && program ? getProgram(program.programId) : undefined;
+          if (def && s.program && s.program.id === program!.programId && s.program.index === program!.done) setProgram(completeSession(def, program!, s, profile.units));
+        }}
+        onSaveRoutine={handleSaveRoutine}
+        custom={customList}
+        onCustomChange={setCustomList}
+      />
+
       <ImportModal
         isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
+        onClose={() => {
+          setIsImportOpen(false);
+          if (returnToLift) {
+            setReturnToLift(false);
+            setLiftOpen(true);
+          }
+        }}
         theme={theme}
         profile={profile}
         workouts={workouts}
         sleepLogs={sleepLogs}
-        onApply={(newWorkouts, nights) => {
+        onApply={(newWorkouts, nights, newExercises) => {
+          // Exercises from a Hevy or Strong file that the library did not have become your own.
+          if (newExercises.length > 0) setCustomList((prev) => [...newExercises.filter((e) => !prev.some((p) => p.id === e.id)), ...prev].slice(0, 300));
           // Imported history joins the log quietly: it is not pushed into Health Connect, and the night merge never replaces a night you already have.
           setWorkouts((prev) => mergeImportedWorkouts(prev, newWorkouts).merged);
           setSleepLogs((prev) => mergeImportedNights(prev, nights).merged);
@@ -929,5 +1461,6 @@ export default function App() {
     </PrefsContext.Provider>
   );
 }
+
 
 

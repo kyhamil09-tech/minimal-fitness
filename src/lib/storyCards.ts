@@ -5,6 +5,7 @@ import { distanceUnit, kmToDisplay } from './units';
 import { CardSkin } from './cardSkin';
 import { drawLogo } from './appLogo';
 import { mix } from './colorMath';
+import type { YearReview } from './yearReview';
 
 /**
  * Story cards: clean, graphic 9:16 pictures (1080 x 1920) for the week, a streak or a milestone, drawn in the look you chose. They are
@@ -36,6 +37,28 @@ export type StoryData =
       big: string;
       unit: string;
       date: string;
+    }
+  | {
+      kind: 'fast';
+      eyebrow: string;
+      /** The hours fasted, written out: "16h 20m". */
+      time: string;
+      pct: number;
+      goal: number;
+      stage: string;
+      protocol: string;
+      date: string;
+    }
+  | {
+      kind: 'year';
+      eyebrow: string;
+      year: number;
+      workouts: number;
+      /** Workouts in each month, January first, and the month that stood out (0 to 11, or -1). */
+      months: number[];
+      best: number;
+      stats: { label: string; value: string; unit?: string }[];
+      line: string;
     }
   | {
       kind: 'streak';
@@ -74,6 +97,36 @@ export const buildWeeklyStory = (recap: Recap, goals: Goals, units: UnitSystem, 
     goal: Math.max(1, goals.weeklyWorkouts),
     days: weekDots(recap.from, active, today),
     stats,
+  };
+};
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** The year card: workouts as the big number, a bar for each month, three totals and a line about the best month and top activity. */
+export const buildYearStory = (r: YearReview, units: UnitSystem): StoryData => {
+  const stats: { label: string; value: string; unit?: string }[] = [
+    { label: `Distance (${distanceUnit(units)})`, value: String(kmToDisplay(r.distanceKm, units, 0)) },
+    { label: 'Active time', value: hm(r.minutes) },
+    { label: 'Active days', value: String(r.activeDays) },
+  ];
+  const bits: string[] = [];
+  if (r.topSports[0]) bits.push(`Most of all: ${r.topSports[0].type.toLowerCase()}.`);
+  if (r.bestMonth) bits.push(`Best month: ${MONTHS[r.bestMonth.month]}.`);
+  return { kind: 'year', eyebrow: `${r.year} IN REVIEW`, year: r.year, workouts: r.workouts, months: r.byMonth, best: r.bestMonth ? r.bestMonth.month : -1, stats, line: bits.join(' ') || 'A year of showing up.' };
+};
+
+/** The card for a finished fast: the time, how much of the goal it was, and the stage reached. */
+export const buildFastStory = (hours: number, goalHours: number, stage: string, protocol: string, endedAt: number): StoryData => {
+  const total = Math.max(0, Math.round(hours * 60));
+  return {
+    kind: 'fast',
+    eyebrow: 'FAST COMPLETE',
+    time: `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, '0')}m`,
+    pct: Math.round((hours / Math.max(1, goalHours)) * 100),
+    goal: goalHours,
+    stage,
+    protocol,
+    date: new Date(endedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }),
   };
 };
 
@@ -260,6 +313,76 @@ export const drawStoryCard = (canvas: HTMLCanvasElement, data: StoryData, s: Car
     ctx.fillStyle = s.ink;
     ctx.font = `600 40px ${SANS}`;
     wrap(ctx, data.headline, STORY_W - 220).slice(0, 3).forEach((l, i) => ctx.fillText(l, STORY_W / 2, 1660 + i * 56));
+    ctx.textAlign = 'left';
+  } else if (data.kind === 'fast') {
+    ring(ctx, STORY_W / 2, 720, 330, 40, Math.min(1, data.pct / 100), s.accent, track);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = s.ink;
+    ctx.font = `italic 800 168px ${FONT}`;
+    ctx.fillText(data.time, STORY_W / 2, 790);
+    ctx.fillStyle = s.accent;
+    ctx.font = `800 36px ${SANS}`;
+    ctx.letterSpacing = '8px';
+    ctx.fillText(`${data.pct}% OF ${data.goal} H`, STORY_W / 2, 900);
+    ctx.letterSpacing = '0px';
+    ctx.fillStyle = s.ink;
+    ctx.font = `italic 800 96px ${FONT}`;
+    wrap(ctx, data.stage.toUpperCase(), STORY_W - 200).slice(0, 2).forEach((l, i) => ctx.fillText(l, STORY_W / 2, 1230 + i * 100));
+    ctx.fillStyle = s.dim;
+    ctx.font = `600 40px ${SANS}`;
+    ctx.fillText(data.protocol, STORY_W / 2, 1520);
+    ctx.font = `600 30px ${SANS}`;
+    ctx.fillText(data.date, STORY_W / 2, 1600);
+    ctx.textAlign = 'left';
+  } else if (data.kind === 'year') {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = s.ink;
+    ctx.font = `italic 800 400px ${FONT}`;
+    ctx.fillText(String(data.workouts), STORY_W / 2, 560);
+    ctx.fillStyle = s.accent;
+    ctx.font = `800 36px ${SANS}`;
+    ctx.letterSpacing = '9px';
+    ctx.fillText(`WORKOUTS IN ${data.year}`, STORY_W / 2, 650);
+    ctx.letterSpacing = '0px';
+    // One bar for each month
+    const top = Math.max(1, ...data.months);
+    const gap = (STORY_W - 168) / 12;
+    const base = 1180;
+    data.months.forEach((c, i) => {
+      const h = c === 0 ? 8 : 20 + (c / top) * 300;
+      const x = 84 + gap * i + gap * 0.14;
+      ctx.fillStyle = i === data.best ? s.accent : withAlpha(s.accent, 0.42);
+      ctx.beginPath();
+      ctx.roundRect(x, base - h, gap * 0.72, h, 12);
+      ctx.fill();
+      ctx.fillStyle = i === data.best ? s.ink : s.dim;
+      ctx.font = `700 26px ${SANS}`;
+      ctx.fillText(MONTHS[i].slice(0, 1), x + gap * 0.36, base + 54);
+    });
+    const colW = (STORY_W - 168) / data.stats.length;
+    data.stats.forEach((st, i) => {
+      const x = 84 + colW * i + colW / 2;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = s.dim;
+      ctx.font = `700 24px ${SANS}`;
+      ctx.letterSpacing = '4px';
+      ctx.fillText(st.label.toUpperCase(), x, 1440);
+      ctx.letterSpacing = '0px';
+      ctx.fillStyle = s.ink;
+      ctx.font = `italic 800 92px ${FONT}`;
+      const valW = ctx.measureText(st.value).width;
+      ctx.fillText(st.value, x - (st.unit ? 22 : 0), 1525);
+      if (st.unit) {
+        ctx.fillStyle = s.accent;
+        ctx.font = `italic 800 42px ${FONT}`;
+        ctx.textAlign = 'left';
+        ctx.fillText(st.unit, x - 22 + valW / 2 + 10, 1525);
+      }
+    });
+    ctx.textAlign = 'center';
+    ctx.fillStyle = s.ink;
+    ctx.font = `600 40px ${SANS}`;
+    wrap(ctx, data.line, STORY_W - 220).slice(0, 3).forEach((l, i) => ctx.fillText(l, STORY_W / 2, 1670 + i * 56));
     ctx.textAlign = 'left';
   } else if (data.kind === 'streak') {
     ring(ctx, STORY_W / 2, 700, 330, 36, 1, withAlpha(s.accent, 0.35), track);

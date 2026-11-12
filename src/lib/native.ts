@@ -32,8 +32,14 @@ export interface HcStatus {
   total?: number;
   grantedCount?: number;
   allGranted?: boolean;
+  /** The same counts for the permissions that only read (used when nothing is sent to Health Connect). */
+  readTotal?: number;
+  readGrantedCount?: number;
+  allReadGranted?: boolean;
   canRead?: boolean;
   canWrite?: boolean;
+  /** Granted and total permissions for each feature (activity, heart, sleep, body, nutrition, vitals). */
+  groups?: Record<string, { granted: number; total: number; readGranted?: number; readTotal?: number }>;
   /** Permission names still missing, e.g. "WRITE_NUTRITION". */
   missing?: string[];
 }
@@ -55,6 +61,8 @@ export interface HcSleepVitals {
   hrAvg?: number;
   hrMin?: number;
   hrMax?: number;
+  /** The night's heart rate as five-minute averages: [epoch ms, bpm]. */
+  hrSeries?: [number, number][];
   /** Average overnight HRV (RMSSD, ms) and how many readings it is based on. */
   hrvAvg?: number;
   hrvCount?: number;
@@ -117,7 +125,8 @@ export interface HcWorkoutWrite {
 
 export const HealthConnect = registerPlugin<{
   status(): Promise<HcStatus>;
-  requestAccess(): Promise<HcStatus>;
+  /** Asks for the permissions of the named features (all of them when none are named). */
+  requestAccess(options?: { groups?: string[]; readOnly?: boolean }): Promise<HcStatus>;
   /** Opens Health Connect's own permission screen (Android stops showing the pop-up after repeated refusals). */
   openSettings(): Promise<void>;
   readSleep(options: { days: number }): Promise<{ sessions: HcSleepSession[] }>;
@@ -155,6 +164,8 @@ export const HealthConnect = registerPlugin<{
     fatG: number;
   }): Promise<void>;
   writeHydration(options: { id: string; start: number; ml: number }): Promise<void>;
+  /** A finished breathing session, saved as a mindfulness session. */
+  writeMindfulness(options: { id: string; start: number; end: number; title?: string; notes?: string }): Promise<void>;
   writeSleep(options: {
     id: string;
     start: number;
@@ -170,7 +181,7 @@ export const HealthConnect = registerPlugin<{
     glucose: { id: string; time: number; mgdl: number; own: boolean }[];
   }>;
   deleteRecords(options: {
-    kind: 'bloodPressure' | 'bloodGlucose' | 'workout' | 'distance' | 'calories' | 'heartRate' | 'weight' | 'bodyFat' | 'nutrition' | 'hydration' | 'sleep';
+    kind: 'bloodPressure' | 'bloodGlucose' | 'workout' | 'distance' | 'calories' | 'heartRate' | 'weight' | 'bodyFat' | 'nutrition' | 'hydration' | 'sleep' | 'mindfulness';
     ids: string[];
   }): Promise<void>;
 }>('HealthConnect');
@@ -195,11 +206,11 @@ export const Diagnostics = registerPlugin<{
 }>('Diagnostics');
 export const Launch = registerPlugin<{
   getPendingAction(): Promise<{ action: string | null }>;
-  /** Pins a home-screen shortcut that opens the app, drawn from a base64 PNG (the way a custom-colour icon gets onto the home screen). */
+  /** Pins a home-screen shortcut that opens the app, drawn from a base64 PNG (the way a custom-color icon gets onto the home screen). */
   addHomeShortcut(options: { png: string; label?: string }): Promise<{ supported: boolean; requested?: boolean }>;
   /** Height in CSS pixels of the system gesture / navigation strip at the bottom of the screen. */
   getSystemInsets(): Promise<{ bottom: number }>;
-  /** Switches the home-screen icon to one of the colour presets (see LOGO_PRESETS). */
+  /** Switches the home-screen icon to one of the color presets (see LOGO_PRESETS). */
   setLauncherIcon(options: { id: string }): Promise<void>;
   getLauncherIcon(): Promise<{ id: string }>;
   getWatchWorkouts(): Promise<{ items: string[] }>;
@@ -246,6 +257,33 @@ export const MapPack = registerPlugin<{
   addListener(event: 'progress', fn: (p: { copied: number; total: number }) => void): Promise<{ remove: () => Promise<void> }>;
 }>('MapPack');
 
+/** Breathing sessions done on the watch while the app was closed: [[endMs, patternId, seconds, bpmStart, bpmEnd], ...], handed over once. */
+export const BreatheWatch = registerPlugin<{ takePending(): Promise<{ items: [number, string, number, number, number][] }> }>('BreatheWatch');
+
+/** Reads the text in a photo of a nutrition label, on the phone (the model is inside the app; nothing is sent anywhere). */
+export const LabelScan = registerPlugin<{
+  read(options: { image: string }): Promise<{ lines: { text: string; left: number; top: number; right: number; bottom: number }[] }>;
+  /** Names what is in a photo of a meal (an on-device image model). */
+  labels(options: { image: string }): Promise<{ labels: { text: string; confidence: number }[] }>;
+}>('LabelScan');
+
+/** Downloads one web page for recipe import (public https addresses only, checked again in native code). */
+export const RecipeFetch = registerPlugin<{ fetch(options: { url: string }): Promise<{ html: string; url: string }> }>('RecipeFetch');
+
+/** Reads the clipboard text when the person asks (the web view cannot). */
+export const ClipboardRead = registerPlugin<{ read(): Promise<{ text: string }> }>('ClipboardRead');
+
+/** Opens a web page in an in-app overlay (an Android Custom Tab). Only https addresses. */
+export const OpenUrl = registerPlugin<{ open(options: { url: string }): Promise<void> }>('OpenUrl');
+
+/** The workout in progress as a notification with a rest countdown, and the launcher's long-press shortcuts. */
+export const LiftSession = registerPlugin<{
+  sync(options: { active: boolean; title?: string; detail?: string; startedAt?: number; restEndsAt?: number; paused?: boolean; alert?: 'vibrate' | 'sound' | 'both' | 'silent' }): Promise<void>;
+  setShortcuts(options: { emptyLabel: string; routines: { id: string; name: string }[] }): Promise<void>;
+  /** The numbers on the Lift home-screen widget. */
+  widget(options: { week: number; todayId: string; todayName: string }): Promise<void>;
+}>('LiftSession');
+
 /** The running fast, handed to Android so the notification and the widget keep counting with the app closed. */
 export const Fasting = registerPlugin<{
   sync(options: {
@@ -255,6 +293,10 @@ export const Fasting = registerPlugin<{
     protocol: string;
     live: boolean;
     stages: boolean;
+    /** The glow card (drawn in the app's colors) instead of the system live update. */
+    glow?: boolean;
+    /** The app's accent color as #RRGGBB, so the notification matches the color scheme. */
+    accent?: string;
     lastHours: number;
     lastProtocol: string;
   }): Promise<void>;
@@ -267,6 +309,8 @@ export const Glance = registerPlugin<{
   sendRoutines(options: { json: string }): Promise<void>;
   /** The shoes and bikes the watch offers when you start a run or ride there: a JSON list (see lib/watchGear). */
   sendGear(options: { json: string }): Promise<void>;
+  /** The exercise library for the watch's picker (see lib/watchStrength buildWatchExercises). */
+  sendExercises(options: { json: string }): Promise<void>;
   send(options: {
     readiness: number;
     readinessLabel: string;
@@ -277,12 +321,51 @@ export const Glance = registerPlugin<{
     fastActive: boolean;
     fastStartMs: number;
     fastGoalHours: number;
+    /** The most you can reach, so the watch's heart-rate zones are right when the phone is not there (0 = unknown). */
+    maxHr?: number;
+    /** Last night, for the watch's sleep screen and complication (sleepMin -1 = none). */
+    sleepMin?: number;
+    sleepDeep?: number;
+    sleepRem?: number;
+    sleepLight?: number;
+    sleepAwake?: number;
+    sleepScore?: number;
+    sleepBed?: string;
+    sleepWake?: string;
+    sleepDate?: string;
+    sleepGoalMin?: number;
+    /** Today's food, for the watch's Eat tile and complication, and its meal nudge (eatLastMs 0 = unknown). */
+    eatEaten?: number;
+    eatGoal?: number;
+    eatLeft?: number;
+    eatP?: number;
+    eatPGoal?: number;
+    eatLastMs?: number;
+    /** The week's sleep debt in minutes (-1 = no nights tracked) and how many nights it is built from. */
+    sleepDebtMin?: number;
+    sleepDebtNights?: number;
   }): Promise<void>;
 }>('Glance');
 
+/** Puts planned workouts and meals into a calendar on the phone (Google account and on-phone calendars only). */
+export const DeviceCalendar = registerPlugin<{
+  listCalendars(): Promise<{ calendars: { id: string; name: string; account: string; google: boolean }[] }>;
+  addEvents(options: { calendarId: string; events: { key: string; title: string; startMs: number; endMs: number; description: string }[] }): Promise<{ added: { key: string; id: number }[] }>;
+  removeEvents(options: { ids: number[] }): Promise<{ removed: number }>;
+}>('DeviceCalendar');
+
+/** Today's calories for the Eat widget and the Eat Quick Settings tile. */
+export const Eat = registerPlugin<{
+  sync(options: { eaten: number; goal: number; left: number; proteinG: number; proteinGoal: number }): Promise<void>;
+  /** Meals said into the watch since the app last looked: a JSON list of {at, text}, handed over once. */
+  takeVoice(): Promise<{ items: string }>;
+  /** A short note back to the watch about a meal it sent. */
+  sendResult(options: { text: string }): Promise<void>;
+}>('Eat');
+
 /** Today's water for the home-screen widget and the watch's Fuel tile, and water added there while the app was closed. */
 export const Water = registerPlugin<{
-  sync(options: { totalMl: number; goalMl: number; imperial: boolean; step1Ml: number; step2Ml: number }): Promise<void>;
+  sync(options: { totalMl: number; goalMl: number; imperial: boolean; step1Ml: number; step2Ml: number; lastMl?: number }): Promise<void>;
   /** [[epoch ms, ml], ...] added from the widget or the watch since the app last looked. They are removed once handed over. */
   takePending(): Promise<{ items: unknown[] }>;
 }>('Water');

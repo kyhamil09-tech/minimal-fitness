@@ -27,5 +27,22 @@ export const sanitizePendingWater = (raw: unknown, now: number): PendingWater[] 
   return out;
 };
 
+/**
+ * How many times a drink was taken back from the watch while the app was closed. The phone leaves a request ([time, -1]) for each
+ * one it could not apply itself, because the drink was already in the app's log.
+ */
+export const countWaterUndos = (raw: unknown, now: number): number => {
+  if (!Array.isArray(raw)) return 0;
+  let n = 0;
+  for (const row of raw) {
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const [at, ml] = row;
+    if (typeof at !== 'number' || ml !== -1) continue;
+    if (at > now + 60_000 || now - at > 2 * 86_400_000) continue;
+    n++;
+  }
+  return n;
+};
+
 /** What the widget's two buttons add: a small and a large drink, in ml. */
 export const waterButtonAmounts = (imperial: boolean): [number, number] => (imperial ? [237, 473] : [250, 500]);

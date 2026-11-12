@@ -65,7 +65,7 @@ export const ReadinessCard: React.FC<{ theme: ColorPalette; readiness: Readiness
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mt-3 w-full flex items-center justify-between text-[11px] font-bold text-neutral-400 hover:text-white"
+        className="mt-3 w-full flex items-center justify-between text-xs font-bold text-neutral-400 hover:text-white"
       >
         <span>What it is made of</span>
         {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -83,17 +83,17 @@ export const ReadinessCard: React.FC<{ theme: ColorPalette; readiness: Readiness
               <div className="h-1.5 rounded-full bg-white/10 mt-1 overflow-hidden">
                 <div className="h-full rounded-full" style={{ width: `${p.score}%`, backgroundColor: p.score >= 70 ? '#6EE7B7' : p.score >= 45 ? '#FBBF24' : '#FB7185' }} />
               </div>
-              <div className="text-[11px] text-neutral-500 mt-0.5">{p.detail}</div>
+              <div className="text-xs text-neutral-400 mt-0.5">{p.detail}</div>
             </div>
           ))}
           {readiness.missing.length > 0 && (
-            <div className="rounded-2xl glass-inset p-3 text-[11px] text-neutral-400 space-y-1">
+            <div className="rounded-2xl glass-inset p-3 text-xs text-neutral-400 space-y-1">
               {readiness.missing.map((m) => (
                 <div key={m}>{m}</div>
               ))}
             </div>
           )}
-          <p className="text-[10px] text-neutral-600 leading-relaxed">
+          <p className="text-xs text-neutral-400 leading-relaxed">
             An estimate from your own data, worked out on this phone. Google’s Readiness score is not shared with other apps, so the two will not match. Not medical advice.
           </p>
         </div>

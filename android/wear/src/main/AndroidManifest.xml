@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -21,7 +22,8 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Minimal Fitness"
         android:theme="@style/KyTheme">
 
@@ -29,6 +31,8 @@
 
         <uses-library android:name="com.google.android.wearable" android:required="true" />
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
+
+        <activity android:name=".BreatheActivity" android:exported="false" />
 
         <activity
             android:name=".MainActivity"
@@ -82,6 +86,11 @@
             android:name=".WatchDetectReceiver"
             android:exported="false" />
 
+        <!-- Every half hour, when a nudge is on: water behind the day's pace, or a meal time with nothing logged -->
+        <receiver
+            android:name=".NudgeReceiver"
+            android:exported="false" />
+
         <!-- Every half hour: asks Health Services for its held readings and sends them to the phone -->
         <receiver
             android:name=".VitalsAlarmReceiver"
@@ -115,11 +124,25 @@
                 android:resource="@drawable/tile_preview" />
         </service>
 
+        <!-- Tile: calories left today, protein, and a one-tap water button -->
+        <service
+            android:name=".KyEatTileService"
+            android:exported="true"
+            android:label="Eat"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
         <!-- Complication for watch faces: running workout timer / quick start. -->
         <service
             android:name=".KyComplicationService"
             android:exported="true"
-            android:icon="@drawable/ic_launcher"
+            android:icon="@mipmap/ic_launcher"
             android:label="Minimal Fitness workout"
             android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
             <intent-filter>
@@ -171,6 +194,18 @@
             <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
         </service>
         <service
+            android:name=".SleepComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_moon"
+            android:label="Sleep"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
             android:name=".FastingComplicationService"
             android:exported="true"
             android:icon="@drawable/ic_cardio"
@@ -180,6 +215,81 @@
                 <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
             </intent-filter>
             <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+
+        <!-- Heart rate, calories and water: the other gauges the Minimal Fitness digital watch face is built around, usable on any face -->
+        <service
+            android:name=".HeartComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_heart"
+            android:label="Heart rate"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
+            android:name=".CaloriesComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_flame"
+            android:label="Calories burned"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
+            android:name=".WaterComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_drop"
+            android:label="Water"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
+            android:name=".SleepDebtComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_moon"
+            android:label="Sleep debt"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <service
+            android:name=".EatComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_eat"
+            android:label="Eat"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
+        </service>
+        <!-- Only for the fasting stage bar on the digital watch face; its numbers are packed into the range -->
+        <service
+            android:name=".FastingBarComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_cardio"
+            android:label="Fasting bar (digital face)"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="RANGED_VALUE" />
             <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />
         </service>
 
@@ -220,6 +330,18 @@
                     android:scheme="wear"
                     android:host="*"
                     android:path="/ky/water" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/ky/routines" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/ky/gear" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/ky/exercises" />
             </intent-filter>
         </service>
 
@@ -241,6 +363,10 @@
                     android:scheme="wear"
                     android:host="*"
                     android:pathPrefix="/ky/detect/" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/ky/food/" />
             </intent-filter>
         </service>
     </application>

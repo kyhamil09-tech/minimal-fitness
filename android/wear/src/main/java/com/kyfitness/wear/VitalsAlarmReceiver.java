@@ -43,6 +43,8 @@ public class VitalsAlarmReceiver extends BroadcastReceiver {
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             VitalsSync.maybeSend(app, true);
             schedule(app);
+            // Also moves the fasting bar along: it has no timer of its own.
+            GlanceComplicationService.requestAll(app);
             result.finish();
         }, 8_000);
     }

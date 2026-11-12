@@ -69,18 +69,18 @@ export const MapPacksPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
           <h3 className="gh-title" style={{ fontSize: '1.05rem' }}>Offline maps</h3>
         </div>
         {android && (
-          <button type="button" onClick={() => void add()} disabled={busy} className="px-3.5 py-1.5 rounded-full glass-chip text-[11px] font-bold text-white flex items-center gap-1.5 disabled:opacity-50">
+          <button type="button" onClick={() => void add()} disabled={busy} className="px-3.5 py-1.5 rounded-full glass-chip text-xs font-bold text-white flex items-center gap-1.5 disabled:opacity-50">
             <Download className="w-3.5 h-3.5" style={{ color: theme.primary }} /> {busy ? 'Working…' : 'Add a map file'}
           </button>
         )}
       </div>
-      <p className="text-[11px] text-neutral-400 leading-relaxed">
+      <p className="text-xs text-neutral-400 leading-relaxed">
         Where a map file covers your run, the map draws from it with no internet. The app never downloads maps for you (free map servers forbid bulk downloads), so you bring the file: a <b>.pmtiles</b> file saved on your phone.
         Protomaps (protomaps.com) lets you download a region of the world as one; picture-tile PMTiles files work too. Files stay in this app's private storage.
       </p>
-      {!android && <p className="text-[11px] text-amber-300">Offline maps work in the Android app.</p>}
-      {progress && <p className="text-[11px] text-neutral-300" role="status">{progress}</p>}
-      {message && <p className="text-[11px] text-emerald-300" role="status">{message}</p>}
+      {!android && <p className="text-xs text-amber-300">Offline maps work in the Android app.</p>}
+      {progress && <p className="text-xs text-neutral-300" role="status">{progress}</p>}
+      {message && <p className="text-xs text-emerald-300" role="status">{message}</p>}
       {packs.length === 0 ? (
         <div className="rounded-2xl glass-inset p-3.5 text-xs text-neutral-400">No map files yet. Online maps are used, and tiles you have looked at are remembered.</div>
       ) : (
@@ -89,11 +89,11 @@ export const MapPacksPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
             <div key={p.id} className="rounded-2xl glass-inset p-3 flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-bold text-white truncate">{p.name}</div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-xs text-neutral-400">
                   {p.kind === 'vector' ? 'Vector map' : 'Picture map'} · zoom {p.minZoom}–{p.maxZoom} · {formatSize(p.sizeBytes)}
                 </div>
               </div>
-              <button type="button" onClick={() => void remove(p)} aria-label={`Remove ${p.name}`} className="p-1.5 text-neutral-500 hover:text-rose-400">
+              <button type="button" onClick={() => void remove(p)} aria-label={`Remove ${p.name}`} className="p-1.5 text-neutral-400 hover:text-rose-400">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>

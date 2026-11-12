@@ -1,9 +1,9 @@
 /**
- * Small colour helpers for the theme system: mixing, contrast, and the "light pre-image".
+ * Small color helpers for the theme system: mixing, contrast, and the "light pre-image".
  *
  * The app's light family is the dark design with a CSS filter on the page (invert, then rotate the hue by 180 degrees). To make a
- * light surface come out as a chosen colour, the variable has to hold the colour that the filter turns INTO it. {@link lightPre}
- * works that colour out, so a designer's cream stays that cream on screen.
+ * light surface come out as a chosen color, the variable has to hold the color that the filter turns INTO it. {@link lightPre}
+ * works that color out, so a designer's cream stays that cream on screen.
  */
 
 export type RGB = [number, number, number];
@@ -21,7 +21,7 @@ export const parseHex = (hex: string): RGB => {
 export const toHex = (rgb: RGB): string =>
   '#' + rgb.map((v) => Math.round(clamp(v)).toString(16).padStart(2, '0')).join('');
 
-/** A colour {@code t} of the way from {@code a} to {@code b} (0 is a, 1 is b). */
+/** A color {@code t} of the way from {@code a} to {@code b} (0 is a, 1 is b). */
 export const mix = (a: string, b: string, t: number): string => {
   const x = parseHex(a);
   const y = parseHex(b);
@@ -48,10 +48,10 @@ export const contrast = (a: string, b: string): number => {
 
 export const isLight = (hex: string): boolean => luminance(hex) > 0.4;
 
-/** Black or off-white text, whichever reads better on this colour. */
+/** Black or off-white text, whichever reads better on this color. */
 export const readableOn = (bg: string, dark = '#1C1B18', light = '#F6F1E7'): string => (contrast(bg, dark) >= contrast(bg, light) ? dark : light);
 
-/** The same colour with its saturation scaled ({@code 0} is grey, {@code 1} unchanged). */
+/** The same color with its saturation scaled ({@code 0} is grey, {@code 1} unchanged). */
 export const desaturate = (hex: string, amount: number): string => {
   const [r, g, b] = parseHex(hex);
   const y = 0.299 * r + 0.587 * g + 0.114 * b;
@@ -71,7 +71,7 @@ const apply = (m: [RGB, RGB, RGB], c: RGB): RGB => [
 ];
 const inv = (c: RGB): RGB => [255 - c[0], 255 - c[1], 255 - c[2]];
 
-/** What the light-family page filter (invert, then hue-rotate 180) turns a colour into. */
+/** What the light-family page filter (invert, then hue-rotate 180) turns a color into. */
 export const lightFilter = (hex: string): string => toHex(apply(HUE180, inv(parseHex(hex)).map((v) => clamp(v)) as RGB).map((v) => clamp(v)) as RGB);
 
 const raw = (hex: string): RGB => apply(HUE180, parseHex(hex)).map((v) => 255 - v) as RGB;
@@ -79,8 +79,8 @@ const raw = (hex: string): RGB => apply(HUE180, parseHex(hex)).map((v) => 255 - 
 const inGamut = (c: RGB) => c.every((v) => v >= -0.5 && v <= 255.5);
 
 /**
- * The colour to put in a variable so that, after the light filter, it shows as {@code hex}. Strongly coloured values can fall
- * outside what a screen can show; those are pulled toward grey just far enough to fit, so the result is always the closest colour
+ * The color to put in a variable so that, after the light filter, it shows as {@code hex}. Strongly colored values can fall
+ * outside what a screen can show; those are pulled toward grey just far enough to fit, so the result is always the closest color
  * that can be made, never a wrong hue.
  */
 export const lightPre = (hex: string): string => {
@@ -95,7 +95,7 @@ export const lightPre = (hex: string): string => {
 
 /**
  * An accent made readable on a light background: darkened (keeping its hue) until it has at least {@code min} contrast, which is
- * also what lets a bright colour such as electric lime fit inside what the light filter can reproduce.
+ * also what lets a bright color such as electric lime fit inside what the light filter can reproduce.
  */
 export const adaptForLight = (hex: string, bg: string, min = 3): string => {
   let cur = hex;
@@ -103,7 +103,7 @@ export const adaptForLight = (hex: string, bg: string, min = 3): string => {
   return cur;
 };
 
-/** Neutral shades (Tailwind's neutral 100 to 950) running from the ink colour down to the background. */
+/** Neutral shades (Tailwind's neutral 100 to 950) running from the ink color down to the background. */
 export const neutralRamp = (ink: string, bg: string): Record<string, string> => {
   const steps: [string, number][] = [
     ['100', 0], ['200', 0.08], ['300', 0.2], ['400', 0.38], ['500', 0.55], ['600', 0.7], ['700', 0.8], ['800', 0.89], ['900', 0.95], ['950', 0.98],

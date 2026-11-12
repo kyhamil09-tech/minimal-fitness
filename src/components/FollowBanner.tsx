@@ -58,11 +58,11 @@ export const FollowBanner: React.FC<Props> = ({ state, heading, homeMode, routeN
     <div className="mx-4 mt-3 rounded-2xl border px-4 py-3 flex items-center gap-3" style={{ borderColor: `${color}66`, backgroundColor: `${color}14` }} role="status" aria-live="polite">
       <span className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center" style={{ backgroundColor: `${color}22`, color }}>
         {state.finished && !homeMode ? <Flag className="w-5 h-5" /> : off || homeMode ? <ArrowUp className="w-6 h-6" style={{ transform: `rotate(${rotation}deg)`, transition: 'transform 0.4s' }} /> : <Home className="hidden" />}
-        {!off && !homeMode && !state.finished && <span className="text-[11px] font-extrabold">{Math.round((state.progressKm / Math.max(0.01, state.totalKm)) * 100)}%</span>}
+        {!off && !homeMode && !state.finished && <span className="text-xs font-extrabold">{Math.round((state.progressKm / Math.max(0.01, state.totalKm)) * 100)}%</span>}
       </span>
       <div className="min-w-0">
         <div className="text-sm font-bold text-white leading-tight">{title}</div>
-        <div className="text-[11px] text-neutral-300 mt-0.5 truncate">{sub}</div>
+        <div className="text-xs text-neutral-300 mt-0.5 truncate">{sub}</div>
       </div>
     </div>
   );

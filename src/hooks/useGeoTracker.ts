@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { TrackBuilder, TrackPoint, LatLng, decimate } from '../lib/geo';
+import { TrackBuilder, TrackPoint, LatLng, decimate, maxSpeedKmhFor } from '../lib/geo';
 import {
   SampleCursor,
   SessionOptions,
@@ -41,7 +41,9 @@ export function useGeoTracker() {
   const [speedMs, setSpeedMs] = useState<number | null>(null);
 
   const builder = useRef(new TrackBuilder({ smooth: true }));
-  const cursor = useRef<SampleCursor>({ fix: 0, hr: 0 });
+  const cursor = useRef<SampleCursor>({ fix: 0, hr: 0, pause: 0 });
+  /** Told when the phone paused the workout by itself (you stopped) or carried on, with the time it happened. Set by the screen. */
+  const onAutoPause = useRef<((ts: number, paused: boolean) => void) | null>(null);
   const nativeHr = useRef<[number, number][]>([]);
   const barometer = useRef(false);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -67,8 +69,20 @@ export function useGeoTracker() {
       nativeHr.current.push(...r.hr);
       if (r.barometer) barometer.current = true;
       let accepted = false;
-      for (const f of r.fixes) accepted = builder.current.add(f) || accepted;
-      if (accepted || r.fixes.length > 0) publish();
+      // Pauses and resumes the phone decided on while the screen was off are applied at the moment they happened, in order with the
+      // fixes, so the distance covered while paused (or the walk off after resuming) goes to the right side of the line.
+      let e = 0;
+      const applyPause = (ts: number, paused: boolean) => {
+        if (paused) builder.current.pause(ts);
+        else builder.current.resume(ts);
+        onAutoPause.current?.(ts, paused);
+      };
+      for (const f of r.fixes) {
+        while (e < r.pauses.length && r.pauses[e][0] <= f.ts) applyPause(...r.pauses[e++]);
+        accepted = builder.current.add(f) || accepted;
+      }
+      while (e < r.pauses.length) applyPause(...r.pauses[e++]);
+      if (accepted || r.fixes.length > 0 || r.pauses.length > 0) publish();
     } catch {
       // The recorder is not running; the next poll will try again.
     } finally {
@@ -99,8 +113,8 @@ export function useGeoTracker() {
 
   const start = useCallback(async (options: SessionOptions = {}, restored?: ReturnType<typeof getState>) => {
     stopWatchers();
-    builder.current = new TrackBuilder({ smooth: true });
-    cursor.current = { fix: 0, hr: 0 };
+    builder.current = new TrackBuilder({ smooth: true, maxSpeedKmh: maxSpeedKmhFor(options.sport) });
+    cursor.current = { fix: 0, hr: 0, pause: 0 };
     nativeHr.current = [];
     barometer.current = false;
     setDistanceKm(0);
@@ -178,5 +192,5 @@ export function useGeoTracker() {
 
   useEffect(() => stopWatchers, []);
 
-  return { status, distanceKm, elevationGainM, pointCount, speedMs, start, stop, setPaused, getPoints, getRecent, getState };
+  return { status, distanceKm, elevationGainM, pointCount, speedMs, start, stop, setPaused, getPoints, getRecent, getState, onAutoPause };
 }

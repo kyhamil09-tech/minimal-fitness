@@ -1,9 +1,12 @@
 import { WorkoutSession, WorkoutType } from '../types/health';
+import { isWorkingSet, workingVolumeKg } from './sets';
+import { estimate1RM } from './oneRepMax';
 import {
   ActivityLevel,
   BodyEntry,
   ExerciseLog,
   FoodEntry,
+  Sex,
   UserProfile,
 } from '../types/tracking';
 import { addDays, startOfWeek, toDateKey } from './dates';
@@ -23,10 +26,11 @@ export type ZoneMethod = 'max' | 'reserve';
  * a share of the gap between your resting and highest heart rate, so the zones fit your own fitness. The app sets this from
  * Settings and from your latest resting heart rate; the default keeps the plain percentage of max.
  */
-const zoneConfig: { method: ZoneMethod; restHr: number } = { method: 'max', restHr: 60 };
+const zoneConfig: { method: ZoneMethod; restHr: number; sex: Sex } = { method: 'max', restHr: 60, sex: 'other' };
 
-export const setZoneConfig = (method: ZoneMethod, restHr: number) => {
+export const setZoneConfig = (method: ZoneMethod, restHr: number, sex: Sex = zoneConfig.sex) => {
   zoneConfig.method = method;
+  zoneConfig.sex = sex;
   if (Number.isFinite(restHr) && restHr >= 30 && restHr <= 110) zoneConfig.restHr = Math.round(restHr);
 };
 
@@ -66,12 +70,17 @@ export const ZONE_NAMES: Record<number, string> = {
   5: 'Max',
 };
 
-/** Banister TRIMP (male coefficients, used for all sexes as a rough load score). */
-export const trimp = (minutes: number, avgHr: number, maxHr: number, restHr: number) => {
+/**
+ * Banister TRIMP: minutes times how far up your heart-rate reserve you worked, weighted so hard minutes count for much more.
+ * Banister's published weights differ by sex (women's load builds a little faster with effort); with no sex given, or "other",
+ * the male weights are used as a rough score, as before. The sex defaults to the one set from your profile.
+ */
+export const trimp = (minutes: number, avgHr: number, maxHr: number, restHr: number, sex: Sex = zoneConfig.sex) => {
   const reserve = maxHr - restHr;
   if (reserve <= 0 || minutes <= 0) return 0;
   const ratio = Math.min(1, Math.max(0, (avgHr - restHr) / reserve));
-  return Math.round(minutes * ratio * 0.64 * Math.exp(1.92 * ratio));
+  const weight = sex === 'female' ? 0.86 * Math.exp(1.67 * ratio) : 0.64 * Math.exp(1.92 * ratio);
+  return Math.round(minutes * ratio * weight);
 };
 
 /* ---------- Energy ---------- */
@@ -91,6 +100,19 @@ const MET: Record<WorkoutType, number> = {
   IndoorCycling: 7,
   Elliptical: 5,
   Yoga: 2.5,
+  Swimming: 6,
+  OpenWaterSwim: 7,
+  StairClimbing: 8.8,
+  Dance: 5,
+  Pilates: 3,
+  Stretching: 2.3,
+  AlpineSkiing: 5.3,
+  CrossCountrySkiing: 9,
+  Snowboarding: 5.3,
+  Snowshoeing: 8,
+  IceSkating: 7,
+  Kayaking: 5,
+  Paddleboarding: 6,
 };
 
 export const estimateCalories = (type: WorkoutType, minutes: number, weightKg: number) =>
@@ -161,14 +183,11 @@ export const sortedBodyEntries = (entries: BodyEntry[]) =>
 /* ---------- Strength ---------- */
 
 /** Epley one-rep-max estimate. */
-export const estimateOneRepMax = (weightKg: number, reps: number) => {
-  if (weightKg <= 0 || reps <= 0) return 0;
-  if (reps === 1) return weightKg;
-  return weightKg * (1 + reps / 30);
-};
+/** Estimated one-rep max: from the effort (RPE) when it is known, otherwise the chosen formula (see lib/oneRepMax). */
+export const estimateOneRepMax = (weightKg: number, reps: number, rpe?: number) => estimate1RM(weightKg, reps, { rpe });
 
-export const logVolumeKg = (log: ExerciseLog) =>
-  log.sets.reduce((sum, s) => (s.done ? sum + s.reps * s.weightKg : sum), 0);
+/** Weight lifted in one exercise. Warm-up sets and timed holds are not counted. */
+export const logVolumeKg = (log: ExerciseLog) => workingVolumeKg(log);
 
 export const workoutVolumeKg = (w: WorkoutSession) =>
   (w.exercises || []).reduce((sum, e) => sum + logVolumeKg(e), 0);
@@ -187,8 +206,8 @@ export const personalRecords = (workouts: WorkoutSession[]): Record<string, Pers
   for (const w of workouts) {
     for (const ex of w.exercises || []) {
       for (const s of ex.sets) {
-        if (!s.done || s.weightKg <= 0 || s.reps <= 0) continue;
-        const e1 = estimateOneRepMax(s.weightKg, s.reps);
+        if (!isWorkingSet(s) || s.weightKg <= 0 || s.reps <= 0) continue;
+        const e1 = estimateOneRepMax(s.weightKg, s.reps, s.rpe);
         const cur = records[ex.exerciseId];
         if (!cur || e1 > cur.oneRepMax) {
           records[ex.exerciseId] = {
@@ -213,7 +232,7 @@ export const detectNewPRs = (prior: WorkoutSession[], logs: ExerciseLog[]): stri
   for (const ex of logs) {
     let best = 0;
     for (const s of ex.sets) {
-      if (s.done) best = Math.max(best, estimateOneRepMax(s.weightKg, s.reps));
+      if (isWorkingSet(s)) best = Math.max(best, estimateOneRepMax(s.weightKg, s.reps, s.rpe));
     }
     if (best <= 0) continue;
     const prev = before[ex.exerciseId];
@@ -250,23 +269,34 @@ export const workoutDateKeys = (workouts: WorkoutSession[]) => {
   return set;
 };
 
-export const currentStreak = (dateKeys: Set<string>, today: string): number => {
-  let cursor = dateKeys.has(today) ? today : addDays(today, -1);
+/** Days kept alive with a streak freeze (see lib/streakFreeze). They bridge a gap but are not counted as days done. */
+let frozenDays: ReadonlySet<string> = new Set();
+export const setFrozenDays = (days: Iterable<string>) => {
+  frozenDays = new Set(days);
+};
+
+/** Days in a row ending at `from`, counting only real days and letting a frozen day hold the chain together. */
+export const streakFrom = (dateKeys: Set<string>, frozen: ReadonlySet<string>, from: string): number => {
+  let cursor = from;
   let n = 0;
-  while (dateKeys.has(cursor)) {
-    n += 1;
+  while (dateKeys.has(cursor) || frozen.has(cursor)) {
+    if (dateKeys.has(cursor)) n += 1;
     cursor = addDays(cursor, -1);
   }
   return n;
 };
 
+export const currentStreak = (dateKeys: Set<string>, today: string): number =>
+  streakFrom(dateKeys, frozenDays, dateKeys.has(today) || frozenDays.has(today) ? today : addDays(today, -1));
+
 export const longestStreak = (dateKeys: Set<string>): number => {
-  const sorted = [...dateKeys].sort();
+  const all = [...new Set([...dateKeys, ...frozenDays])].sort();
   let best = 0;
   let run = 0;
   let prev = '';
-  for (const k of sorted) {
-    run = prev && addDays(prev, 1) === k ? run + 1 : 1;
+  for (const k of all) {
+    const real = dateKeys.has(k) ? 1 : 0;
+    run = prev && addDays(prev, 1) === k ? run + real : real;
     best = Math.max(best, run);
     prev = k;
   }
@@ -318,3 +348,4 @@ export const sumFood = (entries: FoodEntry[]) =>
   );
 
 export const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+

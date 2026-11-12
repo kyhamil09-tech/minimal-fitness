@@ -10,7 +10,16 @@ import { ParsedActivity } from './types';
 export const mapSport = (raw: string | undefined, hasGps = true): WorkoutType | null => {
   const s = (raw ?? '').toLowerCase().replace(/[^a-z]/g, '');
   if (!s) return hasGps ? 'Walking' : null;
-  if (/swim|ski|snowboard|surf|kayak|paddle|sail|skate/.test(s)) return null;
+  // Sports with no place here (surfing, sailing, wheeled skating) are skipped; the rest map to their own types.
+  if (/surf|sail|inline|roller|wheel/.test(s)) return null;
+  if (/swim/.test(s)) return /openwater|ocean|lake|sea/.test(s) ? 'OpenWaterSwim' : 'Swimming';
+  if (/snowboard/.test(s)) return 'Snowboarding';
+  if (/nordic|crosscountry|backcountryski|skateski|rollerski/.test(s)) return 'CrossCountrySkiing';
+  if (/ski/.test(s)) return 'AlpineSkiing';
+  if (/snowshoe/.test(s)) return 'Snowshoeing';
+  if (/skat/.test(s)) return 'IceSkating';
+  if (/standup|paddleboard|^sup$/.test(s)) return 'Paddleboarding';
+  if (/kayak|canoe|paddl|raft/.test(s)) return 'Kayaking';
   if (/virtualride|indoorcycl|spinning|stationarybike|ebike.*indoor/.test(s)) return 'IndoorCycling';
   if (/treadmill|virtualrun/.test(s)) return 'Treadmill';
   if (/trailrun|run|jog/.test(s)) return 'Running';

@@ -105,6 +105,8 @@ final class WatchDetect {
     private static void unregister(Context c) {
         try {
             ActivityRecognition.getClient(c).removeActivityTransitionUpdates(transitionIntent(c));
+        } catch (SecurityException ignored) {
+            // permission taken away: nothing is registered
         } catch (RuntimeException ignored) {
             // not registered
         }

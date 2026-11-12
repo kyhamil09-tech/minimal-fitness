@@ -29,6 +29,9 @@ final class WaterStore {
             .putBoolean("imperial", m.getBoolean("imperial", false))
             .putInt("step1", m.getInt("step1", 250))
             .putInt("step2", m.getInt("step2", 500))
+            // The phone's newest drink of the day: what the tile's take-back button removes when this watch did not add it itself.
+            .putInt("lastMl", m.getInt("lastMl", 0))
+            .remove("adds")
             .apply();
     }
 
@@ -50,10 +53,63 @@ final class WaterStore {
         return p(c).getInt(which == 1 ? "step1" : "step2", which == 1 ? 250 : 500);
     }
 
+    /** Drinks added on this watch since the phone last reported, newest last. */
+    private static java.util.List<Integer> adds(SharedPreferences prefs) {
+        java.util.List<Integer> out = new java.util.ArrayList<>();
+        if (!LocalDate.now().toString().equals(prefs.getString("day", ""))) return out;
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString("adds", "[]"));
+            for (int i = 0; i < a.length(); i++) out.add(a.getInt(i));
+        } catch (org.json.JSONException ignored) {
+            // a damaged list is ignored
+        }
+        return out;
+    }
+
     /** Adds water on the watch straight away; the phone gets the same amount to log and answers with the true total. */
     static void addLocal(Context c, int ml) {
         SharedPreferences prefs = p(c);
-        prefs.edit().putString("day", LocalDate.now().toString()).putInt("ml", totalMl(c) + ml).apply();
+        java.util.List<Integer> a = adds(prefs);
+        a.add(ml);
+        while (a.size() > 20) a.remove(0);
+        prefs.edit()
+            .putString("day", LocalDate.now().toString())
+            .putInt("ml", totalMl(c) + ml)
+            .putString("adds", new org.json.JSONArray(a).toString())
+            .putInt("lastMl", ml)
+            .apply();
+        GlanceComplicationService.request(c, WaterComplicationService.class);
+    }
+
+    /** True when there is a drink to take back: one added on this watch, or the phone's newest. */
+    static boolean canUndo(Context c) {
+        SharedPreferences prefs = p(c);
+        return totalMl(c) > 0 && (!adds(prefs).isEmpty() || prefs.getInt("lastMl", 0) > 0);
+    }
+
+    /**
+     * Takes the last drink back at once on the watch and returns how much it was (0 if there was none to take back). The phone is told
+     * separately, removes it from its log and answers with the true total.
+     */
+    static int undoLocal(Context c) {
+        SharedPreferences prefs = p(c);
+        java.util.List<Integer> a = adds(prefs);
+        int ml;
+        if (!a.isEmpty()) {
+            ml = a.remove(a.size() - 1);
+        } else {
+            ml = prefs.getInt("lastMl", 0);
+        }
+        if (ml <= 0) return 0;
+        int next = a.isEmpty() ? 0 : a.get(a.size() - 1);
+        prefs.edit()
+            .putString("day", LocalDate.now().toString())
+            .putInt("ml", Math.max(0, totalMl(c) - ml))
+            .putString("adds", new org.json.JSONArray(a).toString())
+            .putInt("lastMl", next)
+            .apply();
+        GlanceComplicationService.request(c, WaterComplicationService.class);
+        return ml;
     }
 
     /** A counter that makes every drawn tile's buttons unique, so a repeated tap id can be told apart from a new tap. */

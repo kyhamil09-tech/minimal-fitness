@@ -5,17 +5,17 @@ import { paceGapSec, verdictMessage } from '../lib/targets';
 
 const said = (...ids: string[]) => new Set(ids);
 
-test('distance goal says halfway once, then the last kilometre', () => {
+test('distance goal says halfway once, then the last kilometer', () => {
   assert.equal(nextMilestone({ type: 'distance', goal: 10, done: 2, said: said() }), null);
   assert.equal(nextMilestone({ type: 'distance', goal: 10, done: 5.1, said: said('quarter') })?.text, 'Halfway.');
   assert.equal(nextMilestone({ type: 'distance', goal: 10, done: 5.2, said: said('quarter', 'half') }), null);
-  assert.equal(nextMilestone({ type: 'distance', goal: 10, done: 9.05, said: said('quarter', 'half', 'three-quarter') })?.text, 'Last kilometre.');
+  assert.equal(nextMilestone({ type: 'distance', goal: 10, done: 9.05, said: said('quarter', 'half', 'three-quarter') })?.text, 'Last kilometer.');
 });
 
 test('a late first fix does not replay earlier cues', () => {
   const m = nextMilestone({ type: 'distance', goal: 10, done: 9.6, said: said() });
   assert.equal(m?.id, 'last-500');
-  assert.equal(m?.text, '400 metres to go.');
+  assert.equal(m?.text, '400 meters to go.');
 });
 
 test('time goal counts down in minutes', () => {
@@ -29,8 +29,8 @@ test('short goals only say halfway and the end', () => {
 
 test('pace messages say how far off you are', () => {
   assert.equal(paceGapSec(3.0, 300)?.toFixed(0), '33');
-  assert.equal(verdictMessage('slow', 33), 'Speed up, you are 35 seconds per kilometre behind');
+  assert.equal(verdictMessage('slow', 33), 'Speed up, you are 35 seconds per kilometer behind');
   assert.equal(verdictMessage('fast', -12), 'Slow down');
-  assert.equal(verdictMessage('fast', 12), 'Slow down, you are 10 seconds per kilometre ahead');
+  assert.equal(verdictMessage('fast', 12), 'Slow down, you are 10 seconds per kilometer ahead');
   assert.equal(verdictMessage('high'), 'Heart rate high, ease off');
 });

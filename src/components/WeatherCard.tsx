@@ -1,4 +1,5 @@
 import React from 'react';
+import { LearnMore } from './ui/LearnMore';
 import { CloudSun, RefreshCw } from 'lucide-react';
 import { ColorPalette } from '../types/theme';
 import { UnitSystem } from '../types/tracking';
@@ -22,15 +23,14 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ state, theme, units, c
   if (!enabled || !weather) {
     if (compact) return null;
     return (
-      <section className="rounded-[28px] border p-5 flex items-center justify-between gap-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
+      <section className="rounded-2xl border px-4 py-2.5 flex items-center justify-between gap-3" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
             <CloudSun className="w-4 h-4" style={{ color: theme.primary }} />
             Running weather
+            <LearnMore text="See if it is a good time to run. Uses your approximate location (rounded to about 1 km) and the free Open-Meteo service. Off until you turn it on." />
           </div>
-          <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-            {error || (enabled && loading ? 'Loading the weather…' : 'See if it is a good time to run. Uses your approximate location and the free Open-Meteo service.')}
-          </p>
+          {(error || (enabled && loading)) && <p className="text-xs text-neutral-400">{error || 'Loading the weather…'}</p>}
         </div>
         {!enabled && (
           <button onClick={() => setEnabled(true)} className="px-4 py-2 rounded-full text-xs font-extrabold shrink-0" style={{ backgroundColor: theme.primary, color: '#000' }}>
@@ -58,7 +58,7 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ state, theme, units, c
           <div className="text-sm font-bold text-white">
             {temp} · {describeCode(weather.code)} · wind {wind}
           </div>
-          <div className="text-[11px] mt-0.5 truncate" style={{ color: TONE[cond.tone] }}>
+          <div className="text-xs mt-0.5 truncate" style={{ color: TONE[cond.tone] }}>
             {cond.label}: {cond.tips[0]}
           </div>
         </div>
@@ -72,7 +72,7 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ state, theme, units, c
         <span className="stat-label flex items-center gap-1.5">
           <CloudSun className="w-3.5 h-3.5" /> Running weather
         </span>
-        <button onClick={() => void refresh()} aria-label="Refresh weather" className="text-neutral-500 hover:text-white">
+        <button onClick={() => void refresh()} aria-label="Refresh weather" className="text-neutral-400 hover:text-white">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -101,13 +101,13 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ state, theme, units, c
         </div>
         <ul className="mt-1 space-y-0.5">
           {cond.tips.map((t) => (
-            <li key={t} className="text-[11px] text-neutral-400">
+            <li key={t} className="text-xs text-neutral-400">
               {t}
             </li>
           ))}
         </ul>
       </div>
-      <button onClick={() => setEnabled(false)} className="mt-3 text-[10px] font-bold uppercase tracking-wider text-neutral-600 hover:text-neutral-300">
+      <button onClick={() => setEnabled(false)} className="mt-3 text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-neutral-300">
         Turn weather off
       </button>
     </section>

@@ -63,7 +63,7 @@ export const WeeklyRecapCard: React.FC<Props> = ({ theme, workouts, sleepLogs, u
               type="button"
               onClick={() => setWhich(w)}
               aria-pressed={which === w}
-              className={`px-3 py-1 rounded-lg text-[11px] font-semibold ${which === w ? 'bg-neutral-900 border border-neutral-700' : 'text-neutral-400'}`}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold ${which === w ? 'bg-neutral-900 border border-neutral-700' : 'text-neutral-400'}`}
               style={{ color: which === w ? theme.primary : undefined }}
             >
               {w === 'this' ? 'This week' : 'Last week'}
@@ -71,7 +71,7 @@ export const WeeklyRecapCard: React.FC<Props> = ({ theme, workouts, sleepLogs, u
           ))}
         </div>
       </div>
-      <p className="text-[11px] text-neutral-500">
+      <p className="text-xs text-neutral-400">
         {range}
         {recap.days < 7 ? ` · ${recap.days} day${recap.days === 1 ? '' : 's'} so far, compared with the same days last week` : ' · compared with the week before'}
       </p>
@@ -87,15 +87,15 @@ export const WeeklyRecapCard: React.FC<Props> = ({ theme, workouts, sleepLogs, u
           return (
             <div key={r.label} className="rounded-2xl glass-inset p-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-neutral-400">{r.label}</span>
-                <span className="flex items-center gap-1 text-[11px] font-bold tabular-nums" style={{ color }}>
+                <span className="text-xs text-neutral-400">{r.label}</span>
+                <span className="flex items-center gap-1 text-xs font-bold tabular-nums" style={{ color }}>
                   {!flat && (up ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />)}
                   {pct === undefined ? (r.now > 0 ? 'new' : '–') : flat ? 'about the same' : `${up ? '+' : ''}${pct}%`}
                 </span>
               </div>
               <div className="flex items-end justify-between mt-1">
                 <span className="text-xl font-semibold text-white tabular-nums">{r.text}</span>
-                <span className="text-[11px] text-neutral-500 tabular-nums">before: {r.beforeText}</span>
+                <span className="text-xs text-neutral-400 tabular-nums">before: {r.beforeText}</span>
               </div>
               <div className="mt-2 space-y-1">
                 <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
@@ -110,7 +110,7 @@ export const WeeklyRecapCard: React.FC<Props> = ({ theme, workouts, sleepLogs, u
         })}
       </div>
       {recap.longest && (
-        <p className="text-[11px] text-neutral-500">
+        <p className="text-xs text-neutral-400">
           Longest: {recap.longest.type.toLowerCase()}, {recap.longest.minutes} min
           {recap.longest.km ? `, ${kmToDisplay(recap.longest.km, units, 1)} ${distanceUnit(units)}` : ''}.
         </p>

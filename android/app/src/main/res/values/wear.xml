@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The watch looks for this capability to find the phone app itself, rather than sending to every device it happens to be connected to. -->
+    <string-array name="android_wear_capabilities">
+        <item>ky_fitness_phone</item>
+    </string-array>
+</resources>

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ban, Check, CloudOff, Database, Globe, Lock, MessageSquare, Share2, ShieldCheck, Wifi, X } from 'lucide-react';
-import { useLiveShare } from '../lib/liveShare';
+import { Ban, Check, CloudOff, Database, Globe, Lock, Share2, ShieldCheck, Wifi, X } from 'lucide-react';
 import { ColorPalette } from '../types/theme';
 import { NET_FEATURES } from '../lib/netHosts';
 import {
@@ -22,11 +21,13 @@ import {
   summarizeLocalData,
 } from '../lib/privacyInfo';
 import { isConnected as stravaConnected } from '../lib/strava';
+import { driveBackupOn } from '../lib/driveBackup';
 import { isAndroidApp } from '../lib/native';
 import { Toggle } from './ui/SettingsParts';
+import { GoogleServicesPanel } from './GoogleServicesPanel';
 
 const card = 'rounded-2xl bg-[#0B0D11] border border-[#1A1E26] overflow-hidden';
-const head = 'px-1 text-xs font-semibold uppercase tracking-wider text-[#7E889B]';
+const head = 'px-1 text-xs font-semibold uppercase tracking-wider text-[#9AA3B2]';
 
 const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 
@@ -54,7 +55,6 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
   const [showLog, setShowLog] = useState(false);
   const [showPerms, setShowPerms] = useState(false);
   const android = isAndroidApp();
-  const [share] = useLiveShare();
 
   useEffect(() => {
     const again = () => bump((n) => n + 1);
@@ -81,7 +81,9 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
     if (prefs.offline) return { on: false, text: 'Blocked by Offline mode' };
     if (id === 'maps') return prefs.maps ? { on: true, text: 'On' } : { on: false, text: 'Off' };
     if (id === 'food') return prefs.food ? { on: true, text: 'On' } : { on: false, text: 'Off' };
+    if (id === 'recipes') return { on: false, text: 'Does nothing until you tap Import in Add food > Recipe' };
     if (id === 'weather') return weatherOn() ? { on: true, text: 'On' } : { on: false, text: 'Off (turn it on from the weather card on Home)' };
+    if (id === 'drive') return driveBackupOn() ? { on: true, text: 'Connected' } : { on: false, text: 'Not connected: sends nothing' };
     return stravaConnected() ? { on: true, text: 'Connected' } : { on: false, text: 'Not connected: sends nothing' };
   };
 
@@ -99,9 +101,13 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
               There is no account, no server and no analytics, ads or crash-reporting service in this app. Nothing is ever sent to the developer or to any company.
               The only internet use is the small list below, and you can see every request, switch each one off, or block them all.
             </p>
-            <p className="mt-1.5 text-xs leading-relaxed text-neutral-300">
-              The one other way anything leaves the phone is <span className="font-semibold text-white">Live share</span>, which is off until you turn it on: it texts a map link to the people you pick, by SMS, not the internet. It is described in full below.
-            </p>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('kyfit-show-privacy-welcome'))}
+              className="mt-2 min-h-11 text-xs font-bold underline"
+              style={{ color: theme.primary }}
+            >
+              Watch the privacy welcome again
+            </button>
           </div>
         </div>
       </section>
@@ -112,18 +118,18 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
         <div className="grid grid-cols-3 gap-2.5 text-center">
           <div className="rounded-2xl glass-inset px-2 py-3">
             <div className="hero-num text-[1.9rem] text-white">{totals.requests}</div>
-            <div className="mt-1 text-[10px] leading-tight text-neutral-400">requests made since {new Date(totals.since).toLocaleDateString([], { month: 'short', day: 'numeric' })}</div>
+            <div className="mt-1 text-xs leading-tight text-neutral-400">requests made since {new Date(totals.since).toLocaleDateString([], { month: 'short', day: 'numeric' })}</div>
           </div>
           <div className="rounded-2xl glass-inset px-2 py-3">
             <div className="hero-num text-[1.9rem] text-white">{totals.blocked}</div>
-            <div className="mt-1 text-[10px] leading-tight text-neutral-400">blocked by your settings or the security policy</div>
+            <div className="mt-1 text-xs leading-tight text-neutral-400">blocked by your settings or the security policy</div>
           </div>
           <div className="rounded-2xl glass-inset px-2 py-3">
             <div className="hero-num text-[1.9rem] text-white">{info ? formatBytes(info.txBytes) : android ? '…' : '—'}</div>
-            <div className="mt-1 text-[10px] leading-tight text-neutral-400">sent, counted by Android itself since the phone started</div>
+            <div className="mt-1 text-xs leading-tight text-neutral-400">sent, counted by Android itself since the phone started</div>
           </div>
         </div>
-        <p className="px-1 text-[10px] leading-relaxed text-neutral-500">
+        <p className="px-1 text-xs leading-relaxed text-neutral-400">
           {android
             ? `The third number comes from Android's own network counter for this app, which the app cannot change${info && info.rxBytes >= 0 ? `; it has also received ${formatBytes(info.rxBytes)}, mostly map pictures` : ''}. The first two come from the app's request log below, which counts only what the request itself holds. Android's number is a little larger because it also counts the connection overhead.`
             : 'Android’s own byte counter is shown in the Android app.'}
@@ -141,7 +147,7 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
               </div>
               <div>
                 <div className="text-sm font-semibold text-white">Offline mode</div>
-                <div className="mt-0.5 text-xs leading-relaxed text-[#7E889B]">
+                <div className="mt-0.5 text-xs leading-relaxed text-[#9AA3B2]">
                   Blocks every request the app makes. Workouts, sleep, charts and the watch all keep working, and maps you have already seen still draw.
                 </div>
               </div>
@@ -159,55 +165,33 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
                       <Globe className="h-4 w-4 shrink-0 text-neutral-400" />
                       {f.label}
                     </div>
-                    <div className="mt-1 break-words font-mono text-[10px] text-neutral-500">{f.hosts.join(' · ')}</div>
+                    <div className="mt-1 break-words font-mono text-xs text-neutral-400">{f.hosts.length ? f.hosts.join(' · ') : 'the one page you type in'}</div>
                   </div>
                   {switchable ? (
                     <Toggle on={f.id === 'maps' ? prefs.maps : prefs.food} onChange={(v) => writeNetPrefs(f.id === 'maps' ? { maps: v } : { food: v })} label={`${f.label} may use the internet`} />
                   ) : (
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${st.on ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/10 text-neutral-400'}`}>{st.on ? 'On' : 'Off'}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${st.on ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/10 text-neutral-400'}`}>{st.on ? 'On' : 'Off'}</span>
                   )}
                 </div>
-                <p className="mt-2 text-[11px] leading-relaxed text-neutral-400">
+                <p className="mt-2 text-xs leading-relaxed text-neutral-400">
                   <span className="font-semibold text-neutral-200">Sends: </span>
                   {f.sends}
                 </p>
-                <p className="mt-1 text-[10px] text-neutral-500">{st.text}</p>
+                <p className="mt-1 text-xs text-neutral-400">{st.text}</p>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Live share */}
-      <div className="space-y-2.5">
-        <div className={head}>Live share (text messages)</div>
-        <div className={`${card} p-4`}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <MessageSquare className="h-4 w-4 shrink-0 text-neutral-400" />
-              Text my location during workouts
-            </div>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${share.enabled ? 'bg-amber-500/15 text-amber-300' : 'bg-white/10 text-neutral-400'}`}>{share.enabled ? 'On' : 'Off'}</span>
-          </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-neutral-400">
-            <span className="font-semibold text-neutral-200">Sends: </span>
-            to {share.enabled ? share.contacts.map((c) => c.name).join(', ') : 'nobody while it is off'}: your name, the activity, time, distance and battery level, and a map address of where you are. A text goes out when you start, every {share.everyMin} minutes, if you stop moving for 5 minutes, when you finish, and when you press SOS.
-          </p>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-400">
-            <span className="font-semibold text-neutral-200">How: </span>
-            as an ordinary text message from this phone (SEND_SMS permission), through your phone company. It does not use the internet, it does not pass through any server of this app, and Offline mode does not affect it. The map address is a plain link: only the person who opens it contacts a map service.
-          </p>
-          <p className="mt-1.5 text-[10px] text-neutral-500">
-            {share.enabled ? 'Every text is listed in Settings > Safety live share, and in your phone’s messages app.' : 'Nothing is texted until you add a contact and switch it on in Settings > Safety live share.'}
-          </p>
-        </div>
-      </div>
+      {/* Google, and only Google */}
+      <GoogleServicesPanel theme={theme} playServices={info?.playServices} android={android} />
 
       {/* The log */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <div className={head}>Every request, as sent</div>
-          <button onClick={() => setShowLog((v) => !v)} className="text-[11px] font-bold" style={{ color: theme.primary }}>
+          <button onClick={() => setShowLog((v) => !v)} className="text-xs font-bold" style={{ color: theme.primary }}>
             {showLog ? 'Hide' : `Show last ${Math.min(log.length, 150)}`}
           </button>
         </div>
@@ -219,17 +203,17 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
               <ul className="max-h-72 divide-y divide-[#1A1E26] overflow-y-auto">
                 {[...log].reverse().map((e, i) => (
                   <li key={`${e.t}-${i}`} className="px-4 py-2.5">
-                    <div className="flex items-center justify-between gap-2 text-[10px]">
-                      <span className="font-mono text-neutral-500">{clock(e.t)}</span>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-mono text-neutral-400">{clock(e.t)}</span>
                       <span className={e.result === 'ok' ? 'text-sky-300' : e.result === 'blocked' ? 'text-amber-300' : 'text-rose-300'}>
                         {e.result === 'ok' ? `sent · ${e.status ?? ''}` : e.result === 'blocked' ? 'blocked' : 'failed'}
                       </span>
                     </div>
-                    <div className="mt-0.5 break-all font-mono text-[11px] text-neutral-200">
+                    <div className="mt-0.5 break-all font-mono text-xs text-neutral-200">
                       {e.method} {e.host}
                       {e.path}
                     </div>
-                    {e.why && <div className="mt-0.5 text-[10px] text-amber-200/80">{e.why}</div>}
+                    {e.why && <div className="mt-0.5 text-xs text-amber-200/80">{e.why}</div>}
                   </li>
                 ))}
               </ul>
@@ -259,7 +243,7 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
             Google cloud backup and phone-to-phone transfer of this app’s data are off, so Android never uploads it to Google Drive. Use the backup folder you choose in Data & backup.
           </Fact>
           <Fact ok>The Strava connection is made by native code that can only reach www.strava.com, and only after you connect it.</Fact>
-          <Fact ok>Texting is limited to Live share: the app only texts numbers you added yourself, never anyone else, and it asks Android for the SMS permission only when you switch Live share on.</Fact>
+          <Fact ok>The app sends no text messages and has no SMS permission. Share my location only opens Android's share sheet when you press it.</Fact>
           <Fact ok>Crash and error logs are kept on this phone only. Sharing one is always your action.</Fact>
           <Fact ok>Fonts, maps drawing code and every screen are packaged inside the app. Nothing is downloaded and run.</Fact>
         </ul>
@@ -291,7 +275,7 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <div className={head}>Permissions it asks Android for</div>
-            <button onClick={() => setShowPerms((v) => !v)} className="text-[11px] font-bold" style={{ color: theme.primary }}>
+            <button onClick={() => setShowPerms((v) => !v)} className="text-xs font-bold" style={{ color: theme.primary }}>
               {showPerms ? 'Hide' : `Show ${permissions.length}`}
             </button>
           </div>
@@ -300,7 +284,7 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
               {permissions.map((p, i) => (
                 <li key={i} className="flex items-start justify-between gap-3 px-4 py-2.5 text-xs">
                   <span className="text-neutral-300">{p.label}</span>
-                  <span className={`shrink-0 text-[10px] font-bold ${p.granted ? 'text-emerald-300' : 'text-neutral-500'}`}>{p.granted ? 'allowed' : 'not allowed'}</span>
+                  <span className={`shrink-0 text-xs font-bold ${p.granted ? 'text-emerald-300' : 'text-neutral-400'}`}>{p.granted ? 'allowed' : 'not allowed'}</span>
                 </li>
               ))}
             </ul>
@@ -317,7 +301,7 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
             ['Export a GPX route or a backup file', 'Saved to a place you choose.'],
             ['Upload to Strava', 'Only if you connected Strava, and only the workout you chose (or all of them if you turned on automatic upload).'],
             ['Open a route in Google Maps', 'Opens Google Maps with that route’s address.'],
-            ['Live share texts', 'Only if you switched it on and added a contact: a text with a map link goes to the people you chose, by SMS. The SOS button on a live run sends one at once.'],
+            ['Share my location', 'Only when you press it on a live run: Android’s share sheet opens with a map link, and nothing goes anywhere until you pick an app and a person.'],
           ].map(([t, d]) => (
             <li key={t} className="flex items-start gap-3 px-4 py-2.5">
               <Share2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
@@ -333,7 +317,7 @@ export const PrivacyPanel: React.FC<{ theme: ColorPalette }> = ({ theme }) => {
       {/* Honest limits */}
       <div className="space-y-2.5">
         <div className={head}>Software on your phone this app relies on</div>
-        <div className={`${card} p-4 text-[11px] leading-relaxed text-neutral-400`}>
+        <div className={`${card} p-4 text-xs leading-relaxed text-neutral-400`}>
           <p>
             <span className="font-semibold text-neutral-200">Google Play services</span> provides the phone’s sleep detection and the link to your watch. <span className="font-semibold text-neutral-200">Health Connect</span> holds the health data you allow this app to read and write, on the phone.
             The <span className="font-semibold text-neutral-200">Google Health / Fitbit app</span> is a separate app with its own privacy policy and is what uploads your watch data to Google: this app only reads what that app puts into Health Connect. These are Google software on your phone, governed by your Google settings, and this app never sends your data to them.

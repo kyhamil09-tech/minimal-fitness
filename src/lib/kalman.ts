@@ -38,7 +38,9 @@ export class GpsKalman {
     }
     const dt = f.ts - this.ts;
     if (dt > 0) {
-      this.variance += (dt * this.qMetersPerSecond * this.qMetersPerSecond) / 1000;
+      // The chip's own speed says how far the next position can plausibly be: a runner at 3 m/s and a rider at 9 m/s need different trust.
+      const q = f.speed != null && f.speed >= 0 ? Math.max(1, Math.min(12, f.speed * 1.3 + 0.8)) : this.qMetersPerSecond;
+      this.variance += (dt * q * q) / 1000;
       this.ts = f.ts;
     }
     const k = this.variance / (this.variance + accuracy * accuracy);

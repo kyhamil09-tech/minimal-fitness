@@ -3,25 +3,25 @@ import { ColorPalette, DataColors } from '../types/theme';
 import { adaptForLight, lightPre, mix, neutralRamp, parseHex, readableOn } from './colorMath';
 
 /**
- * Turns a background and an accent palette into the CSS variables and JS colours the whole app draws with.
+ * Turns a background and an accent palette into the CSS variables and JS colors the whole app draws with.
  *
  * Dark family: the values are used as they are. Light family: the page is drawn dark and flipped by a CSS filter (invert and hue
- * rotate), so every colour in a variable is first converted with {@link lightPre} so that it comes out as the colour that was
+ * rotate), so every color in a variable is first converted with {@link lightPre} so that it comes out as the color that was
  * designed, and accents are darkened until they read on the pastel (a neon lime would vanish on cream).
  */
 export interface Appearance {
   family: 'dark' | 'light';
   /** Variables for the page's root element. */
   vars: Record<string, string>;
-  /** The palette with its surface, text and accent colours ready for inline styles inside the page. */
+  /** The palette with its surface, text and accent colors ready for inline styles inside the page. */
   theme: ColorPalette;
-  /** The page's own background (outside the filter, so the colour you chose exactly). */
+  /** The page's own background (outside the filter, so the color you chose exactly). */
   pageBg: string;
-  /** The colour for the phone's status bar. */
+  /** The color for the phone's status bar. */
   metaColor: string;
 }
 
-const DEFAULT_DATA: DataColors = { blue: '#7dd3fc', green: '#cbff00', cyan: '#5eead4', red: '#ff4d4d', yellow: '#ffd23f', purple: '#b794ff' };
+const DEFAULT_DATA: DataColors = { blue: '#7dd3fc', green: '#10B981', cyan: '#5eead4', red: '#ff4d4d', yellow: '#ffd23f', purple: '#b794ff' };
 
 const rgba = (hex: string, a: number) => {
   const [r, g, b] = parseHex(hex);
@@ -30,7 +30,7 @@ const rgba = (hex: string, a: number) => {
 
 export const buildAppearance = (backdrop: Backdrop, palette: ColorPalette): Appearance => {
   const light = backdrop.family === 'light';
-  // The colour that will be stored for a "final" colour: unchanged in the dark family, pre-imaged in the light one.
+  // The color that will be stored for a "final" color: unchanged in the dark family, pre-imaged in the light one.
   const surf = (c: string) => (light ? lightPre(c) : c);
   const accent = (c: string) => (light ? lightPre(adaptForLight(c, backdrop.bg)) : c);
   const data = palette.data ?? DEFAULT_DATA;
@@ -52,12 +52,12 @@ export const buildAppearance = (backdrop: Backdrop, palette: ColorPalette): Appe
     '--panel': surf(backdrop.card),
     '--edge': surf(backdrop.hairline),
     '--nav-bg': light ? rgba(surf(backdrop.bg), 0.94) : rgba(backdrop.bg, 0.94),
-    // Tailwind's own colours: white text becomes the soft ink, black panels the soft overlay, and the grey ramp follows the backdrop.
+    // Tailwind's own colors: white text becomes the soft ink, black panels the soft overlay, and the grey ramp follows the backdrop.
     '--color-white': surf(backdrop.ink),
     '--color-black': surf(overlay),
     '--accent': accent(palette.primary),
     '--accent-2': accent(palette.secondary),
-    // Text on an accent-coloured button: whichever of dark or light ink reads better on the colour that is actually shown.
+    // Text on an accent-colored button: whichever of dark or light ink reads better on the color that is actually shown.
     '--on-accent': surf(readableOn(light ? adaptForLight(palette.primary, backdrop.bg) : palette.primary, '#14130F', '#F6F1E7')),
     '--on-accent-2': surf(readableOn(light ? adaptForLight(palette.secondary, backdrop.bg) : palette.secondary, '#14130F', '#F6F1E7')),
     '--g-blue': accent(data.blue),
@@ -94,7 +94,7 @@ export const buildAppearance = (backdrop: Backdrop, palette: ColorPalette): Appe
   return { family: backdrop.family, vars, theme, pageBg: backdrop.bg, metaColor: backdrop.bg };
 };
 
-/** The few colours the watch needs, in the colours you see (the watch is always dark, so a pastel backdrop uses its dark partner). */
+/** The few colors the watch needs, in the colors you see (the watch is always dark, so a pastel backdrop uses its dark partner). */
 export interface WatchLook {
   bg: string;
   card: string;

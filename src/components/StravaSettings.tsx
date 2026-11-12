@@ -81,7 +81,7 @@ export const StravaSettings: React.FC<{ theme: ColorPalette; hideTitle?: boolean
 
   return (
     <div className="space-y-2.5">
-      {!hideTitle && (<div className="px-1 text-xs font-semibold uppercase tracking-wider text-[#7E889B] flex items-center gap-1.5">
+      {!hideTitle && (<div className="px-1 text-sm font-bold text-neutral-200 flex items-center gap-1.5">
         <Bike className="w-3.5 h-3.5" style={{ color: theme.primary }} />
         Strava
       </div>)}
@@ -100,14 +100,14 @@ export const StravaSettings: React.FC<{ theme: ColorPalette; hideTitle?: boolean
                 }}
               />
             </label>
-            <p className="text-[11px] text-neutral-500">Or send one workout at a time from its details screen. Runs with a GPS route go up with the route and heart rate.</p>
-            <button onClick={disconnect} className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 hover:text-rose-400">
+            <p className="text-xs text-neutral-400">Or send one workout at a time from its details screen. Runs with a GPS route go up with the route and heart rate.</p>
+            <button onClick={disconnect} className="text-sm font-bold text-neutral-200 hover:text-rose-400">
               Disconnect and remove keys
             </button>
           </>
         ) : (
           <>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
+            <p className="text-xs text-neutral-400 leading-relaxed">
               Strava lets you create your own free API app, so no one else sees your data. In Strava go to Settings, then My API Application
               (strava.com/settings/api). Create one and set Authorization Callback Domain to <b className="text-white">localhost</b>. Then copy its
               Client ID and Client Secret here. The keys stay on this phone and are not included in backups.
@@ -119,7 +119,7 @@ export const StravaSettings: React.FC<{ theme: ColorPalette; hideTitle?: boolean
             </button>
             {step === 'approve' && (
               <div className="space-y-2 pt-1">
-                <p className="text-[11px] text-neutral-400 leading-relaxed">
+                <p className="text-xs text-neutral-400 leading-relaxed">
                   After you tap Authorize, your browser will say it cannot open {STRAVA_REDIRECT}. That is expected. Copy the whole address from
                   the browser bar and paste it here.
                 </p>
@@ -132,11 +132,11 @@ export const StravaSettings: React.FC<{ theme: ColorPalette; hideTitle?: boolean
           </>
         )}
         {message && (
-          <p role="status" className="text-[11px] font-semibold" style={{ color: message.startsWith('Connected') || message.startsWith('Disconnected') ? theme.primary : '#ff9a7a' }}>
+          <p role="status" className="text-xs font-semibold" style={{ color: message.startsWith('Connected') || message.startsWith('Disconnected') ? theme.primary : '#ff9a7a' }}>
             {message}
           </p>
         )}
-        {!android && <p className="text-[10px] text-neutral-600">Strava connections work in the Android app.</p>}
+        {!android && <p className="text-xs text-neutral-400">Strava connections work in the Android app.</p>}
       </div>
     </div>
   );

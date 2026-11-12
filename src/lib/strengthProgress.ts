@@ -2,6 +2,8 @@ import { WorkoutSession } from '../types/health';
 import { Exercise, ExerciseLog, MuscleGroup, UnitSystem } from '../types/tracking';
 import { getExercise, MUSCLE_GROUPS } from '../data/exercises';
 import { estimateOneRepMax } from './calc';
+import { isWorkingSet } from './sets';
+import { isHardSet } from './oneRepMax';
 import { addDays, toDateKey } from './dates';
 import { KG_PER_LB } from './units';
 
@@ -18,7 +20,8 @@ export interface LiftSession {
   sets: { weightKg: number; reps: number }[];
 }
 
-const doneSets = (log: ExerciseLog) => log.sets.filter((s) => s.done && s.reps > 0);
+/** The sets that count: finished, not warm-ups, and counted in reps (a timed hold has no rep maths). */
+const doneSets = (log: ExerciseLog) => log.sets.filter((s) => isWorkingSet(s) && s.reps > 0);
 
 /** Every session of one exercise, oldest first. */
 export const liftHistory = (workouts: WorkoutSession[], exerciseId: string): LiftSession[] => {
@@ -28,7 +31,7 @@ export const liftHistory = (workouts: WorkoutSession[], exerciseId: string): Lif
       if (ex.exerciseId !== exerciseId) continue;
       const sets = doneSets(ex).map((s) => ({ weightKg: s.weightKg, reps: s.reps }));
       if (!sets.length) continue;
-      const scored = sets.map((s) => ({ s, e: s.weightKg > 0 ? estimateOneRepMax(s.weightKg, s.reps) : 0 }));
+      const scored = doneSets(ex).map((s) => ({ s, e: s.weightKg > 0 ? estimateOneRepMax(s.weightKg, s.reps, s.rpe) : 0 }));
       const best = scored.reduce((a, b) => (b.e > a.e ? b : a));
       out.push({ at: w.startedAt ?? 0, top: best.s, e1rm: best.e, sets });
     }
@@ -167,7 +170,7 @@ export const weeklySets = (workouts: WorkoutSession[], today: string, weeks = 8)
     if (!row) continue;
     for (const ex of w.exercises ?? []) {
       const g = getExercise(ex.exerciseId)?.muscle;
-      if (g) row.sets[g] += doneSets(ex).length;
+      if (g && g in row.sets) row.sets[g] += doneSets(ex).filter(isHardSet).length;
     }
   }
   return out;
@@ -209,3 +212,4 @@ export const plateBreakdown = (target: number, bar: number, plates: number[]): P
   const loaded = bar + perSide.reduce((s, p) => s + p, 0) * 2;
   return { perSide, loaded: Math.round(loaded * 100) / 100, short: Math.round(Math.max(0, target - loaded) * 100) / 100 };
 };
+

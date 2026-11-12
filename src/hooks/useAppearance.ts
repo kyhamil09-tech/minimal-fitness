@@ -9,7 +9,7 @@ export type ThemeMode = 'dark' | 'light' | 'auto';
 /**
  * Owns the look of the app: dark, light or follow the phone; which background is used in each family (soft off-black or AMOLED
  * in the dark one, pastels and creams in the light one); and any background the user made themselves. It turns those and the
- * accent palette into CSS variables on the page (see lib/appearance.ts) and returns the colours the screens draw with.
+ * accent palette into CSS variables on the page (see lib/appearance.ts) and returns the colors the screens draw with.
  */
 export function useAppearance(palette: ColorPalette) {
   const [mode, setMode] = usePersistentState<ThemeMode>('theme_mode', 'dark');

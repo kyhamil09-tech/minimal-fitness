@@ -1,8 +1,14 @@
 package com.kyfitness.wear;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Intent;
+import android.media.AudioManager;
+import android.os.SystemClock;
+import android.text.format.DateFormat;
+import android.view.KeyEvent;
+import androidx.activity.ComponentActivity;
+import androidx.wear.ambient.AmbientLifecycleObserver;
+import androidx.wear.ambient.AmbientLifecycleObserverKt;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,6 +26,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
@@ -29,23 +36,24 @@ import java.util.Locale;
 
 /**
  * Watch app in the phone app's Run Club style: track-black, flat cards, one volt accent.
- * Home: a few favourite workouts plus "More workouts". Picking one opens a setup page with a goal
+ * Home: a few favorite workouts plus "More workouts". Picking one opens a setup page with a goal
  * (open, distance, time or calories) and a START button with a 3-2-1 countdown.
  * Workout: swipe between live metrics, controls, heart-rate zones and laps.
  * Ending asks Save / Resume / Discard, then shows a summary. The phone can start, pause and stop the
  * same workout (see {@link WorkoutState}); without the phone the watch records everything itself.
  */
-public class MainActivity extends Activity {
+public class MainActivity extends ComponentActivity {
     private static final int REQ_PERMS = 1;
     private static final int REQ_BG_SENSORS = 2;
-    /** Text and icons on an accent-coloured button: the look's dark ink (set from the chosen look in onCreate). */
+    /** Text and icons on an accent-colored button: the look's dark ink (set from the chosen look in onCreate). */
     private static int BLACK = 0xFF14130F;
     /** Which version of the phone's look this screen was drawn with; a newer one redraws it. */
     private int lookVersion = 0;
     /** Intent extra set by the tile's buttons: the workout type to set up. */
     static final String EXTRA_START = "ky_start";
+    private static final String EXTRA_REOPEN_SETTINGS = "ky_reopen_settings";
 
-    private enum Screen { HOME, MORE, SETUP, COUNTDOWN, SETTINGS, WORKOUT, END, SUMMARY }
+    private enum Screen { HOME, MORE, SETUP, COUNTDOWN, SETTINGS, SLEEP, FAST, WORKOUT, END, SUMMARY }
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Screen shown = null;
@@ -65,6 +73,38 @@ public class MainActivity extends Activity {
     private long startingAt = 0;
 
     private FrameLayout root;
+
+    // sleep (last night, as the phone sent it)
+    private TextView p0Steps;
+    private TextView p0StepsCap;
+    private LinearLayout stepsCol;
+    private ScrollView sleepScroll;
+    private ScrollView fastScroll;
+    private FastMeterView fastMeter;
+    private TextView fastEndLabel;
+    private LinearLayout sleepList;
+    private TextView sleepRowValue;
+    private String shownSleepKey = "";
+
+    // adding an exercise to a strength session
+    private FrameLayout pickerLayer;
+    private ScrollView pickerScroll;
+    private LinearLayout pickerList;
+    private String pickerGroup = null;
+    private boolean pickerOpen = false;
+    private TextView stAuto;
+
+    // always-on (ambient) display while a workout runs
+    private AmbientLifecycleObserver ambientObserver;
+    private boolean ambient = false;
+    private boolean ambientBurnIn = false;
+    private FrameLayout ambientLayer;
+    private LinearLayout ambientBox;
+    private TextView amType;
+    private TextView amMain;
+    private TextView amSub;
+    private TextView amHr;
+    private int ambientTicks = 0;
 
     // home
     private ScrollView idleScroll;
@@ -133,6 +173,20 @@ public class MainActivity extends Activity {
     private TextView p0Zone;
     private TextView p0ValueA;
     private TextView p0CaptionA;
+    /** The main workout page scrolls: the big numbers first, every other stat below. */
+    private ScrollView p0Scroll;
+    private TextView xTime;
+    private TextView xDist;
+    private TextView xDistCap;
+    private TextView xAvgPace;
+    private TextView xAvgPaceCap;
+    private TextView xKcal;
+    private TextView xAvgHr;
+    private TextView xMaxHr;
+    private TextView xClimb;
+    private TextView xClimbCap;
+    private TextView xLaps;
+    private TextView xLastLap;
     // page 1: controls
     private ImageView pauseIcon;
     private TextView pauseLabel;
@@ -168,7 +222,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // The colours the phone chose (palette and background) come first, so every view below is built with them.
+        // The colors the phone chose (palette and background) come first, so every view below is built with them.
+        Ui.lift = liftSessionOn();
         Ui.apply(this);
         BLACK = Ui.ON_ACCENT;
         lookVersion = LookStore.version(this);
@@ -182,27 +237,62 @@ public class MainActivity extends Activity {
         root.addView(buildCountdown());
         root.addView(buildSettings());
         root.addView(buildPager());
+        root.addView(buildSleep());
+        root.addView(buildFast());
         root.addView(buildEnd());
         root.addView(buildSummary());
+        root.addView(buildPicker());
+        root.addView(buildAmbientLayer());
         setContentView(root);
+        // Only when the "Always-on screen" setting is on does the app ask to stay showing in a dim, once-a-minute form while a workout runs.
+        // Registering as ambient-capable is what stops the system from turning the screen off, so by default it is left out: the screen
+        // sleeps after the system timeout and wakes again with the watch's own wrist gestures, and the workout carries on in the background.
+        if (WatchPrefs.alwaysOnWorkout(this)) {
+            ambientObserver = AmbientLifecycleObserverKt.AmbientLifecycleObserver(this, getMainExecutor(), new AmbientLifecycleObserver.AmbientLifecycleCallback() {
+                @Override
+                public void onEnterAmbient(AmbientLifecycleObserver.AmbientDetails details) {
+                    enterAmbient(details.getBurnInProtectionRequired());
+                }
+
+                @Override
+                public void onUpdateAmbient() {
+                    if (ambient) renderAmbient();
+                }
+
+                @Override
+                public void onExitAmbient() {
+                    exitAmbient();
+                }
+            });
+            getLifecycle().addObserver(ambientObserver);
+        }
+        // Changing that setting restarts the screen so it takes effect; come back to the settings page afterwards.
+        if (getIntent() != null && getIntent().getBooleanExtra(EXTRA_REOPEN_SETTINGS, false)) {
+            getIntent().removeExtra(EXTRA_REOPEN_SETTINGS);
+            nav = Screen.SETTINGS;
+        }
         idleScroll.requestFocus();
         if (hasSensorPermission()) {
             WatchSteps.register(this);
             askBackgroundSensorsOnce();
         }
         WatchDetect.configure(this);
+        WatchCaps.refresh(this);
         handleTileStart(getIntent());
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // The look was changed on the phone while this screen was away: draw it again in the new colours.
+        // The look was changed on the phone while this screen was away: draw it again in the new colors.
         if (LookStore.version(this) != lookVersion) {
             recreate();
             return;
         }
-        ui.post(refresh);
+        if (ambientObserver != null && !ambientObserver.isAmbient()) ambient = false;
+        if (!ambient) ui.post(refresh);
+        // Whatever the phone left on the watch while this app was away (routines, exercises, last night's sleep, water).
+        DataApply.pull(this);
         // Opening the app is a good moment to hand the day's readings to the phone.
         if (hasSensorPermission()) {
             WatchSteps.flush(this);
@@ -236,6 +326,15 @@ public class MainActivity extends Activity {
     @Override
     public boolean onGenericMotionEvent(MotionEvent e) {
         // During a strength session the crown scrolls the set page and the exercise list.
+        if (!pickerOpen && shown == Screen.WORKOUT && p0Scroll != null && e.getAction() == MotionEvent.ACTION_SCROLL && e.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER)
+            && pages != null && pager.getCurrentItem() < pages.length && pages[pager.getCurrentItem()] == p0Scroll) {
+            p0Scroll.scrollBy(0, Math.round(-e.getAxisValue(MotionEvent.AXIS_SCROLL) * ViewConfiguration.get(this).getScaledVerticalScrollFactor()));
+            return true;
+        }
+        if (pickerOpen && e.getAction() == MotionEvent.ACTION_SCROLL && e.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER)) {
+            pickerScroll.scrollBy(0, Math.round(-e.getAxisValue(MotionEvent.AXIS_SCROLL) * ViewConfiguration.get(this).getScaledVerticalScrollFactor()));
+            return true;
+        }
         if (e.getAction() == MotionEvent.ACTION_SCROLL && e.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER) && shown == Screen.WORKOUT && strengthPagesShown) {
             int page = pager.getCurrentItem();
             ScrollView sv = page == 0 ? stSetScroll : page == 1 ? stListScroll : null;
@@ -252,6 +351,8 @@ public class MainActivity extends Activity {
             }
             float delta = -axis * ViewConfiguration.get(this).getScaledVerticalScrollFactor();
             ScrollView target = shown == Screen.SETTINGS ? settingsScroll
+                : shown == Screen.SLEEP ? sleepScroll
+                : shown == Screen.FAST ? fastScroll
                 : shown == Screen.END ? endScroll
                 : shown == Screen.SUMMARY ? summaryScroll
                 : shown == Screen.MORE ? moreScroll
@@ -292,7 +393,8 @@ public class MainActivity extends Activity {
                         cancel.setAction(MotionEvent.ACTION_CANCEL);
                         super.dispatchTouchEvent(cancel);
                         cancel.recycle();
-                        if (shown == Screen.HOME || shown == Screen.WORKOUT || shown == null) finish();
+                        if (pickerOpen) pickerBack();
+                        else if (shown == Screen.HOME || shown == Screen.WORKOUT || shown == null) finish();
                         else onBackPressed();
                         return true;
                     }
@@ -309,7 +411,9 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (shown == Screen.SETTINGS || shown == Screen.MORE) {
+        if (pickerOpen) {
+            pickerBack();
+        } else if (shown == Screen.SETTINGS || shown == Screen.MORE || shown == Screen.SLEEP || shown == Screen.FAST) {
             nav = Screen.HOME;
             render();
         } else if (shown == Screen.SETUP) {
@@ -454,6 +558,28 @@ public class MainActivity extends Activity {
         hr.setOnClickListener(v -> toggleHeartRateOnly());
         idleList.addView(hr);
 
+        idleList.addView(caption("TODAY"));
+        LinearLayout fast = row(R.drawable.ic_bolt, Ui.ACCENT, "Start fast");
+        fastLabel = (TextView) fast.getTag();
+        fastValue = Ui.text(this, "", 14, Ui.ACCENT, true);
+        fast.addView(fastValue);
+        fast.setOnClickListener(v -> openFast());
+        fastRow = fast;
+        idleList.addView(fast);
+
+        LinearLayout meal = row(R.drawable.ic_eat, Ui.ACCENT, "Log a meal");
+        meal.setOnClickListener(v -> logMealByVoice());
+        idleList.addView(meal);
+
+        LinearLayout sleep = row(R.drawable.ic_moon, Ui.PURPLE, "Sleep");
+        sleepRowValue = Ui.text(this, "", 14, Ui.PURPLE, true);
+        sleep.addView(sleepRowValue);
+        sleep.setOnClickListener(v -> {
+            nav = Screen.SLEEP;
+            render();
+        });
+        idleList.addView(sleep);
+
         idleList.addView(caption("RECENT"));
         historyBox = column();
         idleList.addView(historyBox);
@@ -468,6 +594,30 @@ public class MainActivity extends Activity {
 
         idleScroll = scroller(idleList, 34, 60);
         return idleScroll;
+    }
+
+    /** Dictate what you ate ("two eggs and toast"); the phone turns it into food entries and sends back what it logged. */
+    private final androidx.activity.result.ActivityResultLauncher<Intent> voiceFood = registerForActivityResult(
+        new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (result.getResultCode() != RESULT_OK || result.getData() == null) return;
+            java.util.ArrayList<String> heard = result.getData().getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+            if (heard == null || heard.isEmpty() || heard.get(0).trim().isEmpty()) return;
+            String said = heard.get(0).trim();
+            PhoneLink.send(this, "/ky/food/voice", said);
+            Haptics.tick(this);
+            android.widget.Toast.makeText(this, "Sent to your phone: " + said, android.widget.Toast.LENGTH_LONG).show();
+        });
+
+    private void logMealByVoice() {
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "What did you eat?");
+        try {
+            voiceFood.launch(i);
+        } catch (android.content.ActivityNotFoundException e) {
+            android.widget.Toast.makeText(this, "Voice input is not available on this watch", android.widget.Toast.LENGTH_LONG).show();
+        }
     }
 
     /** A quick-start tile: the first one is the solid accent call to action. */
@@ -488,7 +638,8 @@ public class MainActivity extends Activity {
     }
 
     private void renderQuickTiles() {
-        List<String> favs = WatchPrefs.favorites(this);
+        List<String> favs = new ArrayList<>();
+        for (String s : WatchPrefs.favorites(this)) if (WatchCaps.supports(this, Sports.find(s).exercise)) favs.add(s);
         String key = String.valueOf(favs);
         if (key.equals(shownFavorites)) return;
         shownFavorites = key;
@@ -507,7 +658,95 @@ public class MainActivity extends Activity {
         }
     }
 
+    private TextView fastLabel;
+    private TextView fastValue;
+    private LinearLayout fastRow;
+    /** Ending a fast needs a second tap within a few seconds, so a brush of the screen cannot end it. */
+    private long fastEndArmedUntil = 0;
+
+    /** Opens the fasting screen, starting a fast first when none is running. */
+    private void openFast() {
+        if (!WatchPrefs.fasting(this)) return;
+        if (!GlanceStore.fastActive(this)) {
+            long now = System.currentTimeMillis();
+            GlanceStore.setFast(this, true, now, GlanceStore.fastGoalHours(this));
+            PhoneLink.send(this, PhoneLink.PATH_CMD, "{\"cmd\":\"fast\",\"action\":\"start\",\"at\":" + now + "}");
+            Haptics.lap(this);
+        }
+        nav = Screen.FAST;
+        render();
+    }
+
+    /** Ending a fast needs a second tap, so a brush of the screen cannot end it. */
+    private void endFastTap() {
+        long now = System.currentTimeMillis();
+        if (now < fastEndArmedUntil) {
+            fastEndArmedUntil = 0;
+            GlanceStore.setFast(this, false, 0, 0);
+            PhoneLink.send(this, PhoneLink.PATH_CMD, "{\"cmd\":\"fast\",\"action\":\"end\",\"at\":" + now + "}");
+            Haptics.lap(this);
+            nav = Screen.HOME;
+            render();
+        } else {
+            fastEndArmedUntil = now + 4000;
+            fastEndLabel.setText("Tap again to end");
+        }
+    }
+
+    private double fastHours() {
+        return Math.max(0, (System.currentTimeMillis() - GlanceStore.fastStartMs(this)) / 3_600_000.0);
+    }
+
+    private View buildFast() {
+        LinearLayout c = column();
+        c.setGravity(Gravity.CENTER_HORIZONTAL);
+        fastMeter = new FastMeterView(this);
+        c.addView(fastMeter, new LinearLayout.LayoutParams(dp(196), dp(196)));
+        LinearLayout end = row(R.drawable.ic_stop, Ui.RED, "End fast");
+        fastEndLabel = (TextView) end.getTag();
+        end.setOnClickListener(v -> endFastTap());
+        end.setLayoutParams(match(8));
+        c.addView(end);
+        LinearLayout back = row(R.drawable.ic_close, Ui.MUTED, "Back");
+        back.setOnClickListener(v -> {
+            nav = Screen.HOME;
+            render();
+        });
+        back.setLayoutParams(match(6));
+        c.addView(back);
+        fastScroll = scroller(c, 24, 60);
+        fastScroll.setVisibility(View.GONE);
+        return fastScroll;
+    }
+
+    private void renderFast() {
+        if (!GlanceStore.fastActive(this) || !WatchPrefs.fasting(this)) {
+            nav = Screen.HOME;
+            return;
+        }
+        fastMeter.setFast(fastHours(), GlanceStore.fastGoalHours(this), false);
+        if (System.currentTimeMillis() >= fastEndArmedUntil) fastEndLabel.setText("End fast");
+    }
+
+    private void renderFastRow() {
+        if (fastLabel == null) return;
+        boolean on = WatchPrefs.fasting(this);
+        if (fastRow != null) fastRow.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) return;
+        if (!GlanceStore.fastActive(this)) {
+            fastLabel.setText("Start fast");
+            fastValue.setText("");
+        } else {
+            long mins = Math.max(0, (System.currentTimeMillis() - GlanceStore.fastStartMs(this)) / 60_000);
+            fastLabel.setText("Fasting");
+            fastValue.setText(String.format(Locale.getDefault(), "%dh %02dm", mins / 60, mins % 60));
+        }
+    }
+
     private void renderIdle() {
+        renderFastRow();
+        int sleepMin = GlanceStore.sleepMin(this);
+        sleepRowValue.setText(sleepMin < 0 ? "" : (sleepMin / 60) + "h " + String.format(Locale.getDefault(), "%02d", sleepMin % 60) + "m");
         renderQuickTiles();
         int steps = WatchSteps.today(this);
         stepsView.setText(steps > 0 ? String.format(Locale.getDefault(), "%,d", steps) : "0");
@@ -550,8 +789,13 @@ public class MainActivity extends Activity {
         TextView hint = Ui.text(this, "Tap to set up  -  star to pin to home", 10, Ui.MUTED, false);
         hint.setPadding(0, dp(2), 0, dp(6));
         moreList.addView(hint);
+        LinearLayout breathe = row(R.drawable.ic_moon, Ui.BLUE, "Breathe");
+        breathe.setContentDescription("Breathe. Guided breathing with buzzes.");
+        breathe.setOnClickListener(v -> startActivity(new android.content.Intent(this, BreatheActivity.class)));
+        moreList.addView(breathe);
         List<String> favs = WatchPrefs.favorites(this);
         for (final Sports.Sport sport : Sports.ALL) {
+            if (!WatchCaps.supports(this, sport.exercise)) continue;
             LinearLayout r = row(sport.icon, sport.tint(), sport.label);
             if (sport.gps) {
                 TextView gps = Ui.text(this, "GPS", 9, Ui.MUTED, false);
@@ -561,6 +805,7 @@ public class MainActivity extends Activity {
             final boolean fav = favs.contains(sport.type);
             TextView star = Ui.text(this, fav ? "★" : "☆", 20, fav ? Ui.ACCENT : Ui.MUTED, false);
             star.setPadding(dp(8), dp(4), dp(4), dp(4));
+            star.setContentDescription((fav ? "Unpin " : "Pin ") + sport.label + " on the home screen");
             star.setOnClickListener(v -> {
                 WatchPrefs.toggleFavorite(this, sport.type);
                 renderMore();
@@ -785,7 +1030,30 @@ public class MainActivity extends Activity {
         cap.setPadding(0, dp(14), 0, dp(4));
         setupList.addView(cap);
 
-        if (setupSport.hasDistance()) {
+        if ("Swimming".equals(setupSport.type)) {
+            float len = WatchPrefs.poolLengthM(this);
+            float[] lens = {25f, 50f, 22.86f};
+            String[] names = {"25 m", "50 m", "25 yd"};
+            LinearLayout pool = new LinearLayout(this);
+            pool.setOrientation(LinearLayout.HORIZONTAL);
+            for (int i = 0; i < lens.length; i++) {
+                final float l = lens[i];
+                TextView c = chip(names[i], Math.abs(len - l) < 0.05f, v -> {
+                    WatchPrefs.setPoolLengthM(this, l);
+                    renderSetup();
+                });
+                LinearLayout.LayoutParams lp = weight(1f);
+                lp.leftMargin = dp(2);
+                lp.rightMargin = dp(2);
+                pool.addView(c, lp);
+            }
+            TextView pcap = Ui.text(this, "Pool length", 9, Ui.MUTED, false);
+            pcap.setPadding(0, dp(8), 0, dp(2));
+            setupList.addView(pcap);
+            setupList.addView(pool, match(2));
+        }
+
+        if (setupSport.hasDistance() && !"Swimming".equals(setupSport.type)) {
             float pace = WatchPrefs.targetPace(this);
             boolean miles = WatchPrefs.miles(this);
             LinearLayout row = new LinearLayout(this);
@@ -938,13 +1206,29 @@ public class MainActivity extends Activity {
         settingsList.addView(Ui.num(this, "SETTINGS", 22, Ui.INK));
         addToggle("Auto-pause", "Pause when you stop moving", "autoPause", WatchPrefs.autoPause(this));
         addToggle("Auto-lap", "A lap every km or mile", "autoLap", WatchPrefs.autoLap(this));
+        LinearLayout warnRow = row(R.drawable.ic_bolt, Ui.ORANGE, WatchPrefs.stepWarnSec(this) > 0 ? "Step warning: " + WatchPrefs.stepWarnSec(this) + " s" : "Step warning: off");
+        warnRow.setOnClickListener(v -> {
+            int[] choices = {0, 5, 10, 15, 20, 30};
+            int cur = WatchPrefs.stepWarnSec(this);
+            int next = choices[0];
+            for (int i = 0; i < choices.length; i++) if (choices[i] == cur) next = choices[(i + 1) % choices.length];
+            WatchPrefs.setStepWarnSec(this, next);
+            renderSettings();
+        });
+        settingsList.addView(warnRow);
+        addToggle("Step countdown", "Tick the last 3 seconds of a step", "stepCountdown", WatchPrefs.stepCountdown(this));
         addToggle("Lap haptics", "Vibrate on each lap", "lapHaptics", WatchPrefs.lapHaptics(this));
         addToggle("Zone alerts", "Vibrate in or out of zone 5", "zoneAlerts", WatchPrefs.zoneAlerts(this));
+        addToggle("Always-on screen", "Dim screen stays on in workouts. Off saves battery: raise your wrist to wake", "alwaysOn", WatchPrefs.alwaysOnWorkout(this));
+        if (WatchCaps.repCounting(this)) addToggle("Count reps", "Counts strength reps from wrist movement", "autoReps", WatchPrefs.autoReps(this));
+        addToggle("Fasting", "Fast timer, tile and complication. Off saves battery", "fasting", WatchPrefs.fasting(this));
+        addToggle("Water nudges", "A buzz when water is well behind the day", "nudgeWater", WatchPrefs.nudgeWater(this));
+        addToggle("Meal nudges", "A buzz at meal times when nothing is logged", "nudgeMeal", WatchPrefs.nudgeMeal(this));
         addToggle("All-day tracking", "Heart rate, activity and sleep for the app", "allDay", WatchPrefs.allDay(this));
         addToggle("Suggest workouts", "Offer to record a run or ride", "detect", WatchPrefs.detect(this));
         if (WatchPrefs.detect(this)) addToggle("Suggest walks too", "After about 12 minutes of walking", "detectWalks", WatchPrefs.detectWalks(this));
 
-        LinearLayout units = row(R.drawable.ic_cardio, Ui.BLUE, WatchPrefs.miles(this) ? "Units: miles" : "Units: kilometres");
+        LinearLayout units = row(R.drawable.ic_cardio, Ui.BLUE, WatchPrefs.miles(this) ? "Units: miles" : "Units: kilometers");
         units.setOnClickListener(v -> {
             WatchPrefs.setMiles(this, !WatchPrefs.miles(this));
             renderSettings();
@@ -966,8 +1250,14 @@ public class MainActivity extends Activity {
             case "autoLap": return WatchPrefs.autoLap(this);
             case "lapHaptics": return WatchPrefs.lapHaptics(this);
             case "allDay": return WatchPrefs.allDay(this);
+            case "fasting": return WatchPrefs.fasting(this);
+            case "nudgeWater": return WatchPrefs.nudgeWater(this);
+            case "nudgeMeal": return WatchPrefs.nudgeMeal(this);
             case "detect": return WatchPrefs.detect(this);
             case "detectWalks": return WatchPrefs.detectWalks(this);
+            case "autoReps": return WatchPrefs.autoReps(this);
+            case "alwaysOn": return WatchPrefs.alwaysOnWorkout(this);
+            case "stepCountdown": return WatchPrefs.stepCountdown(this);
             default: return WatchPrefs.zoneAlerts(this);
         }
     }
@@ -995,11 +1285,34 @@ public class MainActivity extends Activity {
         r.addView(state);
         r.setOnClickListener(v -> {
             WatchPrefs.set(this, key, !prefValue(key));
+            if ("alwaysOn".equals(key)) {
+                // Whether the app counts as an always-on app is decided when the screen is built, so rebuild it and return to this page.
+                getIntent().putExtra(EXTRA_REOPEN_SETTINGS, true);
+                recreate();
+                return;
+            }
             if ("allDay".equals(key)) {
                 WatchSteps.register(this);
                 if (WatchPrefs.allDay(this)) askBackgroundSensors(true);
             }
             if ("detect".equals(key) || "detectWalks".equals(key)) WatchDetect.configure(this);
+            if ("nudgeWater".equals(key) || "nudgeMeal".equals(key)) {
+                // Notifications need permission on Wear OS 4 and later; the nudges start (or stop) at once.
+                if (android.os.Build.VERSION.SDK_INT >= 33 && (WatchPrefs.nudgeWater(this) || WatchPrefs.nudgeMeal(this))
+                    && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 4130);
+                }
+                NudgeReceiver.schedule(this);
+            }
+            if ("fasting".equals(key)) {
+                // The complication and the tile show the change at once: the fast timer is gone, or back.
+                GlanceComplicationService.request(this, FastingComplicationService.class);
+                try {
+                    androidx.wear.tiles.TileService.getUpdater(this).requestUpdate(KyFuelTileService.class);
+                } catch (RuntimeException ignored) {
+                    // the tile is not on the watch
+                }
+            }
             renderSettings();
         });
         settingsList.addView(r);
@@ -1012,8 +1325,9 @@ public class MainActivity extends Activity {
         pager = new ViewPager2(this);
         View metrics = buildMetricsPage();
         View controls = buildControlsPage();
-        pagesPlain = new View[] {metrics, controls, buildZonesPage(), buildLapsPage()};
-        pagesStrength = new View[] {buildStrengthSetPage(), buildStrengthListPage(), metrics, controls};
+        View music = buildMusicPage();
+        pagesPlain = new View[] {metrics, controls, music, buildZonesPage(), buildLapsPage()};
+        pagesStrength = new View[] {buildStrengthSetPage(), buildStrengthListPage(), metrics, controls, music};
         pages = pagesPlain;
         pager.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             @NonNull
@@ -1079,6 +1393,10 @@ public class MainActivity extends Activity {
         p0Main = Ui.num(this, "0.00", 62, Ui.INK);
         p0MainCap = Ui.text(this, "KM", 11, Ui.MUTED, true);
         p0MainCap.setLetterSpacing(0.16f);
+        // Steps, as big as the distance, for the sports where you take them.
+        p0Steps = Ui.num(this, "0", 62, Ui.INK);
+        p0StepsCap = Ui.text(this, "STEPS", 11, Ui.MUTED, true);
+        p0StepsCap.setLetterSpacing(0.16f);
 
         goalTrack = new FrameLayout(this);
         goalTrack.setBackground(Ui.solid(this, Ui.EDGE, 4));
@@ -1097,8 +1415,21 @@ public class MainActivity extends Activity {
 
         c.addView(p0Type);
         c.addView(p0Banner);
-        c.addView(p0Main, match(2));
-        c.addView(p0MainCap);
+        LinearLayout distCol = column();
+        distCol.setGravity(Gravity.CENTER_HORIZONTAL);
+        distCol.addView(p0Main);
+        distCol.addView(p0MainCap);
+        stepsCol = column();
+        stepsCol.setGravity(Gravity.CENTER_HORIZONTAL);
+        stepsCol.addView(p0Steps);
+        stepsCol.addView(p0StepsCap);
+        stepsCol.setVisibility(View.GONE);
+        LinearLayout mainRow = new LinearLayout(this);
+        mainRow.setOrientation(LinearLayout.HORIZONTAL);
+        mainRow.setGravity(Gravity.CENTER);
+        mainRow.addView(distCol, weight(1f));
+        mainRow.addView(stepsCol, weight(1f));
+        c.addView(mainRow, match(2));
         LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(dp(150), dp(6));
         gp.topMargin = dp(8);
         c.addView(goalTrack, gp);
@@ -1116,7 +1447,47 @@ public class MainActivity extends Activity {
         cells.addView(a, ap);
         cells.addView(b, bp);
         c.addView(cells, match(8));
-        return pageFrame(c);
+
+        TextView more = Ui.text(this, "SCROLL FOR MORE", 9, Ui.MUTED, true);
+        more.setLetterSpacing(0.14f);
+        more.setPadding(0, dp(8), 0, dp(4));
+        c.addView(more);
+
+        // Every other stat, two to a row. They are filled in by renderMetrics.
+        xTime = Ui.num(this, "--", 22, Ui.INK);
+        xDist = Ui.num(this, "--", 22, Ui.INK);
+        xDistCap = Ui.text(this, "DISTANCE", 9, Ui.MUTED, true);
+        xAvgPace = Ui.num(this, "--", 22, Ui.INK);
+        xAvgPaceCap = Ui.text(this, "AVG PACE", 9, Ui.MUTED, true);
+        xKcal = Ui.num(this, "--", 22, Ui.INK);
+        xAvgHr = Ui.num(this, "--", 22, Ui.RED);
+        xMaxHr = Ui.num(this, "--", 22, Ui.RED);
+        xClimb = Ui.num(this, "--", 22, Ui.INK);
+        xClimbCap = Ui.text(this, "CLIMB", 9, Ui.MUTED, true);
+        xLaps = Ui.num(this, "0", 22, Ui.INK);
+        xLastLap = Ui.text(this, "LAPS", 9, Ui.MUTED, true);
+        c.addView(statPair(xTime, Ui.text(this, "TIME", 9, Ui.MUTED, true), xDist, xDistCap), match(4));
+        c.addView(statPair(xAvgPace, xAvgPaceCap, xKcal, Ui.text(this, "KCAL", 9, Ui.MUTED, true)), match(6));
+        c.addView(statPair(xAvgHr, Ui.text(this, "AVG BPM", 9, Ui.MUTED, true), xMaxHr, Ui.text(this, "MAX BPM", 9, Ui.MUTED, true)), match(6));
+        c.addView(statPair(xClimb, xClimbCap, xLaps, xLastLap), match(6));
+
+        // A scrolling page: the crown and a swipe up or down move it, a swipe sideways still changes page.
+        p0Scroll = scroller(c, 28, 40);
+        p0Scroll.setFillViewport(true);
+        return p0Scroll;
+    }
+
+    /** Two stat cells side by side. */
+    private LinearLayout statPair(TextView v1, TextView c1, TextView v2, TextView c2) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams a = weight(1f);
+        a.rightMargin = dp(4);
+        LinearLayout.LayoutParams b = weight(1f);
+        b.leftMargin = dp(4);
+        r.addView(glassCell(v1, c1), a);
+        r.addView(glassCell(v2, c2), b);
+        return r;
     }
 
     private View buildControlsPage() {
@@ -1243,6 +1614,15 @@ public class MainActivity extends Activity {
             p0CaptionA.setText("AVG BPM");
         }
         p0Main.setTextColor(WorkoutState.paused ? Ui.YELLOW : Ui.INK);
+        // Steps beside the distance, the same size, for walking, running, hiking and the like (and any sport that reports some).
+        boolean showSteps = sport.takesSteps() || WorkoutState.stepCount > 0;
+        stepsCol.setVisibility(showSteps ? View.VISIBLE : View.GONE);
+        p0Steps.setText(String.format(Locale.getDefault(), "%,d", WorkoutState.stepCount));
+        p0Steps.setTextColor(WorkoutState.paused ? Ui.YELLOW : Ui.INK);
+        // With two numbers across, each is a little smaller and shrinks to fit; alone, the distance stays big.
+        int maxSp = showSteps ? 40 : 62;
+        p0Main.setAutoSizeTextTypeUniformWithConfiguration(16, maxSp, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+        p0Steps.setAutoSizeTextTypeUniformWithConfiguration(16, maxSp, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
 
         int bpm = WorkoutState.bpm;
         int zone = WorkoutState.zoneOf(bpm);
@@ -1317,6 +1697,36 @@ public class MainActivity extends Activity {
         } else {
             goalFill.setBackground(Ui.solid(this, Ui.ACCENT, 4));
         }
+
+        // The rest of the stats, below the big numbers.
+        xTime.setText(clock);
+        boolean hasDist = dist && WorkoutState.distanceM() > 0;
+        xDist.setText(hasDist ? String.format(Locale.getDefault(), "%.2f", WorkoutState.distanceM() / WorkoutState.unitM()) : "--");
+        xDistCap.setText("DISTANCE " + WorkoutState.unitName().toUpperCase(Locale.getDefault()));
+        if (WorkoutState.type.contains("Cycling")) {
+            double hours = elapsed / 3_600_000.0;
+            double avgSpeed = hasDist && hours > 0 ? (WorkoutState.distanceM() / WorkoutState.unitM()) / hours : 0;
+            xAvgPace.setText(avgSpeed > 0 ? String.format(Locale.getDefault(), "%.1f", avgSpeed) : "--");
+            xAvgPaceCap.setText(WorkoutState.miles ? "AVG MPH" : "AVG KM/H");
+        } else {
+            xAvgPace.setText(hasDist ? WorkoutState.averagePace(elapsed) : "--");
+            xAvgPaceCap.setText("AVG PACE /" + WorkoutState.unitName().toUpperCase(Locale.getDefault()));
+        }
+        xKcal.setText(kcal > 0 ? String.valueOf(Math.round(kcal)) : "--");
+        int avgBpm = WorkoutState.hrCount > 0 ? (int) (WorkoutState.hrSum / WorkoutState.hrCount) : 0;
+        xAvgHr.setText(avgBpm > 0 ? String.valueOf(avgBpm) : "--");
+        xMaxHr.setText(WorkoutState.hrMax > 0 ? String.valueOf(WorkoutState.hrMax) : "--");
+        double climb = WorkoutState.elevGainM;
+        xClimb.setText(climb > 0 ? String.valueOf(Math.round(WorkoutState.miles ? climb * 3.28084 : climb)) : "--");
+        xClimbCap.setText(WorkoutState.miles ? "CLIMB FT" : "CLIMB M");
+        int lapCount;
+        long lastSplit = 0;
+        synchronized (WorkoutState.laps) {
+            lapCount = WorkoutState.laps.size();
+            if (lapCount > 0) lastSplit = WorkoutState.laps.get(lapCount - 1).splitMs;
+        }
+        xLaps.setText(String.valueOf(lapCount));
+        xLastLap.setText(lapCount > 0 ? "LAPS  -  LAST " + WorkoutState.clock(lastSplit / 1000) : "LAPS");
 
         boolean banner = now < WorkoutState.bannerUntil && !WorkoutState.banner.isEmpty();
         p0Banner.setVisibility(banner ? View.VISIBLE : View.GONE);
@@ -1405,9 +1815,58 @@ public class MainActivity extends Activity {
 
     /** A button press on the strength screen: shown at once here, applied by the phone, and the phone answers with the real state. */
     private void strengthSend(String action, int delta, int index) {
-        WorkoutState.localAdjust(action, delta);
-        PhoneLink.sendSet(this, action, delta, index);
+        // Next on the last exercise of a session run here opens the picker, so there is something real to add (a blank one only if the
+        // phone has never sent its exercise list).
+        if ("next".equals(action) && LocalStrength.active != null && LocalStrength.onLastExercise() && ExerciseLibStore.available(this)) {
+            openPicker();
+            return;
+        }
+        // Moving on or ticking a set starts the next count from nothing.
+        if ("done".equals(action) || "next".equals(action) || "prev".equals(action) || "jump".equals(action) || "skiprest".equals(action)) WorkoutState.autoReps = 0;
+        if (LocalStrength.active != null) {
+            LocalStrength.apply(action, delta, index);
+        } else {
+            WorkoutState.localAdjust(action, delta);
+            PhoneLink.sendSet(this, action, delta, index);
+            watchPhoneAnswer(action, delta, index);
+        }
         renderStrengthSet(System.currentTimeMillis());
+    }
+
+    /** Buttons pressed since the phone last sent a strength state, and the state version they were pressed against. */
+    private final List<int[]> unanswered = new ArrayList<>();
+    private final List<String> unansweredAction = new ArrayList<>();
+    private int answeredVersion = -1;
+
+    /**
+     * The phone applies each button and answers with the new state. When it does not answer (it is asleep, or its page is not running),
+     * the watch takes the session over so the buttons keep working: it carries on from what it was showing.
+     */
+    private void watchPhoneAnswer(String action, int delta, int index) {
+        if (answeredVersion != WorkoutState.strengthVersion) {
+            answeredVersion = WorkoutState.strengthVersion;
+            unanswered.clear();
+            unansweredAction.clear();
+        }
+        unansweredAction.add(action);
+        unanswered.add(new int[] {delta, index});
+        final int version = WorkoutState.strengthVersion;
+        ui.postDelayed(() -> {
+            if (version != WorkoutState.strengthVersion || LocalStrength.active != null || WorkoutState.strength == null) return;
+            if (!LocalStrength.adopt(this, WorkoutState.strength)) return;
+            // The buttons the watch could not show by itself are applied now, in the order they were pressed.
+            for (int i = 0; i < unansweredAction.size(); i++) {
+                String a = unansweredAction.get(i);
+                if ("next".equals(a) || "prev".equals(a) || "jump".equals(a) || "addset".equals(a) || "delset".equals(a)) {
+                    LocalStrength.apply(a, unanswered.get(i)[0], unanswered.get(i)[1]);
+                }
+            }
+            unanswered.clear();
+            unansweredAction.clear();
+            stListKey = "";
+            renderStrengthSet(System.currentTimeMillis());
+            Toast.makeText(this, "Phone not answering: running on the watch", Toast.LENGTH_SHORT).show();
+        }, 2500);
     }
 
     private LinearLayout stepperRow(TextView[] valueOut, TextView[] unitOut, String unit, View.OnClickListener minus, View.OnClickListener plus) {
@@ -1482,6 +1941,16 @@ public class MainActivity extends Activity {
         TextView[] ru = new TextView[1];
         c.addView(stepperRow(rv, ru, "REPS", v -> strengthSend("reps", -1, 0), v -> strengthSend("reps", 1, 0)), match(4));
         stRepsVal = rv[0];
+        stAuto = Ui.text(this, "", 10, Ui.ACCENT, true);
+        stAuto.setVisibility(View.GONE);
+        stAuto.setOnClickListener(v -> {
+            WorkoutState.Strength cur = WorkoutState.strength;
+            if (cur == null || WorkoutState.autoReps <= 0) return;
+            int delta = WorkoutState.autoReps - (int) Math.round(cur.reps);
+            if (delta != 0) strengthSend("reps", delta, 0);
+            renderStrengthSet(System.currentTimeMillis());
+        });
+        c.addView(stAuto, match(2));
 
         // The big button: tick the set off (starts the rest), tap again to undo.
         stDoneBtn = new LinearLayout(this);
@@ -1491,6 +1960,12 @@ public class MainActivity extends Activity {
         stDoneBtn.addView(stDoneLabel);
         stDoneBtn.setOnClickListener(v -> {
             Haptics.lap(this);
+            WorkoutState.Strength cur = WorkoutState.strength;
+            // With rep counting on, the reps the watch counted become this set's reps (unless the set is being un-ticked).
+            if (cur != null && !cur.done && countingReps() && WorkoutState.autoReps > 0) {
+                int delta = WorkoutState.autoReps - (int) Math.round(cur.reps);
+                if (delta != 0) strengthSend("reps", delta, 0);
+            }
             strengthSend("done", 0, 0);
         });
         c.addView(stDoneBtn, match(8));
@@ -1540,6 +2015,12 @@ public class MainActivity extends Activity {
         stWeightVal.setText(weightText(s.weight));
         stWeightUnit.setText(s.unit.toUpperCase(Locale.getDefault()));
         stRepsVal.setText(String.valueOf(Math.round(s.reps)));
+        if (countingReps()) {
+            stAuto.setVisibility(View.VISIBLE);
+            stAuto.setText(WorkoutState.autoReps > 0 ? "Counted " + WorkoutState.autoReps + " - tap to use" : "Counting your reps...");
+        } else {
+            stAuto.setVisibility(View.GONE);
+        }
         long left = s.restEndsAt - now;
         boolean resting = s.restEndsAt > 0 && left > 0;
         stRestBox.setVisibility(resting ? View.VISIBLE : View.GONE);
@@ -1559,7 +2040,7 @@ public class MainActivity extends Activity {
     private void renderStrengthList() {
         WorkoutState.Strength s = WorkoutState.strength;
         if (s == null || stListBox == null) return;
-        StringBuilder key = new StringBuilder().append(s.ex).append('|').append(s.volume);
+        StringBuilder key = new StringBuilder().append(s.ex).append('|').append(s.volume).append(ExerciseLibStore.available(this) ? "|lib" : "");
         for (int i = 0; i < s.exNames.length; i++) key.append('|').append(s.exNames[i]).append(':').append(s.exDone[i]).append('/').append(s.exTotal[i]);
         String k = key.toString();
         if (k.equals(stListKey)) return;
@@ -1591,6 +2072,12 @@ public class MainActivity extends Activity {
                 pager.setCurrentItem(0, true);
             });
             stListBox.addView(r, match(5));
+        }
+        if (ExerciseLibStore.available(this)) {
+            LinearLayout add = row(R.drawable.ic_plus, Ui.ACCENT, "Add exercise");
+            add.setOnClickListener(v -> openPicker());
+            add.setLayoutParams(match(8));
+            stListBox.addView(add);
         }
     }
 
@@ -1656,10 +2143,10 @@ public class MainActivity extends Activity {
         setupList.addView(cap);
         List<RoutineStore.Routine> list = RoutineStore.list(this);
         if (setupRoutineId == null) setupRoutineId = !list.isEmpty() && list.get(0).id.startsWith("plan:") ? list.get(0).id : "";
-        addRoutineRow("", "Empty workout", "Add exercises on your phone");
+        addRoutineRow("", "Empty workout", "Add exercises as you go");
         for (RoutineStore.Routine r : list) addRoutineRow(r.id, r.name, r.sub);
         if (list.isEmpty()) {
-            TextView hint = Ui.text(this, "Open the phone app once to load your routines here", 9, Ui.MUTED, false);
+            TextView hint = Ui.text(this, "Open the phone app once to load your routines here (they then work without the phone too)", 9, Ui.MUTED, false);
             hint.setPadding(0, dp(6), 0, dp(6));
             setupList.addView(hint);
         }
@@ -1686,6 +2173,394 @@ public class MainActivity extends Activity {
             renderSetup();
         });
         setupList.addView(r, match(5));
+    }
+
+    // ---------------------------------------------------------------- sleep (last night, as the phone worked it out)
+
+    private View buildSleep() {
+        sleepList = column();
+        sleepScroll = scroller(sleepList, 34, 60);
+        sleepScroll.setVisibility(View.GONE);
+        return sleepScroll;
+    }
+
+    /** "23:20" in the way the watch is set to show the time. */
+    private String clockText(String hhmm) {
+        try {
+            String[] p = hhmm.split(":");
+            int h = Integer.parseInt(p[0].trim());
+            int m = Integer.parseInt(p[1].trim());
+            if (DateFormat.is24HourFormat(this)) return String.format(Locale.getDefault(), "%d:%02d", h, m);
+            return String.format(Locale.getDefault(), "%d:%02d %s", h % 12 == 0 ? 12 : h % 12, m, h < 12 ? "AM" : "PM");
+        } catch (RuntimeException e) {
+            return hhmm;
+        }
+    }
+
+    /** The morning a night ended ("yyyy-MM-dd") as a caption: "LAST NIGHT", or the day for an older one. */
+    private String sleepDayLabel(String iso) {
+        try {
+            java.time.LocalDate d = java.time.LocalDate.parse(iso);
+            java.time.LocalDate today = java.time.LocalDate.now();
+            if (d.equals(today) || d.equals(today.minusDays(1))) return "LAST NIGHT";
+            return d.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())).toUpperCase(Locale.getDefault());
+        } catch (RuntimeException e) {
+            return "LAST NIGHT";
+        }
+    }
+
+    private static String hoursMinutes(int min) {
+        return (min / 60) + "h " + String.format(Locale.getDefault(), "%02d", min % 60) + "m";
+    }
+
+    /** One stage of the night: its name, a bar and the time. */
+    private LinearLayout sleepStageRow(String name, int minutes, int totalStages, int color) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(dp(6), dp(3), dp(6), dp(3));
+        r.addView(Ui.text(this, name, 11, Ui.INK, true), new LinearLayout.LayoutParams(dp(44), LinearLayout.LayoutParams.WRAP_CONTENT));
+        FrameLayout track = new FrameLayout(this);
+        track.setBackground(Ui.glass(this, 6));
+        View bar = new View(this);
+        bar.setBackground(Ui.solid(this, color, 6));
+        int width = Math.max(dp(2), Math.round(dp(52) * (minutes / (float) Math.max(1, totalStages))));
+        track.addView(bar, new FrameLayout.LayoutParams(width, dp(10)));
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(dp(52), dp(10));
+        tp.leftMargin = dp(4);
+        r.addView(track, tp);
+        TextView t = Ui.text(this, hoursMinutes(minutes), 11, Ui.MUTED, false);
+        t.setGravity(Gravity.END);
+        LinearLayout.LayoutParams xp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        xp.leftMargin = dp(6);
+        r.addView(t, xp);
+        return r;
+    }
+
+    private void renderSleep() {
+        int total = GlanceStore.sleepMin(this);
+        int deep = GlanceStore.sleepDeep(this);
+        int rem = GlanceStore.sleepRem(this);
+        int light = GlanceStore.sleepLight(this);
+        int awake = GlanceStore.sleepAwake(this);
+        int score = GlanceStore.sleepScore(this);
+        int goal = GlanceStore.sleepGoalMin(this);
+        int debtMin = GlanceStore.sleepDebtMin(this);
+        String key = debtMin + "|" + total + "|" + deep + "|" + rem + "|" + light + "|" + awake + "|" + score + "|" + goal + "|" + GlanceStore.sleepBed(this) + GlanceStore.sleepWake(this) + GlanceStore.sleepDate(this);
+        if (key.equals(shownSleepKey)) return;
+        shownSleepKey = key;
+        sleepList.removeAllViews();
+        sleepList.addView(Ui.num(this, "SLEEP", 22, Ui.INK));
+        if (total < 0) {
+            TextView none = Ui.text(this, "No night yet. Open the phone app once and last night appears here.", 12, Ui.MUTED, false);
+            none.setPadding(0, dp(10), 0, dp(10));
+            sleepList.addView(none);
+        } else {
+            TextView day = Ui.text(this, sleepDayLabel(GlanceStore.sleepDate(this)), 10, Ui.PURPLE, true);
+            day.setLetterSpacing(0.14f);
+            day.setPadding(0, dp(4), 0, 0);
+            sleepList.addView(day);
+            sleepList.addView(Ui.num(this, hoursMinutes(total), 40, Ui.INK));
+            String bed = GlanceStore.sleepBed(this);
+            String wake = GlanceStore.sleepWake(this);
+            if (!bed.isEmpty() && !wake.isEmpty()) {
+                TextView span = Ui.text(this, clockText(bed) + "  to  " + clockText(wake), 12, Ui.MUTED, false);
+                span.setPadding(0, dp(1), 0, dp(6));
+                sleepList.addView(span);
+            }
+            // How close the night came to the goal.
+            FrameLayout track = new FrameLayout(this);
+            track.setBackground(Ui.solid(this, Ui.EDGE, 4));
+            View fill = new View(this);
+            fill.setBackground(Ui.solid(this, total >= goal ? Ui.ACCENT : Ui.PURPLE, 4));
+            track.addView(fill, new FrameLayout.LayoutParams(Math.max(dp(2), Math.round(dp(150) * Math.min(1f, total / (float) goal))), dp(6)));
+            sleepList.addView(track, new LinearLayout.LayoutParams(dp(150), dp(6)));
+            TextView goalText = Ui.text(this, Math.round(100f * total / goal) + "%  OF  " + (goal / 60) + "H  GOAL", 9, Ui.MUTED, true);
+            goalText.setPadding(0, dp(4), 0, dp(8));
+            sleepList.addView(goalText);
+
+            int stages = deep + rem + light + awake;
+            if (stages > 0) {
+                sleepList.addView(sleepStageRow("Deep", deep, stages, Ui.PURPLE), match(2));
+                sleepList.addView(sleepStageRow("REM", rem, stages, Ui.BLUE), match(2));
+                sleepList.addView(sleepStageRow("Light", light, stages, Ui.GREEN), match(2));
+                sleepList.addView(sleepStageRow("Awake", awake, stages, Ui.ORANGE), match(2));
+            }
+            if (score >= 0) {
+                TextView sc = Ui.text(this, "Sleep score " + score + "  (an estimate)", 11, Ui.MUTED, false);
+                sc.setPadding(0, dp(8), 0, 0);
+                sleepList.addView(sc);
+            }
+            if (debtMin >= 0) {
+                TextView debt = Ui.text(this, debtMin == 0 ? "No sleep debt this week" : "This week: " + hoursMinutes(debtMin) + " short of your goal", 11, debtMin == 0 ? Ui.GREEN : Ui.PURPLE, false);
+                debt.setPadding(0, dp(6), 0, 0);
+                sleepList.addView(debt);
+            }
+        }
+        LinearLayout back = row(R.drawable.ic_check, Ui.ACCENT, "Done");
+        back.setOnClickListener(v -> {
+            nav = Screen.HOME;
+            render();
+        });
+        back.setLayoutParams(match(14));
+        sleepList.addView(back);
+    }
+
+    // ---------------------------------------------------------------- music (play, skip and volume during a workout)
+
+    /** A compact icon button for the music page. */
+    private LinearLayout mediaButton(int iconRes, String description, boolean primary, View.OnClickListener click) {
+        LinearLayout b = new LinearLayout(this);
+        b.setGravity(Gravity.CENTER);
+        b.setBackground(primary ? Ui.solid(this, Ui.ACCENT, 22) : Ui.glass(this, 22));
+        b.setMinimumHeight(dp(44));
+        b.setContentDescription(description);
+        b.addView(Ui.icon(this, iconRes, primary ? BLACK : Ui.INK, 22));
+        b.setOnClickListener(v -> {
+            Haptics.lap(this);
+            click.onClick(v);
+        });
+        return b;
+    }
+
+    private View buildMusicPage() {
+        LinearLayout c = column();
+        c.setGravity(Gravity.CENTER);
+        TextView cap = Ui.text(this, "MUSIC", 10, Ui.MUTED, true);
+        cap.setLetterSpacing(0.16f);
+        c.addView(cap);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams p1 = weight(1f);
+        p1.rightMargin = dp(3);
+        LinearLayout.LayoutParams p2 = weight(1.2f);
+        p2.leftMargin = dp(3);
+        p2.rightMargin = dp(3);
+        LinearLayout.LayoutParams p3 = weight(1f);
+        p3.leftMargin = dp(3);
+        top.addView(mediaButton(R.drawable.ic_skip_prev, "Previous track", false, v -> mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)), p1);
+        top.addView(mediaButton(R.drawable.ic_play, "Play or pause", true, v -> mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)), p2);
+        top.addView(mediaButton(R.drawable.ic_skip_next, "Next track", false, v -> mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)), p3);
+        c.addView(top, match(10));
+
+        LinearLayout vol = new LinearLayout(this);
+        vol.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams v1 = weight(1f);
+        v1.rightMargin = dp(3);
+        LinearLayout.LayoutParams v2 = weight(1f);
+        v2.leftMargin = dp(3);
+        vol.addView(mediaButton(R.drawable.ic_volume_down, "Volume down", false, v -> volume(AudioManager.ADJUST_LOWER)), v1);
+        vol.addView(mediaButton(R.drawable.ic_volume_up, "Volume up", false, v -> volume(AudioManager.ADJUST_RAISE)), v2);
+        c.addView(vol, match(8));
+
+        TextView hint = Ui.text(this, "Controls what is playing on this watch", 9, Ui.MUTED, false);
+        hint.setPadding(0, dp(8), 0, 0);
+        c.addView(hint);
+        return pageFrame(c);
+    }
+
+    /** Sends a media key to whatever player is active, the same as the buttons on a pair of headphones. */
+    private void mediaKey(int code) {
+        AudioManager am = getSystemService(AudioManager.class);
+        if (am == null) return;
+        long t = SystemClock.uptimeMillis();
+        am.dispatchMediaKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0));
+        am.dispatchMediaKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0));
+    }
+
+    private void volume(int direction) {
+        AudioManager am = getSystemService(AudioManager.class);
+        if (am != null) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI);
+    }
+
+    // ---------------------------------------------------------------- adding an exercise to a strength session
+
+    private View buildPicker() {
+        pickerLayer = new FrameLayout(this);
+        pickerLayer.setBackgroundColor(Ui.BG);
+        pickerList = column();
+        pickerScroll = scroller(pickerList, 34, 60);
+        pickerLayer.addView(pickerScroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        pickerLayer.setVisibility(View.GONE);
+        // Touches must not fall through to the workout pages underneath.
+        pickerLayer.setClickable(true);
+        return pickerLayer;
+    }
+
+    private void openPicker() {
+        pickerGroup = null;
+        pickerOpen = true;
+        pickerLayer.setVisibility(View.VISIBLE);
+        renderPicker();
+        pickerScroll.scrollTo(0, 0);
+    }
+
+    private void closePicker() {
+        pickerOpen = false;
+        pickerGroup = null;
+        pickerLayer.setVisibility(View.GONE);
+    }
+
+    /** Back one step: from a list of exercises to the groups, from the groups out. */
+    private void pickerBack() {
+        if (pickerGroup != null) {
+            pickerGroup = null;
+            renderPicker();
+            pickerScroll.scrollTo(0, 0);
+        } else {
+            closePicker();
+        }
+    }
+
+    private void renderPicker() {
+        pickerList.removeAllViews();
+        if (pickerGroup == null) {
+            pickerList.addView(Ui.num(this, "ADD EXERCISE", 22, Ui.INK));
+            List<String> groups = ExerciseLibStore.groups(this);
+            if (groups.isEmpty()) {
+                TextView none = Ui.text(this, "Open the phone app once to load the exercise list here.", 11, Ui.MUTED, false);
+                none.setPadding(0, dp(8), 0, dp(4));
+                pickerList.addView(none);
+            }
+            for (final String g : groups) {
+                LinearLayout r = row(R.drawable.ic_strength, Ui.ACCENT, g);
+                r.addView(Ui.text(this, "›", 16, Ui.MUTED, false));
+                r.setOnClickListener(v -> {
+                    pickerGroup = g;
+                    renderPicker();
+                    pickerScroll.scrollTo(0, 0);
+                });
+                pickerList.addView(r);
+            }
+            if (LocalStrength.active != null) {
+                LinearLayout blank = row(R.drawable.ic_plus, Ui.BLUE, "Blank exercise");
+                blank.setOnClickListener(v -> {
+                    LocalStrength.addBlank();
+                    finishPicking();
+                });
+                pickerList.addView(blank);
+            }
+        } else {
+            pickerList.addView(Ui.num(this, pickerGroup.toUpperCase(Locale.getDefault()), 20, Ui.INK));
+            String unit = ExerciseLibStore.unit(this);
+            for (final ExerciseLibStore.Ex ex : ExerciseLibStore.inGroup(this, pickerGroup)) {
+                LinearLayout r = row(R.drawable.ic_strength, Ui.ACCENT, ex.name);
+                if (!ex.sets.isEmpty()) {
+                    double[] top = ex.sets.get(0);
+                    TextView last = Ui.text(this, ex.sets.size() + "x" + Math.round(top[0]) + (top[1] > 0 ? " " + weightText(top[1]) + unit : ""), 10, Ui.MUTED, false);
+                    r.addView(last);
+                }
+                r.setOnClickListener(v -> {
+                    if (LocalStrength.active != null) LocalStrength.addExercise(ex.id, ex.name, ex.step, ex.sets);
+                    else PhoneLink.sendSet(this, "addex", 0, ex.index);
+                    finishPicking();
+                });
+                pickerList.addView(r);
+            }
+        }
+        LinearLayout back = row(R.drawable.ic_close, Ui.MUTED, pickerGroup == null ? "Close" : "Back");
+        back.setOnClickListener(v -> pickerBack());
+        back.setLayoutParams(match(14));
+        pickerList.addView(back);
+    }
+
+    /** An exercise was chosen: close the picker and go to the set page, where it now is. */
+    private void finishPicking() {
+        closePicker();
+        stListKey = "";
+        if (pager != null) pager.setCurrentItem(0, true);
+        render();
+    }
+
+    /** True while the automatic rep count is on, the watch supports it and a strength session is on screen. */
+    private boolean countingReps() {
+        return WatchPrefs.autoReps(this) && WatchCaps.repCounting(this) && WorkoutState.strength != null;
+    }
+
+    // ---------------------------------------------------------------- always-on display during a workout
+
+    private View buildAmbientLayer() {
+        ambientLayer = new FrameLayout(this);
+        // Pure black with plain white and grey text: nothing bright or colored stays lit on the OLED while the wrist is down.
+        ambientLayer.setBackgroundColor(0xFF000000);
+        ambientLayer.setClickable(true);
+        ambientBox = new LinearLayout(this);
+        ambientBox.setOrientation(LinearLayout.VERTICAL);
+        ambientBox.setGravity(Gravity.CENTER);
+        amType = Ui.text(this, "", 12, 0xFFBBBBBB, true);
+        amType.setLetterSpacing(0.14f);
+        amMain = Ui.num(this, "", 54, 0xFFFFFFFF);
+        amSub = Ui.text(this, "", 14, 0xFFBBBBBB, false);
+        amSub.setGravity(Gravity.CENTER);
+        amHr = Ui.text(this, "", 18, 0xFFFFFFFF, true);
+        ambientBox.addView(amType);
+        ambientBox.addView(amMain, match(2));
+        ambientBox.addView(amSub, match(2));
+        ambientBox.addView(amHr, match(10));
+        ambientLayer.addView(ambientBox, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        ambientLayer.setVisibility(View.GONE);
+        return ambientLayer;
+    }
+
+    private void enterAmbient(boolean burnInProtection) {
+        ambient = true;
+        ambientBurnIn = burnInProtection;
+        ui.removeCallbacks(refresh);
+        boolean workout = WorkoutState.active && WorkoutService.running;
+        if (!workout) {
+            // Nothing to keep on show: go back to the watch face, as an app without an always-on screen would.
+            moveTaskToBack(true);
+            return;
+        }
+        ambientLayer.setVisibility(View.VISIBLE);
+        renderAmbient();
+    }
+
+    private void exitAmbient() {
+        ambient = false;
+        ambientLayer.setVisibility(View.GONE);
+        ambientBox.setTranslationX(0);
+        ambientBox.setTranslationY(0);
+        ui.removeCallbacks(refresh);
+        ui.post(refresh);
+    }
+
+    /** The always-on face: the one number that matters, the heart rate and the time so far. It is redrawn about once a minute. */
+    private void renderAmbient() {
+        boolean workout = WorkoutState.active && WorkoutService.running;
+        if (!workout) {
+            ambientLayer.setVisibility(View.GONE);
+            moveTaskToBack(true);
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Sports.Sport sport = Sports.find(WorkoutState.type);
+        long mins = WorkoutState.elapsedMs(now) / 60_000;
+        String clock = mins >= 60 ? (mins / 60) + ":" + String.format(Locale.getDefault(), "%02d", mins % 60) : mins + " min";
+        amType.setText((WorkoutState.paused ? "PAUSED  " : "") + sport.label.toUpperCase(Locale.getDefault()));
+        WorkoutState.Strength st = WorkoutState.strength;
+        if (st != null && "Strength".equals(WorkoutState.type)) {
+            amMain.setText(weightText(st.weight) + " x " + Math.round(st.reps));
+            amSub.setText(st.name + "\nSET " + (st.setIdx + 1) + " OF " + Math.max(1, st.setCount) + (st.restEndsAt > now ? "   RESTING" : "") + "\n" + clock);
+        } else if (sport.hasDistance() || WorkoutState.distanceM() > 0) {
+            amMain.setText(String.format(Locale.getDefault(), "%.2f", WorkoutState.distanceM() / WorkoutState.unitM()));
+            String pace = WorkoutState.currentPace();
+            if ("--:--".equals(pace)) pace = WorkoutState.averagePace(WorkoutState.elapsedMs(now));
+            amSub.setText(WorkoutState.unitName().toUpperCase(Locale.getDefault()) + "   " + pace + "\n" + clock);
+        } else {
+            amMain.setText(clock);
+            double kcal = WorkoutState.kcal > 0 ? WorkoutState.kcal : WorkoutState.phoneKcal;
+            amSub.setText(kcal > 0 ? Math.round(kcal) + " kcal" : "");
+        }
+        amHr.setText(WorkoutState.bpm > 0 ? WorkoutState.bpm + " bpm" : "");
+        // Moves the picture a few pixels each time, so that no pixel stays lit for hours (burn-in protection).
+        if (ambientBurnIn) {
+            ambientTicks++;
+            int off = dp(3);
+            ambientBox.setTranslationX(((ambientTicks % 3) - 1) * off);
+            ambientBox.setTranslationY((((ambientTicks / 3) % 3) - 1) * off);
+        }
     }
 
     // ---------------------------------------------------------------- end dialog + summary
@@ -1752,6 +2627,7 @@ public class MainActivity extends Activity {
         List<LinearLayout> tiles = new ArrayList<>();
         if (s.distanceM >= 20) tiles.add(statTile(String.format(Locale.getDefault(), "%.2f", s.distanceM / WorkoutState.unitM()), WorkoutState.unitName(), Ui.ACCENT));
         if (!s.avgPace.isEmpty() && !"--:--".equals(s.avgPace)) tiles.add(statTile(s.avgPace, "avg pace /" + WorkoutState.unitName(), Ui.YELLOW));
+        if (s.steps > 0) tiles.add(statTile(String.format(Locale.getDefault(), "%,d", s.steps), "steps", Ui.BLUE));
         if (s.avgHr > 0) tiles.add(statTile(String.valueOf(s.avgHr), "avg bpm", Ui.RED));
         if (s.maxHr > 0) tiles.add(statTile(String.valueOf(s.maxHr), "max bpm", Ui.RED));
         if (s.kcal > 0) tiles.add(statTile(String.valueOf(Math.round(s.kcal)), "kcal", Ui.ORANGE));
@@ -1888,6 +2764,8 @@ public class MainActivity extends Activity {
         setupScroll.setVisibility(next == Screen.SETUP ? View.VISIBLE : View.GONE);
         countdownFrame.setVisibility(next == Screen.COUNTDOWN ? View.VISIBLE : View.GONE);
         settingsScroll.setVisibility(next == Screen.SETTINGS ? View.VISIBLE : View.GONE);
+        sleepScroll.setVisibility(next == Screen.SLEEP ? View.VISIBLE : View.GONE);
+        fastScroll.setVisibility(next == Screen.FAST ? View.VISIBLE : View.GONE);
         pagerFrame.setVisibility(next == Screen.WORKOUT ? View.VISIBLE : View.GONE);
         endScroll.setVisibility(next == Screen.END ? View.VISIBLE : View.GONE);
         summaryScroll.setVisibility(next == Screen.SUMMARY ? View.VISIBLE : View.GONE);
@@ -1896,6 +2774,15 @@ public class MainActivity extends Activity {
             shownLapCount = -1;
         }
         if (next == Screen.SETTINGS) renderSettings();
+        if (next == Screen.FAST) {
+            fastScroll.scrollTo(0, 0);
+            fastEndArmedUntil = 0;
+            fastMeter.setFast(fastHours(), GlanceStore.fastGoalHours(this), true);
+        }
+        if (next == Screen.SLEEP) {
+            shownSleepKey = "";
+            sleepScroll.scrollTo(0, 0);
+        }
         if (next == Screen.MORE) {
             renderMore();
             moreScroll.scrollTo(0, 0);
@@ -1906,7 +2793,19 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** A strength session from the phone's Lift logger (or run here) is under way. */
+    private static boolean liftSessionOn() {
+        return WorkoutState.active && WorkoutState.strength != null && "Strength".equals(WorkoutState.type);
+    }
+
     private void render() {
+        // In always-on mode only renderAmbient() draws, about once a minute.
+        if (ambient) return;
+        // A lifting session wears the Lift look; when it starts or ends the screens are built again in the right colors.
+        if (liftSessionOn() != Ui.lift) {
+            recreate();
+            return;
+        }
         ensureServiceForPhoneWorkout();
         long now = System.currentTimeMillis();
         boolean workout = WorkoutState.active && WorkoutService.running;
@@ -1922,7 +2821,14 @@ public class MainActivity extends Activity {
             ? (endDialog ? Screen.END : Screen.WORKOUT)
             : (WorkoutState.summary != null ? Screen.SUMMARY : nav);
         show(next);
+        if (pickerOpen && next != Screen.WORKOUT) closePicker();
         switch (next) {
+            case FAST:
+                renderFast();
+                break;
+            case SLEEP:
+                renderSleep();
+                break;
             case WORKOUT:
                 syncPagesForStrength();
                 if (strengthPagesShown) {
@@ -1948,3 +2854,8 @@ public class MainActivity extends Activity {
         }
     }
 }
+
+
+
+
+

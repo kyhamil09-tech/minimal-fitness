@@ -29,7 +29,7 @@ const time = (s: string | undefined): number | undefined => {
   return Number.isFinite(t) ? t : undefined;
 };
 
-/** Great-circle distance in metres. */
+/** Great-circle distance in meters. */
 const haversineM = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
   const R = 6371000;
   const rad = (d: number) => (d * Math.PI) / 180;

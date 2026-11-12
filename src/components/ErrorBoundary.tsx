@@ -42,7 +42,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
           <button onClick={this.reset} className="flex-1 rounded-2xl bg-white/10 py-3 font-bold text-white">
             Try again
           </button>
-          <button onClick={() => window.location.reload()} className="flex-1 rounded-2xl bg-[#cbff00] py-3 font-extrabold text-black">
+          <button onClick={() => window.location.reload()} className="flex-1 rounded-2xl bg-[#FF5500] py-3 font-extrabold text-black">
             Reload app
           </button>
         </div>

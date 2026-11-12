@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X, Palette, Check, Plus, Trash2, Sparkles, Sliders, Sun, Moon, SunMoon } from 'lucide-react';
 import { ThemeId, ColorPalette } from '../types/theme';
-import { MODERN_THEMES, generateCustomPalette } from '../data/themes';
+import { MODERN_THEMES, SPECIAL_THEME_IDS, generateCustomPalette } from '../data/themes';
 import { Backdrop, DARK_BACKDROPS, LIGHT_BACKDROPS, makeBackdrop } from '../data/backdrops';
 import { VIBES } from '../data/vibes';
 import { AppearanceApi } from '../hooks/useAppearance';
 import { lightPre } from '../lib/colorMath';
-import { buzz } from '../lib/prefs';
+import { buzz, usePrefs } from '../lib/prefs';
+import { Segmented } from './ui/Segmented';
 
 interface ThemeSelectorModalProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
   onDeleteCustomTheme,
   look,
 }) => {
+  const { setPrefs } = usePrefs();
   const [tab, setTab] = useState<Tab>('backgrounds');
   const [bgName, setBgName] = useState('My background');
   const [bgColor, setBgColor] = useState('#1E2A3A');
@@ -52,7 +54,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
 
   if (!isOpen) return null;
 
-  // The page is inverted by a filter in the light family, so swatches drawn inside it are converted to show their true colour.
+  // The page is inverted by a filter in the light family, so swatches drawn inside it are converted to show their true color.
   const shown = (c: string) => (look.light ? lightPre(c) : c);
   const tap = () => buzz(true, 12);
 
@@ -66,6 +68,18 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
     look.select(v.light);
     look.select(v.dark);
     look.setMode(v.mode);
+  };
+
+  /** Choosing a palette. A special theme also sets what goes with it: its background, light or dark, and the ambient glow. */
+  const choosePalette = (t: ColorPalette) => {
+    tap();
+    onSelectTheme(t.id as ThemeId);
+    const p = t.preset;
+    if (!p) return;
+    if (p.light) look.select(p.light);
+    if (p.dark) look.select(p.dark);
+    look.setMode(p.mode);
+    if (p.glow) setPrefs({ glow: p.glow });
   };
 
   const handleSaveCustom = (e: React.FormEvent) => {
@@ -93,7 +107,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
             <div className="h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--accent)' }} />
           </div>
           <div className="mt-1.5 flex items-center justify-between gap-1">
-            <span className="text-[11px] font-semibold truncate" style={{ color: shown(b.ink) }}>{b.name}</span>
+            <span className="text-xs font-semibold truncate" style={{ color: shown(b.ink) }}>{b.name}</span>
             {on && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }} />}
           </div>
         </button>
@@ -110,16 +124,13 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
     const on = currentThemeId === theme.id;
     return (
       <div
-        onClick={() => {
-          tap();
-          onSelectTheme(theme.id as ThemeId);
-        }}
+        onClick={() => choosePalette(theme)}
         className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${on ? 'border-white/60 bg-white/5' : 'border-[#1A1E26] bg-black/40 hover:border-neutral-700'}`}
       >
         <div className="flex items-start justify-between gap-1">
           <div>
             <div className="text-xs font-semibold text-white">{theme.name}</div>
-            <div className="text-[10px] text-[#7E889B] line-clamp-1 mt-0.5">{theme.tagline}</div>
+            <div className="text-xs text-[#9AA3B2] line-clamp-1 mt-0.5">{theme.tagline}</div>
           </div>
           {on && (
             <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent)', color: 'var(--color-black)' }}>
@@ -139,7 +150,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
                 e.stopPropagation();
                 onDeleteCustomTheme(theme.id);
               }}
-              className="p-1 text-neutral-500 hover:text-red-400"
+              className="p-1 text-neutral-400 hover:text-red-400"
               aria-label={`Delete ${theme.name}`}
             >
               <Trash2 className="w-4 h-4" />
@@ -152,14 +163,14 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
 
   const swatchRow = (label: string, value: string, set: (v: string) => void) => (
     <div className="p-3 rounded-2xl bg-black/30 border border-[#1A1E26] space-y-2">
-      <div className="text-[11px] font-medium text-neutral-300">{label}</div>
+      <div className="text-xs font-medium text-neutral-300">{label}</div>
       <div className="flex items-center gap-2">
         <input type="color" value={value} onChange={(e) => set(e.target.value)} className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" aria-label={label} />
         <input
           type="text"
           value={value}
           onChange={(e) => set(e.target.value)}
-          className="w-full px-2 py-1 rounded-lg bg-black/40 border border-[#222836] text-[11px] font-mono text-white uppercase text-center"
+          className="w-full px-2 py-1 rounded-lg bg-black/40 border border-[#222836] text-xs font-mono text-white uppercase text-center"
           maxLength={7}
         />
       </div>
@@ -170,15 +181,15 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-lg max-h-[90vh] bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 sm:p-6 text-white shadow-2xl flex flex-col overflow-hidden">
+      <div role="dialog" aria-modal="true" aria-label="Look and colors" className="relative w-full max-w-lg max-h-[90vh] bg-[#0B0D11] border border-[#1A1E26] rounded-3xl p-5 sm:p-6 text-white shadow-2xl flex flex-col overflow-hidden">
         <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26] shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl border border-neutral-800 flex items-center justify-center" style={{ backgroundColor: 'var(--accent-soft)' }}>
               <Palette className="w-4 h-4" style={{ color: 'var(--accent)' }} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Look & colours</h3>
-              <p className="text-[11px] text-[#7E889B]">Pick a background and a palette, or make your own</p>
+              <h3 className="text-base font-bold text-white">Look & colors</h3>
+              <p className="text-xs text-[#9AA3B2]">Pick a background and a palette, or make your own</p>
             </div>
           </div>
           <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-full text-neutral-400 hover:text-white">
@@ -187,23 +198,18 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
         </div>
 
         {/* Dark, light or follow the phone */}
-        <div className="flex items-center p-1 rounded-xl border border-[#1A1E26] mt-3 shrink-0 bg-black/30" role="radiogroup" aria-label="Appearance">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              role="radio"
-              aria-checked={look.mode === m.id}
-              onClick={() => {
-                tap();
-                look.setMode(m.id);
-              }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${look.mode === m.id ? 'bg-white/15 text-white' : 'text-neutral-400'}`}
-            >
-              {m.icon}
-              {m.label}
-            </button>
-          ))}
-        </div>
+        <Segmented<(typeof MODES)[number]['id']>
+          className="mt-3 shrink-0"
+          ariaLabel="Appearance"
+          size="sm"
+          semantics="radio"
+          value={look.mode}
+          onChange={(id) => {
+            tap();
+            look.setMode(id);
+          }}
+          options={MODES.map((m) => ({ id: m.id, label: m.label, icon: m.icon }))}
+        />
 
         <div className="flex items-center gap-1 mt-2 shrink-0">
           {([['backgrounds', 'Backgrounds'], ['palettes', 'Palettes'], ['create', 'Create']] as [Tab, string][]).map(([id, label]) => (
@@ -217,7 +223,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
           {tab === 'backgrounds' && (
             <>
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B] px-1 mb-2">Starting looks</div>
+                <div className="text-sm font-bold text-neutral-200 px-1 mb-2">Starting looks</div>
                 <div className="grid grid-cols-2 gap-2">
                   {VIBES.map((v) => (
                     <button key={v.id} onClick={() => applyVibe(v)} className="rounded-2xl border border-[#1A1E26] p-2.5 text-left active:scale-[0.97] transition-transform bg-black/30">
@@ -227,14 +233,14 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
                         ))}
                       </div>
                       <div className="text-xs font-semibold text-white">{v.name}</div>
-                      <div className="text-[10px] text-[#7E889B] leading-snug">{v.tagline}</div>
+                      <div className="text-xs text-[#9AA3B2] leading-snug">{v.tagline}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B] px-1 mb-2">Dark</div>
+                <div className="text-sm font-bold text-neutral-200 px-1 mb-2">Dark</div>
                 <div className="grid grid-cols-3 gap-2">
                   {DARK_BACKDROPS.map((b) => (
                     <BackdropTile key={b.id} b={b} />
@@ -246,7 +252,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
               </div>
 
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B] px-1 mb-2">Light and pastel</div>
+                <div className="text-sm font-bold text-neutral-200 px-1 mb-2">Light and pastel</div>
                 <div className="grid grid-cols-3 gap-2">
                   {LIGHT_BACKDROPS.map((b) => (
                     <BackdropTile key={b.id} b={b} />
@@ -262,15 +268,15 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
                   <Sliders className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} /> Your own background
                 </div>
                 <div className="flex items-center gap-2">
-                  <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-9 h-9 rounded cursor-pointer border-0 bg-transparent" aria-label="Background colour" />
+                  <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-9 h-9 rounded cursor-pointer border-0 bg-transparent" aria-label="Background color" />
                   <input value={bgColor} onChange={(e) => setBgColor(e.target.value)} maxLength={7} className="w-24 px-2 py-1.5 rounded-lg bg-black/40 border border-[#222836] text-xs font-mono text-white uppercase text-center" aria-label="Background hex" />
                   <input value={bgName} onChange={(e) => setBgName(e.target.value)} maxLength={24} className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-black/40 border border-[#222836] text-xs text-white" aria-label="Background name" />
                 </div>
                 <div className="rounded-xl p-3 flex items-center justify-between" style={{ backgroundColor: shown(previewBackdrop.bg) }}>
-                  <div className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ backgroundColor: shown(previewBackdrop.card), color: shown(previewBackdrop.ink), border: `1px solid ${shown(previewBackdrop.hairline)}` }}>
+                  <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ backgroundColor: shown(previewBackdrop.card), color: shown(previewBackdrop.ink), border: `1px solid ${shown(previewBackdrop.hairline)}` }}>
                     Preview card
                   </div>
-                  <span className="text-[10px]" style={{ color: shown(previewBackdrop.inkDim) }}>{previewBackdrop.family === 'light' ? 'Light family' : 'Dark family'}</span>
+                  <span className="text-xs" style={{ color: shown(previewBackdrop.inkDim) }}>{previewBackdrop.family === 'light' ? 'Light family' : 'Dark family'}</span>
                 </div>
                 <button
                   onClick={() => {
@@ -290,7 +296,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
             <div className="space-y-3">
               {Object.keys(customThemes).length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider px-1 flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                  <div className="text-xs font-semibold uppercase tracking-wider px-1 flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
                     <Sparkles className="w-3 h-3" /> Your palettes
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -300,16 +306,26 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
                   </div>
                 </div>
               )}
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B] px-1">Soft palettes</div>
+              <div className="text-sm font-bold text-neutral-200 px-1">Special themes</div>
+              <p className="px-1 text-xs leading-relaxed text-[#9AA3B2]">
+                These also change the background and add something extra: 3D training androids on Home for Google-inspired, a living galaxy behind every
+                screen for Sagittarius. Nothing here is loaded from the internet.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {SPECIAL_THEME_IDS.map((id) => (
+                  <PaletteCard key={id} theme={MODERN_THEMES[id]} />
+                ))}
+              </div>
+              <div className="text-sm font-bold text-neutral-200 px-1">Soft palettes</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {['grounded', 'high_energy', 'mind_body', 'ocean_calm'].map((id) => (
                   <PaletteCard key={id} theme={MODERN_THEMES[id]} />
                 ))}
               </div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7E889B] px-1">Bold palettes</div>
+              <div className="text-sm font-bold text-neutral-200 px-1">Bold palettes</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {Object.values(MODERN_THEMES)
-                  .filter((t) => !['grounded', 'high_energy', 'mind_body', 'ocean_calm'].includes(t.id))
+                  .filter((t) => !['grounded', 'high_energy', 'mind_body', 'ocean_calm', ...SPECIAL_THEME_IDS].includes(t.id))
                   .map((t) => (
                     <PaletteCard key={t.id} theme={t} />
                   ))}
@@ -336,7 +352,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
               <button type="submit" className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent)', color: 'var(--color-black)' }}>
                 <Plus className="w-4 h-4" /> Save and use palette
               </button>
-              <p className="text-[10px] text-[#7E889B] px-1">Your palette works on any background. On light backgrounds the colours are deepened a little so they stay readable.</p>
+              <p className="text-xs text-[#9AA3B2] px-1">Your palette works on any background. On light backgrounds the colors are deepened a little so they stay readable.</p>
             </form>
           )}
         </div>

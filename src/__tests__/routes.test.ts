@@ -6,7 +6,7 @@ import { LatLng } from '../lib/geo';
 
 const T0 = Date.UTC(2026, 0, 1, 7, 0, 0);
 
-/** A loop of roughly the given radius (km) round a centre, as a track. */
+/** A loop of roughly the given radius (km) round a center, as a track. */
 const loop = (lat0: number, lng0: number, radiusKm: number, jitterM = 0, seed = 1): { lat: number; lng: number; t: number; d: number }[] => {
   let s = seed;
   const rnd = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296 - 0.5) * 2;

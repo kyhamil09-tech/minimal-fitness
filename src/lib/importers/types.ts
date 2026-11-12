@@ -5,7 +5,7 @@ export interface ParsedPoint {
   lng: number;
   alt?: number;
   hr?: number;
-  /** Cumulative distance in metres when the file carries it (FIT, TCX). */
+  /** Cumulative distance in meters when the file carries it (FIT, TCX). */
   dist?: number;
 }
 

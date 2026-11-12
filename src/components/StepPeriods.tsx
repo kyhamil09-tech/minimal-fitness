@@ -52,12 +52,12 @@ export const StepPeriods: React.FC<StepPeriodsProps> = ({ theme, automation }) =
         <Car className="w-4 h-4" style={{ color: theme.primary }} />
         Remove steps from a period
       </div>
-      <p className="text-[11px] text-[#7E889B] leading-relaxed">
+      <p className="text-xs text-[#9AA3B2] leading-relaxed">
         Driving can make the phone count steps. Pick the time you were in the car and the steps counted then are taken off that day.
       </p>
 
       <div className="grid grid-cols-3 gap-2">
-        <label className="col-span-3 text-[11px] text-neutral-400">
+        <label className="col-span-3 text-xs text-neutral-400">
           Day
           <select value={date} onChange={(e) => setDate(e.target.value)} className={`${field} mt-1`}>
             {Array.from({ length: 7 }, (_, i) => addDays(today, -i)).map((d) => (
@@ -67,11 +67,11 @@ export const StepPeriods: React.FC<StepPeriodsProps> = ({ theme, automation }) =
             ))}
           </select>
         </label>
-        <label className="col-span-1 text-[11px] text-neutral-400">
+        <label className="col-span-1 text-xs text-neutral-400">
           From
           <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} className={`${field} mt-1`} />
         </label>
-        <label className="col-span-1 text-[11px] text-neutral-400">
+        <label className="col-span-1 text-xs text-neutral-400">
           To
           <input type="time" value={to} onChange={(e) => setTo(e.target.value)} className={`${field} mt-1`} />
         </label>
@@ -85,7 +85,7 @@ export const StepPeriods: React.FC<StepPeriodsProps> = ({ theme, automation }) =
         </button>
       </div>
 
-      <p className="text-[11px] min-h-[1.25rem]" style={{ color: !valid || !hasData ? '#fda4af' : theme.primary }} role="status">
+      <p className="text-xs min-h-[1.25rem]" style={{ color: !valid || !hasData ? '#fda4af' : theme.primary }} role="status">
         {!Number.isFinite(fromMs) || !Number.isFinite(toMsV)
           ? 'Choose both times.'
           : toMsV <= fromMs
@@ -107,7 +107,7 @@ export const StepPeriods: React.FC<StepPeriodsProps> = ({ theme, automation }) =
                 <div className="text-xs text-neutral-200">
                   {dayName(w.date, today)} {hhmm(w.fromMs)}–{hhmm(w.toMs)}
                 </div>
-                <div className="text-[10px] text-[#7E889B]">Removed {describe(w.removed)}</div>
+                <div className="text-xs text-[#9AA3B2]">Removed {describe(w.removed)}</div>
               </div>
               <button
                 onClick={() => removeStepWindow(w.id)}

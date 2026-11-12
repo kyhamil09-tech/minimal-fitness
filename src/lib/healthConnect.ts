@@ -1,6 +1,7 @@
 import { HcSleepSession, HcSleepVitals } from './native';
 import { SleepDetail, SleepLogEntry } from '../types/health';
 import { countAwakenings, toSegments } from './sleepMetrics';
+import { pickNight } from './sleepSources';
 
 // Health Connect sleep stage codes
 const AWAKE = new Set([1, 3, 7]); // awake, out of bed, awake in bed
@@ -63,6 +64,7 @@ export const sessionToLog = (s: HcSleepSession): SleepLogEntry | null => {
     notes: 'Imported from Health Connect',
     isManualEntry: !hasStages,
     source: 'health-connect',
+    originApp: s.source,
     deepSleepMinutes: deep,
     remSleepMinutes: rem,
     lightSleepMinutes: hasStages ? light : Math.round(asleep * 0.55),
@@ -72,7 +74,7 @@ export const sessionToLog = (s: HcSleepSession): SleepLogEntry | null => {
   };
 };
 
-const VITAL_FIELDS = ['hrAvg', 'hrMin', 'hrMax', 'hrvMs', 'respRate', 'spo2Avg', 'spo2Min', 'skinDelta'] as const;
+const VITAL_FIELDS = ['hrSeries', 'hrAvg', 'hrMin', 'hrMax', 'hrvMs', 'respRate', 'spo2Avg', 'spo2Min', 'skinDelta'] as const;
 
 /** Adds the overnight readings Health Connect had for a night, and notes when they were looked up. */
 export const applyVitals = (log: SleepLogEntry, v: HcSleepVitals, now = Date.now()): SleepLogEntry => {
@@ -84,6 +86,7 @@ export const applyVitals = (log: SleepLogEntry, v: HcSleepVitals, now = Date.now
       hrAvg: v.hrAvg,
       hrMin: v.hrMin,
       hrMax: v.hrMax,
+      hrSeries: v.hrSeries,
       hrvMs: v.hrvAvg,
       respRate: v.respAvg,
       spo2Avg: v.spo2Avg,
@@ -121,16 +124,21 @@ export const applyVitalsToLogs = (logs: SleepLogEntry[], results: HcSleepVitals[
 };
 /**
  * Adds imported nights to the log: earlier imports are refreshed, and a night you logged by hand is never
- * overwritten. Newest night first.
+ * overwritten. Newest night first. When several trackers saved the same night, one version is shown and the rest are kept as
+ * alternates: the one you switched to by hand, else the tracker preferred in Settings, else the best measured (see sleepSources.ts).
  */
-export const mergeImportedSleep = (existing: SleepLogEntry[], imported: SleepLogEntry[]): SleepLogEntry[] => {
-  const earlier = new Map(existing.map((l) => [l.id, l]));
+export const mergeImportedSleep = (existing: SleepLogEntry[], imported: SleepLogEntry[], opts: { preferred?: string; secondary?: string } = {}): SleepLogEntry[] => {
+  const earlier = new Map<string, SleepLogEntry>();
+  for (const l of existing) {
+    earlier.set(l.id, l);
+    for (const a of l.alternates ?? []) if (!earlier.has(a.id)) earlier.set(a.id, a);
+  }
   // A refreshed import has only the stages: keep the overnight readings already looked up for the same night.
   imported = imported.map((l) => {
     const old = earlier.get(l.id);
     if (!old?.detail || !l.detail) return l;
     const carry: Partial<SleepDetail> = { vitalsAt: old.detail.vitalsAt };
-    for (const k of VITAL_FIELDS) if (old.detail[k] !== undefined) (carry as Record<string, number | undefined>)[k] = old.detail[k];
+    for (const k of VITAL_FIELDS) if (old.detail[k] !== undefined) (carry as Record<string, unknown>)[k] = old.detail[k];
     return { ...l, detail: { ...l.detail, ...carry } };
   });
   const importedIds = new Set(imported.map((l) => l.id));
@@ -139,11 +147,13 @@ export const mergeImportedSleep = (existing: SleepLogEntry[], imported: SleepLog
   const manualDates = new Set(existing.filter((l) => !automatic(l)).map((l) => l.dateIso));
   const keep = existing.filter((l) => !(l.source === 'health-connect' && importedIds.has(l.id)));
   const fresh = imported.filter((l) => !manualDates.has(l.dateIso));
-  // Two imported sessions ending the same day: keep the longer one.
+  // Several imported sessions ending the same day (two trackers): one is shown, the others are kept beside it.
+  const groups = new Map<string, SleepLogEntry[]>();
+  for (const l of fresh) groups.set(l.dateIso, [...(groups.get(l.dateIso) ?? []), l]);
   const byDate = new Map<string, SleepLogEntry>();
-  for (const l of fresh) {
-    const prev = byDate.get(l.dateIso);
-    if (!prev || l.durationMinutes > prev.durationMinutes) byDate.set(l.dateIso, l);
+  for (const [date, group] of groups) {
+    const pinnedApp = existing.find((l) => l.dateIso === date && l.pinned)?.originApp;
+    byDate.set(date, pickNight(group, opts.preferred, pinnedApp, opts.secondary));
   }
   const importedKeys = new Set([...byDate.values()].map((l) => l.dateIso));
   const kept = keep.filter((l) => !(automatic(l) && importedKeys.has(l.dateIso)));

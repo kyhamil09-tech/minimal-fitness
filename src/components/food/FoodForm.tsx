@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { FoodRecord } from '../../lib/foodDb';
+import { Micros, hasMicros } from '../../lib/micros';
 import { MealType } from '../../types/tracking';
 import { haptic } from '../../lib/haptics';
 
@@ -18,13 +19,21 @@ interface Props {
   meal: MealType;
   onMeal: (m: MealType) => void;
   onBack: () => void;
+  /** Values read from a nutrition label, to be checked. */
+  initial?: { name?: string; serving?: string; kcal?: number; p?: number; c?: number; f?: number; fiber?: number; sugar?: number; sodium?: number };
+  /** The barcode of the product, when the food came from a scan that found nothing. */
+  barcode?: string;
+  /** Vitamins and minerals read from the label. */
+  micros?: Micros;
+  /** What the label scan found, named for the person. */
+  foundNote?: string;
   /** Called with a one-serving record. {@code keep} says to save it to My foods too. */
   onSubmit: (rec: FoodRecord, keep: boolean) => void;
 }
 
 const Field: React.FC<{ label: string; value: string; onChange: (v: string) => void; unit?: string; wide?: boolean; numeric?: boolean; required?: boolean }> = ({ label, value, onChange, unit, wide, numeric = true, required }) => (
   <label className={`block ${wide ? 'col-span-2' : ''}`}>
-    <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-dim)' }}>{label}{required ? ' *' : ''}</span>
+    <span className="text-xs font-semibold" style={{ color: 'var(--ink-dim)' }}>{label}{required ? ' *' : ''}</span>
     <span className="mt-1 flex items-center rounded-2xl border px-3" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' }}>
       <input
         value={value}
@@ -33,24 +42,25 @@ const Field: React.FC<{ label: string; value: string; onChange: (v: string) => v
         className="bare-input flex-1 min-w-0 py-3 text-sm outline-none"
         style={{ color: 'var(--ink)', background: 'transparent', border: 'none', boxShadow: 'none' }}
       />
-      {unit && <span className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>{unit}</span>}
+      {unit && <span className="text-xs" style={{ color: 'var(--ink-dim)' }}>{unit}</span>}
     </span>
   </label>
 );
 
 /** Quick add (calories you know) and Create food (a food of your own, saved for next time). */
-export const FoodForm: React.FC<Props> = ({ mode, initialName = '', meal, onMeal, onBack, onSubmit }) => {
-  const [name, setName] = useState(initialName);
-  const [serving, setServing] = useState('1 serving');
-  const [kcal, setKcal] = useState('');
-  const [p, setP] = useState('');
-  const [c, setC] = useState('');
-  const [f, setF] = useState('');
-  const [fiber, setFiber] = useState('');
-  const [sugar, setSugar] = useState('');
-  const [sodium, setSodium] = useState('');
+export const FoodForm: React.FC<Props> = ({ mode, initialName = '', meal, onMeal, onBack, onSubmit, initial, barcode, micros, foundNote }) => {
+  const text = (v: number | undefined) => (v === undefined ? '' : String(v));
+  const [name, setName] = useState(initial?.name ?? initialName);
+  const [serving, setServing] = useState(initial?.serving || '1 serving');
+  const [kcal, setKcal] = useState(text(initial?.kcal));
+  const [p, setP] = useState(text(initial?.p));
+  const [c, setC] = useState(text(initial?.c));
+  const [f, setF] = useState(text(initial?.f));
+  const [fiber, setFiber] = useState(text(initial?.fiber));
+  const [sugar, setSugar] = useState(text(initial?.sugar));
+  const [sodium, setSodium] = useState(text(initial?.sodium));
   const [keep, setKeep] = useState(mode === 'create');
-  const [more, setMore] = useState(false);
+  const [more, setMore] = useState(initial?.fiber !== undefined || initial?.sugar !== undefined || initial?.sodium !== undefined);
 
   const fromMacros = Math.round(num(p) * 4 + num(c) * 4 + num(f) * 9);
   const calories = Math.round(num(kcal)) || fromMacros;
@@ -73,6 +83,8 @@ export const FoodForm: React.FC<Props> = ({ mode, initialName = '', meal, onMeal
       sodium: Math.round(num(sodium)),
       portions: [{ label: serving.trim() || '1 serving', g: 1 }],
       perServing: true,
+      ...(barcode ? { barcode } : {}),
+      ...(micros && hasMicros(micros) ? { micros } : {}),
     };
     onSubmit(rec, keep);
   };
@@ -83,27 +95,32 @@ export const FoodForm: React.FC<Props> = ({ mode, initialName = '', meal, onMeal
         <button aria-label="Back" onClick={onBack} className="round-btn !w-10 !h-10">
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-extrabold" style={{ color: 'var(--ink)' }}>{mode === 'quick' ? 'Quick add' : 'Create a food'}</h2>
+        <h2 className="text-lg font-extrabold" style={{ color: 'var(--ink)' }}>{mode === 'quick' ? 'Quick add' : initial ? 'Check the label' : 'Create a food'}</h2>
       </div>
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-4 space-y-3">
+        {initial && (
+          <p role="status" className="text-xs leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
+            {foundNote || 'Nothing could be read automatically.'} Check every number against the package before you save, and fill in anything missing. These are the values for one serving.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Field label={mode === 'quick' ? 'Name (optional)' : 'Name'} value={name} onChange={setName} wide numeric={false} required={mode === 'create'} />
           {mode === 'create' && <Field label="Serving size, e.g. 1 bar or 30 g" value={serving} onChange={setServing} wide numeric={false} />}
           <Field label="Calories" value={kcal} onChange={setKcal} unit="kcal" wide required />
           {fromMacros > 0 && !num(kcal) && (
-            <button type="button" onClick={() => setKcal(String(fromMacros))} className="col-span-2 text-left text-[11px] underline" style={{ color: 'var(--accent)' }}>
+            <button type="button" onClick={() => setKcal(String(fromMacros))} className="col-span-2 text-left text-xs underline" style={{ color: 'var(--accent)' }}>
               Use {fromMacros} kcal worked out from the macros
             </button>
           )}
           <Field label="Protein" value={p} onChange={setP} unit="g" />
           <Field label="Carbs" value={c} onChange={setC} unit="g" />
           <Field label="Fat" value={f} onChange={setF} unit="g" />
-          <button type="button" onClick={() => setMore((v) => !v)} className="self-end pb-3 text-left text-[11px] underline" style={{ color: 'var(--ink-dim)' }}>
+          <button type="button" onClick={() => setMore((v) => !v)} className="self-end pb-3 text-left text-xs underline" style={{ color: 'var(--ink-dim)' }}>
             {more ? 'Hide detail' : 'More detail'}
           </button>
           {more && (
             <>
-              <Field label="Fibre" value={fiber} onChange={setFiber} unit="g" />
+              <Field label="Fiber" value={fiber} onChange={setFiber} unit="g" />
               <Field label="Sugar" value={sugar} onChange={setSugar} unit="g" />
               <Field label="Sodium" value={sodium} onChange={setSodium} unit="mg" wide />
             </>
@@ -116,7 +133,7 @@ export const FoodForm: React.FC<Props> = ({ mode, initialName = '', meal, onMeal
         )}
         <div className="flex gap-2 overflow-x-auto no-scrollbar" role="radiogroup" aria-label="Meal">
           {MEALS.map((m) => (
-            <button key={m} role="radio" aria-checked={meal === m} aria-pressed={meal === m} onClick={() => onMeal(m)} className="sport-pill shrink-0">
+            <button key={m} role="radio" aria-checked={meal === m} onClick={() => onMeal(m)} className="sport-pill shrink-0">
               {m}
             </button>
           ))}

@@ -39,6 +39,8 @@ public class SleepPlugin extends Plugin {
                     call.resolve(o);
                 })
                 .addOnFailureListener(e -> call.reject("Sleep detection is not available: " + e.getMessage()));
+        } catch (SecurityException e) {
+            call.reject("Sleep detection needs the physical activity permission.");
         } catch (RuntimeException e) {
             call.reject("Sleep detection is not available: " + e.getMessage());
         }

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ChevronDown, ChevronUp, FileUp, Flame, Navigation, Route as RouteIcon, Trash2, Trophy } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, FileUp, Flame, Navigation, Route as RouteIcon, Trash2, Trophy } from 'lucide-react';
 import { ColorPalette } from '../types/theme';
 import { UnitSystem } from '../types/tracking';
 import { WorkoutSession } from '../types/health';
+import { MAP_STYLES } from '../lib/mapStyles';
 import { addBaseMap } from '../lib/mapPackLayer';
 import { MapPacksPanel } from './MapPacksPanel';
 import { LatLng, routeToSvgPoints } from '../lib/geo';
@@ -13,6 +14,8 @@ import { SavedRoute, routeFromGpx } from '../lib/savedRoutes';
 import { formatDuration, formatPaceSec } from '../lib/workoutStats';
 import { distanceUnit, kmToDisplay } from '../lib/units';
 import { shortMonthDay, toDateKey } from '../lib/dates';
+import { gpxZip } from '../lib/gpxBundle';
+import { downloadBinaryFile } from '../lib/backup';
 
 const MAX_DRAWN = 600;
 
@@ -60,15 +63,15 @@ const SavedRoutesSection: React.FC<Pick<Props, 'theme' | 'units' | 'savedRoutes'
           <Navigation className="w-4 h-4" style={{ color: theme.primary }} />
           <h3 className="gh-title" style={{ fontSize: '1.05rem' }}>Routes to follow</h3>
         </div>
-        <button type="button" onClick={() => input.current?.click()} className="px-3.5 py-1.5 rounded-full glass-chip text-[11px] font-bold text-white flex items-center gap-1.5">
+        <button type="button" onClick={() => input.current?.click()} className="px-3.5 py-1.5 rounded-full glass-chip text-xs font-bold text-white flex items-center gap-1.5">
           <FileUp className="w-3.5 h-3.5" style={{ color: theme.primary }} /> Import GPX
         </button>
         <input ref={input} type="file" multiple accept=".gpx,application/gpx+xml,text/xml,application/xml" className="hidden" aria-label="Choose GPX files" onChange={(e) => void pick(e.target.files)} />
       </div>
-      <p className="text-[11px] text-neutral-400 leading-relaxed">
+      <p className="text-xs text-neutral-400 leading-relaxed">
         Follow a line on the map with a buzz if you drift off it and a way back to the start. It needs only GPS, so it works with no signal. Save one of your own runs from its detail screen, or import a GPX file.
       </p>
-      {message && <p className="text-[11px] text-emerald-300" role="status">{message}</p>}
+      {message && <p className="text-xs text-emerald-300" role="status">{message}</p>}
       {savedRoutes.length === 0 ? (
         <div className="rounded-2xl glass-inset p-3.5 text-xs text-neutral-400">No saved routes yet.</div>
       ) : (
@@ -78,21 +81,21 @@ const SavedRoutesSection: React.FC<Pick<Props, 'theme' | 'units' | 'savedRoutes'
               <Thumb outline={r.points} color={theme.primary} />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-bold text-white truncate">{r.name}</div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-xs text-neutral-400">
                   {kmToDisplay(r.km, units, 1)} {distanceUnit(units)} · {r.source === 'gpx' ? 'GPX file' : 'your run'}
                 </div>
               </div>
               {confirm === r.id ? (
-                <span className="flex items-center gap-2 text-[11px] shrink-0">
+                <span className="flex items-center gap-2 text-xs shrink-0">
                   <button type="button" onClick={() => { onDeleteRoute(r.id); setConfirm(null); }} className="text-rose-400 font-bold">Delete</button>
                   <button type="button" onClick={() => setConfirm(null)} className="text-neutral-400">Keep</button>
                 </span>
               ) : (
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button type="button" onClick={() => onFollow(r.id)} className="px-3 py-1.5 rounded-full text-[11px] font-extrabold text-black" style={{ backgroundColor: theme.primary }}>
+                  <button type="button" onClick={() => onFollow(r.id)} className="px-3 py-1.5 rounded-full text-xs font-extrabold text-black" style={{ backgroundColor: theme.primary }}>
                     Follow
                   </button>
-                  <button type="button" onClick={() => setConfirm(r.id)} aria-label={`Delete ${r.name}`} className="p-1.5 text-neutral-500 hover:text-rose-400">
+                  <button type="button" onClick={() => setConfirm(r.id)} aria-label={`Delete ${r.name}`} className="p-1.5 text-neutral-400 hover:text-rose-400">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -119,7 +122,7 @@ const Heatmap: React.FC<{ theme: ColorPalette; lines: LatLng[][] }> = ({ theme, 
     const bounds = L.latLngBounds([]);
     for (const line of lines) line.forEach((p) => bounds.extend(p));
     const c = bounds.getCenter();
-    addBaseMap(map, { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap contributors', opacity: 0.55, center: [c.lat, c.lng] });
+    addBaseMap(map, { url: MAP_STYLES.dark.url, attribution: MAP_STYLES.dark.attribution, maxZoom: MAP_STYLES.dark.maxZoom, maxNativeZoom: MAP_STYLES.dark.maxNativeZoom, dark: true, center: [c.lat, c.lng] });
     for (const line of lines) {
       // Each run is drawn faint; where many overlap the strokes add up and the line shines.
       L.polyline(line, { renderer: canvas, color: theme.primary, weight: 3, opacity: 0.28, lineCap: 'round', lineJoin: 'round' }).addTo(map);
@@ -158,15 +161,15 @@ const RouteRow: React.FC<{ g: RouteGroup; theme: ColorPalette; units: UnitSystem
         <Thumb outline={g.outline} color={theme.primary} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold text-white">{routeLabel(g, imperial)}</div>
-          <div className="text-[11px] text-neutral-400 mt-0.5">
+          <div className="text-xs text-neutral-400 mt-0.5">
             {g.attempts.length} times · best {formatDuration(g.best.seconds)} · last {shortMonthDay(toDateKey(latest.at))}
           </div>
-          <div className="text-[11px] mt-0.5" style={{ color: behind <= 0 ? '#6EE7B7' : '#9CA3AF' }}>
+          <div className="text-xs mt-0.5" style={{ color: behind <= 0 ? '#6EE7B7' : '#9CA3AF' }}>
             {behind <= 0 ? 'Your latest was your best' : `Latest was ${formatDuration(behind)} off your best`}
             {g.trendPct !== undefined && Math.abs(g.trendPct) >= 1 && ` · lately ${Math.abs(g.trendPct)}% ${g.trendPct < 0 ? 'faster' : 'slower'}`}
           </div>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-neutral-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-neutral-500 shrink-0" />}
+        {open ? <ChevronUp className="w-4 h-4 text-neutral-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0" />}
       </button>
       {open && (
         <div className="border-t border-white/10">
@@ -183,7 +186,7 @@ const RouteRow: React.FC<{ g: RouteGroup; theme: ColorPalette; units: UnitSystem
                   onClick={() => w && onOpenWorkout(w)}
                   className="w-full grid grid-cols-[1.6rem_1fr_auto_auto] items-center gap-3 px-3 py-2 text-xs border-b border-white/5 last:border-none text-left"
                 >
-                  <span className="text-neutral-500 tabular-nums">{i === 0 ? <Trophy className="w-3.5 h-3.5 text-amber-300" /> : i + 1}</span>
+                  <span className="text-neutral-400 tabular-nums">{i === 0 ? <Trophy className="w-3.5 h-3.5 text-amber-300" /> : i + 1}</span>
                   <span className="text-neutral-300">{shortMonthDay(toDateKey(a.at))}</span>
                   <span className="tabular-nums text-neutral-400">
                     {formatPaceSec(pace)}/{distanceUnit(units)}
@@ -217,6 +220,15 @@ export const RoutesView: React.FC<Props> = ({ theme, workouts, units, onOpenWork
         .map((w) => (w.route && w.route.length >= 2 ? w.route : workoutPoints(w))),
     [filtered]
   );
+  const [exportNote, setExportNote] = useState('');
+  const exportAll = async () => {
+    try {
+      await downloadBinaryFile(`minimal-fitness-routes-${toDateKey(Date.now())}.zip`, gpxZip(filtered));
+      setExportNote(`${filtered.length} route${filtered.length === 1 ? '' : 's'} exported as GPX.`);
+    } catch (err: any) {
+      setExportNote(err?.message || 'Export failed.');
+    }
+  };
   const km = filtered.reduce((s, w) => s + (w.distanceKm ?? 0), 0);
   const groups = useMemo(() => findRoutes(filtered), [filtered]);
   const byId = useMemo(() => new Map(workouts.map((w) => [w.id, w])), [workouts]);
@@ -229,7 +241,7 @@ export const RoutesView: React.FC<Props> = ({ theme, workouts, units, onOpenWork
         {saved}
         <MapPacksPanel theme={theme} />
         <section className="rounded-[28px] border p-6 text-center" style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
-          <RouteIcon className="w-8 h-8 mx-auto text-neutral-500" />
+          <RouteIcon className="w-8 h-8 mx-auto text-neutral-400" />
           <p className="text-sm font-semibold text-white mt-3">No routes yet</p>
           <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Record a GPS run, walk or ride, or import your history from another app, and every route shows up here as a heatmap.</p>
         </section>
@@ -256,23 +268,29 @@ export const RoutesView: React.FC<Props> = ({ theme, workouts, units, onOpenWork
         {years.length > 1 && (
           <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Year">
             {(['all', ...years] as (number | 'all')[]).map((y) => (
-              <button key={y} type="button" aria-pressed={year === y} onClick={() => setYear(y)} className="sport-pill !py-1 !px-3 !text-[11px] whitespace-nowrap">
+              <button key={y} type="button" aria-pressed={year === y} onClick={() => setYear(y)} className="sport-pill !py-1 !px-3 !text-xs whitespace-nowrap">
                 {y === 'all' ? 'All years' : y}
               </button>
             ))}
           </div>
         )}
         {filtered.length === 0 ? <p className="text-xs text-neutral-400 py-6 text-center">No routes for that choice.</p> : <Heatmap theme={theme} lines={lines} />}
-        <p className="text-[11px] text-neutral-400">
+        <p className="text-xs text-neutral-400">
           {filtered.length} activit{filtered.length === 1 ? 'y' : 'ies'} · {kmToDisplay(km, units, 0)} {distanceUnit(units)} in total
           {filtered.length > MAX_DRAWN ? ` · newest ${MAX_DRAWN} drawn` : ''}. Drawn on this phone; brighter means you have been there more often.
         </p>
+        {filtered.length > 0 && (
+          <button type="button" onClick={() => void exportAll()} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-3 text-xs font-semibold text-[#E4E4E7]" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' }}>
+            <Download className="h-4 w-4" aria-hidden="true" /> Export these {filtered.length} as GPX (zip)
+          </button>
+        )}
+        {exportNote && <p role="status" className="text-xs text-neutral-300">{exportNote}</p>}
       </section>
 
       <section className="space-y-2.5">
         <div className="px-1">
           <h3 className="gh-title" style={{ fontSize: '1.05rem' }}>Routes you repeat</h3>
-          <p className="text-[11px] text-neutral-500 mt-0.5">Found automatically: same start, finish and path, at least twice.</p>
+          <p className="text-xs text-neutral-400 mt-0.5">Found automatically: same start, finish and path, at least twice.</p>
         </div>
         {groups.length === 0 ? (
           <div className="rounded-2xl glass-inset p-4 text-xs text-neutral-400 leading-relaxed">

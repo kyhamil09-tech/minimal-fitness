@@ -1,4 +1,4 @@
-﻿import { test } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LIVE_RUN_KEY, clearLiveRun, goalSummary, goalUnitLabel, readLiveRun, readSavedGoal, readSetup, writeLiveRun, type LiveRun } from '../lib/runSetup';
 

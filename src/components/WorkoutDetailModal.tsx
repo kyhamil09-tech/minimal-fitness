@@ -24,11 +24,13 @@ import { UserProfile } from '../types/tracking';
 import { Modal } from './ui/Modal';
 import { LineChart } from './ui/charts';
 import { RouteMap } from './RouteMap';
+import { speedGradient } from '../lib/mapStyles';
 import { WorkoutEditModal } from './WorkoutEditModal';
 import { downloadTextFile } from '../lib/backup';
 import { ZONE_NAMES, currentRestingHr, getMaxHr, workoutVolumeKg, zoneStarts } from '../lib/calc';
 import { formatTimestamp } from '../lib/dates';
-import { distanceUnit, formatDistance, formatWeight, kgToDisplay, weightUnit } from '../lib/units';
+import { KM_PER_MI, distanceUnit, formatDistance, formatWeight, kgToDisplay, kmToDisplay, weightUnit } from '../lib/units';
+import { nextCalibration, readCalibration, workoutStepLength, writeCalibration } from '../lib/stride';
 import {
   computeSplits,
   elevationSeries,
@@ -41,6 +43,7 @@ import {
   summarizeWorkout,
   toGpx,
   zoneSeconds,
+  edwardsLoad,
 } from '../lib/workoutStats';
 import { isConnected, readSent, uploadWorkout } from '../lib/strava';
 
@@ -50,6 +53,7 @@ import { findRoutes, routeLabel, standingFor } from '../lib/routes';
 import { SegmentsOnWorkout } from './SegmentTools';
 import { SavedRoute, routeFromWorkout } from '../lib/savedRoutes';
 import { driftLabel, gradeAdjustedPaceSec } from '../lib/efficiency';
+import { isDescentSport, isSpeedSport } from '../lib/sports';
 
 /** 1st, 2nd, 3rd, 4th ... 11th, 12th, 21st. */
 const ordinal = (n: number) => {
@@ -85,12 +89,12 @@ const Stat: React.FC<{ icon: React.ReactNode; label: string; value: string; sub?
   color = '#fff',
 }) => (
   <div className="rounded-2xl glass-inset p-3">
-    <div className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+    <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-400">
       <span style={{ color }}>{icon}</span>
       {label}
     </div>
     <div className="text-xl font-semibold tabular-nums text-white mt-1 leading-tight">{value}</div>
-    {sub && <div className="text-[11px] text-neutral-400 mt-0.5">{sub}</div>}
+    {sub && <div className="text-xs text-neutral-400 mt-0.5">{sub}</div>}
   </div>
 );
 
@@ -110,6 +114,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
   // Every hook must run before the early return below: this modal is mounted with no workout and filled in later.
   const [stravaBusy, setStravaBusy] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [shownKm, setShownKm] = useState('');
 
   const data = useMemo(() => {
     if (!workout) return null;
@@ -121,6 +126,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
       speed: speedSeries(track, units),
       elev: elevationSeries(track, units),
       zones: zoneSeconds(workout.hrSeries, maxHr),
+      zoneScore: edwardsLoad(workout.hrSeries, maxHr),
       maxHr,
       hasRoute: track.length >= 2 || (workout.route?.length ?? 0) >= 2,
       mapsUrl: googleMapsRouteUrl(workout),
@@ -132,7 +138,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
   }, [workout, units, profile, allWorkouts]);
 
   if (!workout || !data) return null;
-  const { summary, splits, speed, elev, zones, maxHr, hasRoute, mapsUrl, efforts, previousBests, efficiency, standing } = data;
+  const { summary, splits, speed, elev, zones, zoneScore, maxHr, hasRoute, mapsUrl, efforts, previousBests, efficiency, standing } = data;
   const isStrength = !!workout.exercises && workout.exercises.length > 0;
   const hasDistance = (workout.distanceKm ?? 0) > 0.02;
   const zoneTotal = zones.reduce((a, b) => a + b, 0);
@@ -216,6 +222,66 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
         </div>
       </div>
 
+      {/* The headline: one big number, then the three that matter most */}
+      {(() => {
+        const dist = hasDistance ? kmToDisplay(workout.distanceKm as number, units, 2) : null;
+        const [whole, dec = '00'] = dist !== null ? dist.toFixed(2).split('.') : ['', ''];
+        const speedSport = isSpeedSport(workout.type);
+        const cells: { label: string; value: string; unit?: string }[] = [];
+        if (dist !== null) cells.push({ label: 'Time', value: formatDuration(summary.totalSeconds) });
+        if (summary.avgPaceSec && !speedSport) cells.push({ label: 'Avg pace', value: formatPaceSec(summary.avgPaceSec), unit: `/${distanceUnit(units)}` });
+        else if (summary.avgSpeed) cells.push({ label: 'Avg speed', value: summary.avgSpeed.toFixed(1), unit: speedUnit });
+        else if (summary.avgHr) cells.push({ label: 'Avg HR', value: String(summary.avgHr), unit: 'bpm' });
+        cells.push({ label: 'Calories', value: String(workout.caloriesBurned), unit: 'kcal' });
+        // New records from this run: shown only right after it, with a burst of confetti.
+        const records = justFinished && workout.type === 'Running' ? efforts.filter((e) => { const prev = previousBests.find((p) => p.target.id === e.target.id); return !prev || e.seconds < prev.seconds; }) : [];
+        return (
+          <section className="relative mt-4 overflow-hidden rounded-3xl border p-5 text-center" style={{ backgroundColor: 'var(--card)', borderColor: justFinished ? 'var(--accent)' : 'var(--hairline)' }} aria-label="Summary">
+            {records.length > 0 && (
+              <div className="confetti" aria-hidden="true">
+                {Array.from({ length: 26 }, (_, i) => (
+                  <span key={i} style={{ left: `${(i * 37) % 100}%`, background: ['#FF5500', '#FFB300', '#00E5FF', '#F4F4F6'][i % 4], animationDelay: `${(i % 9) * 0.1}s`, animationDuration: `${1.8 + (i % 5) * 0.3}s` }} />
+                ))}
+              </div>
+            )}
+            {justFinished && <div className="eyebrow-accent mb-1">{records.length > 0 ? 'New personal best' : 'Nice work'}</div>}
+            {dist !== null ? (
+              <div className="flex items-baseline justify-center leading-none">
+                <span className="hero-num text-[6rem]">{whole}</span>
+                <span className="ml-1 flex flex-col items-start">
+                  <span className="hero-num text-[2.8rem]" style={{ color: 'var(--accent)' }}>.{dec}</span>
+                  <span className="hero-unit mt-1 text-sm">{units === 'imperial' ? 'miles' : 'km'}</span>
+                </span>
+              </div>
+            ) : (
+              <div>
+                <div className="hero-num text-[4.6rem]">{formatDuration(summary.totalSeconds)}</div>
+                <div className="hero-unit mt-1 text-sm">time</div>
+              </div>
+            )}
+            <div className="mt-4 grid gap-2" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
+              {cells.map((c) => (
+                <div key={c.label} className="rounded-2xl px-2 py-2.5" style={{ backgroundColor: 'var(--card-2)' }}>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">{c.label}</div>
+                  <div className="hero-num mt-1 text-[1.6rem] leading-none">{c.value}</div>
+                  {c.unit && <div className="mt-1 text-[10px] font-semibold text-[#A1A1AA]">{c.unit}</div>}
+                </div>
+              ))}
+            </div>
+            {records.length > 0 && (
+              <ul className="relative mt-3 flex flex-wrap justify-center gap-2" aria-label="New records">
+                {records.map((e) => (
+                  <li key={e.target.id} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--accent)', color: 'var(--on-accent)' }}>
+                    <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
+                    {e.target.label} · {formatDuration(e.seconds)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })()}
+
       {standing && (
         <div className="mt-3 rounded-2xl glass-inset px-3.5 py-2.5 text-xs flex items-center gap-2">
           <Trophy className="w-4 h-4 shrink-0" style={{ color: standing.isBest ? '#FCD34D' : '#9CA3AF' }} />
@@ -233,11 +299,11 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
       {hasRoute ? (
         <div className="mt-4 space-y-2.5">
           <RouteMap track={workout.track} route={workout.route} height={250} />
-          <div className="flex items-center justify-between text-[10px] text-neutral-400 px-1">
+          <div className="flex items-center justify-between text-xs text-neutral-400 px-1">
             <span>Slower</span>
             <span
               className="flex-1 mx-2 h-1.5 rounded-full"
-              style={{ background: 'linear-gradient(90deg, hsl(8,85%,58%), hsl(60,85%,58%), hsl(140,85%,58%))' }}
+              style={{ background: speedGradient() }}
             />
             <span>Faster</span>
           </div>
@@ -245,14 +311,14 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
             <button
               onClick={openInMaps}
               disabled={!mapsUrl}
-              className="py-2.5 rounded-xl glass-inset text-[11px] font-semibold text-white flex flex-col items-center gap-1 disabled:opacity-40"
+              className="py-2.5 rounded-xl glass-inset text-xs font-semibold text-white flex flex-col items-center gap-1 disabled:opacity-40"
             >
               <ExternalLink className="w-4 h-4 text-sky-300" /> Google Maps
             </button>
-            <button onClick={exportGpx} className="py-2.5 rounded-xl glass-inset text-[11px] font-semibold text-white flex flex-col items-center gap-1">
+            <button onClick={exportGpx} className="py-2.5 rounded-xl glass-inset text-xs font-semibold text-white flex flex-col items-center gap-1">
               <Download className="w-4 h-4 text-emerald-300" /> Strava / GPX
             </button>
-            <button onClick={share} className="py-2.5 rounded-xl glass-inset text-[11px] font-semibold text-white flex flex-col items-center gap-1">
+            <button onClick={share} className="py-2.5 rounded-xl glass-inset text-xs font-semibold text-white flex flex-col items-center gap-1">
               <Share2 className="w-4 h-4 text-violet-300" /> Share text
             </button>
           </div>
@@ -265,12 +331,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
                   flash('Saved. Choose it under Route on the Start screen to follow it.');
                 } else flash('This workout has no route to save.');
               }}
-              className="w-full py-2.5 rounded-xl glass-inset text-[11px] font-semibold text-white flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl glass-inset text-xs font-semibold text-white flex items-center justify-center gap-2"
             >
               <Navigation className="w-4 h-4 text-emerald-300" /> Save as a route to follow
             </button>
           )}
-          <p className="text-[10px] text-neutral-500 px-1">
+          <p className="text-xs text-neutral-400 px-1">
             Google Maps opens a walking or cycling route through your recorded points (up to 10 stops, so the line is
             approximate). Strava / GPX opens your phone's share sheet with the exact route as a GPX file: choose Strava, or any app that imports routes.
           </p>
@@ -286,22 +352,53 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
         )
       )}
       {note && (
-        <p role="status" className="text-[11px] text-emerald-300 mt-2">
+        <p role="status" className="text-xs text-emerald-300 mt-2">
           {note}
         </p>
       )}
 
       {/* Headline stats */}
+      {workout.distanceEstimated && onUpdate && (
+        <div className="mt-4 rounded-2xl border p-3 space-y-2" style={{ backgroundColor: 'var(--card2)', borderColor: 'var(--hairline)' }}>
+          <p className="text-xs leading-relaxed text-neutral-300">
+            No GPS indoors, so this distance is worked out from {workout.stepCount ? `${workout.stepCount} steps` : 'the steps counted'} and your step length. Type what the treadmill showed to correct it; the next treadmill session will be closer.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              aria-label={`Distance the treadmill showed in ${distanceUnit(units)}`}
+              inputMode="decimal"
+              placeholder={`Treadmill showed (${distanceUnit(units)})`}
+              value={shownKm}
+              onChange={(e) => setShownKm(e.target.value)}
+              className="min-w-0 flex-1 px-3 py-2.5 text-sm text-white"
+            />
+            <button
+              type="button"
+              disabled={!(Number(shownKm.replace(',', '.')) > 0)}
+              onClick={() => {
+                const km = Number(shownKm.replace(',', '.')) * (units === 'imperial' ? KM_PER_MI : 1);
+                writeCalibration(nextCalibration(readCalibration(), workout.distanceKm ?? 0, km));
+                onUpdate({ ...workout, distanceKm: Math.round(km * 1000) / 1000, distanceEstimated: false });
+                setShownKm('');
+              }}
+              className="min-h-11 rounded-full px-4 text-xs font-extrabold disabled:opacity-40"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--on-accent)' }}
+            >
+              Correct
+            </button>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2.5 mt-4">
         <Stat icon={<Clock className="w-3.5 h-3.5" />} label="Time" value={formatDuration(summary.totalSeconds)} sub={[summary.movingSeconds < summary.totalSeconds - 15 ? `${formatDuration(summary.movingSeconds)} moving` : '', workout.pausedSec ? `${formatDuration(workout.pausedSec)} paused` : ''].filter(Boolean).join(' · ') || undefined} color="#8AB4F8" />
-        {hasDistance && <Stat icon={<RouteIcon className="w-3.5 h-3.5" />} label="Distance" value={formatDistance(workout.distanceKm as number, units)} color="#81C995" />}
-        {summary.avgPaceSec && workout.type !== 'Cycling' && (
+        {hasDistance && <Stat icon={<RouteIcon className="w-3.5 h-3.5" />} label="Distance" value={formatDistance(workout.distanceKm as number, units)} sub={workout.distanceEstimated ? 'estimated from steps' : undefined} color="#81C995" />}
+        {summary.avgPaceSec && !isSpeedSport(workout.type) && (
           <Stat icon={<Gauge className="w-3.5 h-3.5" />} label="Avg pace" value={`${formatPaceSec(summary.avgPaceSec)}`} sub={`per ${distanceUnit(units)}`} color="#FDD663" />
         )}
-        {summary.avgSpeed && (workout.type === 'Cycling' || !summary.avgPaceSec) && (
+        {summary.avgSpeed && (isSpeedSport(workout.type) || !summary.avgPaceSec) && (
           <Stat icon={<Gauge className="w-3.5 h-3.5" />} label="Avg speed" value={summary.avgSpeed.toFixed(1)} sub={speedUnit} color="#FDD663" />
         )}
-        {summary.bestSplit && workout.type !== 'Cycling' && (
+        {summary.bestSplit && !isSpeedSport(workout.type) && (
           <Stat icon={<Zap className="w-3.5 h-3.5" />} label="Best split" value={formatPaceSec(summary.bestSplit.paceSec)} sub={`${distanceUnit(units)} ${summary.bestSplit.index}`} color="#C58AF9" />
         )}
         <Stat icon={<Flame className="w-3.5 h-3.5" />} label="Calories" value={`${workout.caloriesBurned}`} sub="kcal" color="#FCAD70" />
@@ -312,6 +409,15 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
             value={`+${units === 'imperial' ? Math.round((workout.elevationGainM as number) * 3.28084) : workout.elevationGainM}`}
             sub={`${units === 'imperial' ? 'ft' : 'm'}${workout.elevationLossM ? ` · -${units === 'imperial' ? Math.round(workout.elevationLossM * 3.28084) : workout.elevationLossM} down` : ''}${workout.elevationFrom ? (workout.elevationFrom === 'barometer' ? ' · barometer' : ' · GPS') : ''}`}
             color="#78D9EC"
+          />
+        )}
+        {isDescentSport(workout.type) && (workout.elevationLossM ?? 0) > 0 && (
+          <Stat
+            icon={<Mountain className="w-3.5 h-3.5" />}
+            label="Descent"
+            value={`-${units === 'imperial' ? Math.round((workout.elevationLossM as number) * 3.28084) : workout.elevationLossM}`}
+            sub={units === 'imperial' ? 'ft' : 'm'}
+            color="#A8C7FA"
           />
         )}
         {summary.avgHr && <Stat icon={<HeartPulse className="w-3.5 h-3.5" />} label="Avg heart rate" value={`${summary.avgHr}`} sub={workout.hrFromSensor ? 'bpm · measured' : 'bpm · estimated'} color="#F28B82" />}
@@ -325,6 +431,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
             color="#7DD3FC"
           />
         ) : null}
+        {workout.cadenceKind === 'steps' && workoutStepLength(workout) ? (
+          <Stat icon={<Activity className="w-3.5 h-3.5" />} label="Step length" value={units === 'imperial' ? `${Math.round((workoutStepLength(workout) as number) * 39.37)}` : `${workoutStepLength(workout)}`} sub={units === 'imperial' ? 'in per step' : 'm per step'} color="#7DD3FC" />
+        ) : null}
         {workout.avgPowerW ? (
           <Stat
             icon={<Zap className="w-3.5 h-3.5" />}
@@ -336,12 +445,12 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
         ) : null}
         {workout.powerZoneSec && workout.ftpW ? (
           <div className="col-span-2 rounded-2xl glass-inset px-4 py-3">
-            <div className="text-[11px] text-neutral-500 mb-1.5">Power zones (threshold {workout.ftpW} W)</div>
+            <div className="text-xs text-neutral-400 mb-1.5">Power zones (threshold {workout.ftpW} W)</div>
             {POWER_ZONES.map((z, i) => {
               const total = workout.powerZoneSec!.reduce((a, b) => a + b, 0) || 1;
               const share = (workout.powerZoneSec![i] / total) * 100;
               return (
-                <div key={z.name} className="flex items-center gap-2 text-[11px] text-neutral-300 mb-0.5">
+                <div key={z.name} className="flex items-center gap-2 text-xs text-neutral-300 mb-0.5">
                   <span className="w-20">{z.name}</span>
                   <div className="flex-1 h-1.5 rounded-full bg-black/60 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${share}%`, backgroundColor: '#FDE047' }} /></div>
                   <span className="w-10 text-right font-mono">{Math.round(share)}%</span>
@@ -370,7 +479,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
         <div className="mt-3 rounded-2xl glass-inset px-4 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-bold text-white">Strava</div>
-            <div className="text-[11px] text-neutral-500">
+            <div className="text-xs text-neutral-400">
               {readSent()[workout.id]
                 ? 'On Strava'
                 : isConnected()
@@ -409,7 +518,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
                   <span className="text-neutral-200">{e.target.label}</span>
                   <span className="flex items-center gap-2">
                     {isPr && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 flex items-center gap-1">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 flex items-center gap-1">
                         <Trophy className="w-3 h-3" /> {prev ? 'New PR' : 'First'}
                       </span>
                     )}
@@ -441,9 +550,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
       {/* Splits */}
       {splits.length > 0 && workout.type !== 'Strength' && (
         <>
-          <SectionTitle>{units === 'imperial' ? 'Mile' : 'Kilometre'} splits</SectionTitle>
+          <SectionTitle>{units === 'imperial' ? 'Mile' : 'Kilometer'} splits</SectionTitle>
           <div className="rounded-2xl glass-inset overflow-hidden">
-            <div className="grid grid-cols-[2.2rem_1fr_3.4rem_3rem_3rem] gap-2 px-3 py-2 text-[10px] font-medium text-neutral-400 border-b border-white/10">
+            <div className="grid grid-cols-[2.2rem_1fr_3.4rem_3rem_3rem] gap-2 px-3 py-2 text-xs font-medium text-neutral-400 border-b border-white/10">
               <span>{distanceUnit(units)}</span>
               <span>{workout.type === 'Cycling' ? 'Speed' : 'Pace'}</span>
               <span className="text-right">Elev</span>
@@ -467,7 +576,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
                           : formatPaceSec(s.paceSec)}
                       </span>
                       {workout.type !== 'Cycling' && s.elevDeltaM !== undefined && Math.abs(s.elevDeltaM) / (s.distanceKm * 1000) > 0.015 && (
-                        <span className="block text-[9px] tabular-nums text-neutral-500" title="Grade-adjusted pace: the flat-ground pace that matches this effort">
+                        <span className="block text-xs tabular-nums text-neutral-400" title="Grade-adjusted pace: the flat-ground pace that matches this effort">
                           GAP {formatPaceSec(gradeAdjustedPaceSec(s.paceSec, s.elevDeltaM, s.distanceKm))}
                         </span>
                       )}
@@ -502,7 +611,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
             <LineChart points={hrPoints} color="#F28B82" height={120} unit=" bpm" ariaLabel="Heart rate over the workout" />
           </div>
           <div className="rounded-2xl glass-inset p-3 mt-2.5 space-y-2.5">
-            <div className="text-[11px] text-neutral-400">
+            <div className="text-xs text-neutral-400">
               Time in zones · max {maxHr} bpm, resting {currentRestingHr()} bpm
             </div>
             <div className="flex h-3 rounded-full overflow-hidden bg-white/10">
@@ -515,7 +624,7 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
                 <span className="flex items-center gap-2 text-neutral-200">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: ZONE_COLORS[i] }} />
                   Zone {i + 1} · {ZONE_NAMES[i + 1]}
-                  <span className="text-neutral-500">
+                  <span className="text-neutral-400">
                     {(() => {
                       const s = zoneStarts(maxHr);
                       return i === 0 ? `under ${s[0]}` : i === 4 ? `${s[3]}+` : `${s[i - 1]}–${s[i] - 1}`;
@@ -523,10 +632,16 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
                   </span>
                 </span>
                 <span className="tabular-nums text-neutral-300">
-                  {formatDuration(z)} <span className="text-neutral-500">({zoneTotal > 0 ? Math.round((z / zoneTotal) * 100) : 0}%)</span>
+                  {formatDuration(z)} <span className="text-neutral-400">({zoneTotal > 0 ? Math.round((z / zoneTotal) * 100) : 0}%)</span>
                 </span>
               </div>
             ))}
+            {zoneScore > 0 && (
+              <div className="flex items-center justify-between text-xs border-t border-white/10 pt-2">
+                <span className="text-neutral-300">Zone score (Edwards)</span>
+                <span className="tabular-nums text-neutral-300">{zoneScore}</span>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -569,9 +684,9 @@ export const WorkoutDetailModal: React.FC<WorkoutDetailModalProps> = ({ workout,
                   {ex.name}
                 </div>
                 <div className="mt-2 grid grid-cols-[1.5rem_1fr_1fr] gap-x-3 gap-y-1 text-xs">
-                  <span className="text-neutral-500">Set</span>
-                  <span className="text-neutral-500">Reps</span>
-                  <span className="text-neutral-500 text-right">Weight</span>
+                  <span className="text-neutral-400">Set</span>
+                  <span className="text-neutral-400">Reps</span>
+                  <span className="text-neutral-400 text-right">Weight</span>
                   {ex.sets
                     .filter((s) => s.done)
                     .map((s, i) => (

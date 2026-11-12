@@ -5,7 +5,7 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group android:scaleX="0.0906" android:scaleY="0.0906" android:translateX="7.613" android:translateY="7.975">
-        <path android:pathData="M187,508 a325,325 0 1,0 650,0 a325,325 0 1,0 -650,0" android:strokeColor="#3A1F24" android:strokeWidth="34" android:strokeLineJoin="round" android:strokeLineCap="round" android:fillColor="#00000000"/>
-        <path android:pathData="M346 661 L346 363 L512 529 L678 363 L678 661 L607 661 L607 492 L512 606 L418 492 L418 661 Z" android:strokeColor="#3A1F24" android:strokeWidth="36" android:strokeLineJoin="round" android:strokeLineCap="round" android:fillColor="#00000000"/>
+        <path android:pathData="M690 0 L1010 0 L350 1024 L30 1024 Z" android:fillColor="#293A1F24"/>
+        <path android:pathData="M256 740 L344 300 L504 560 L768 300 L680 740" android:strokeColor="#3A1F24" android:strokeWidth="118" android:strokeLineJoin="round" android:strokeLineCap="round" android:fillColor="#00000000"/>
     </group>
 </vector>

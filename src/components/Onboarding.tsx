@@ -147,7 +147,7 @@ export const Onboarding: React.FC<Props> = ({ theme, look, onSelectTheme, onDone
             ))}
           </div>
           {step === 2 ? (
-            <button onClick={() => finish()} className="text-[11px] font-bold shrink-0 w-9 text-right" style={{ color: 'var(--ink-dim)' }}>
+            <button onClick={() => finish()} className="text-xs font-bold shrink-0 w-9 text-right" style={{ color: 'var(--ink-dim)' }}>
               Skip
             </button>
           ) : (
@@ -178,7 +178,7 @@ export const Onboarding: React.FC<Props> = ({ theme, look, onSelectTheme, onDone
                         ))}
                       </div>
                       <div className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>{v.name}</div>
-                      <div className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--ink-dim)' }}>{v.tagline}</div>
+                      <div className="text-xs leading-snug mt-0.5" style={{ color: 'var(--ink-dim)' }}>{v.tagline}</div>
                       {on && (
                         <span className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent)', color: 'var(--on-accent)' }}>
                           <Check className="w-3 h-3 stroke-[3]" />
@@ -218,7 +218,7 @@ export const Onboarding: React.FC<Props> = ({ theme, look, onSelectTheme, onDone
                         {GOAL_ICON[g.id]}
                       </span>
                       <div className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>{g.label}</div>
-                      <div className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--ink-dim)' }}>{g.line}</div>
+                      <div className="text-xs leading-snug mt-0.5" style={{ color: 'var(--ink-dim)' }}>{g.line}</div>
                     </button>
                   );
                 })}
@@ -247,7 +247,7 @@ export const Onboarding: React.FC<Props> = ({ theme, look, onSelectTheme, onDone
                   />
                   <div className="flex rounded-2xl p-1 border shrink-0" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' }} role="group" aria-label="Units">
                     {(['metric', 'imperial'] as UnitSystem[]).map((u) => (
-                      <button key={u} aria-pressed={answers.units === u} onClick={() => set({ units: u })} className="px-3 rounded-xl text-[11px] font-bold" style={{ backgroundColor: answers.units === u ? 'var(--accent)' : 'transparent', color: answers.units === u ? 'var(--on-accent)' : 'var(--ink-dim)' }}>
+                      <button key={u} aria-pressed={answers.units === u} onClick={() => set({ units: u })} className="px-3 rounded-xl text-xs font-bold" style={{ backgroundColor: answers.units === u ? 'var(--accent)' : 'transparent', color: answers.units === u ? 'var(--on-accent)' : 'var(--ink-dim)' }}>
                         {u === 'metric' ? 'kg · cm' : 'lb · ft'}
                       </button>
                     ))}
@@ -277,7 +277,7 @@ export const Onboarding: React.FC<Props> = ({ theme, look, onSelectTheme, onDone
                     <Stepper label="Weight" display={String(kgToDisplay(answers.weightKg, 'metric', 1))} unit="kg" min={35} max={200} step={0.5} value={Math.round(answers.weightKg * 2) / 2} onChange={(v) => set({ weightKg: v })} />
                   )}
                 </div>
-                <p className="text-[11px] text-center" style={{ color: 'var(--ink-dim)' }}>
+                <p className="text-xs text-center" style={{ color: 'var(--ink-dim)' }}>
                   Maintenance ≈ <span className="font-bold" style={{ color: 'var(--ink)' }}><CountUp value={tdee(built.profile)} ms={400} /></span> kcal a day
                 </p>
               </div>
@@ -307,13 +307,13 @@ export const Onboarding: React.FC<Props> = ({ theme, look, onSelectTheme, onDone
                   ].map((g, i) => (
                     <div key={g.label} className="pop-in rounded-2xl border p-2.5 flex flex-col items-center" style={{ '--i': i + 4, backgroundColor: 'var(--card)', borderColor: 'var(--hairline)' } as React.CSSProperties}>
                       <Ring value={1} size={54} stroke={6} color={g.color} ariaLabel={g.label}>
-                        <span className="text-[11px] font-extrabold" style={{ color: 'var(--ink)' }}><CountUp value={g.value} ms={900} format={g.fmt} /></span>
+                        <span className="text-xs font-extrabold" style={{ color: 'var(--ink)' }}><CountUp value={g.value} ms={900} format={g.fmt} /></span>
                       </Ring>
-                      <span className="text-[10px] mt-1.5 leading-tight" style={{ color: 'var(--ink-dim)' }}>{g.label}</span>
+                      <span className="text-xs mt-1.5 leading-tight" style={{ color: 'var(--ink-dim)' }}>{g.label}</span>
                     </div>
                   ))}
                 </div>
-                <p className="text-[11px] mt-5" style={{ color: 'var(--ink-dim)' }}>
+                <p className="text-xs mt-5" style={{ color: 'var(--ink-dim)' }}>
                   Weights shown in {weightUnit(answers.units)}. Everything stays on this phone.
                 </p>
               </div>

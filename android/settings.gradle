@@ -6,3 +6,5 @@ apply from: 'capacitor.settings.gradle'
 include ':wear'
 
 include ':watchface'
+
+include ':watchfacedigital'

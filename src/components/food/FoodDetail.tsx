@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronLeft, Minus, Plus, Star } from 'lucide-react';
 import { ColorPalette } from '../../types/theme';
 import { MealType } from '../../types/tracking';
+import { MICROS, microText } from '../../lib/micros';
 import { FoodRecord, GROUPS, UnitKey, defaultAmount, displayName, gramsFor, nutrientsFor } from '../../lib/foodDb';
 import { FoodIcon } from './FoodIcon';
 import { MacroDonut, macroColors } from './MacroDonut';
@@ -19,6 +20,8 @@ interface Props {
   onToggleFavorite: () => void;
   onBack: () => void;
   onAdd: (unit: UnitKey, qty: number) => void;
+  /** The add button's words, when it does something other than log the food (adding to a recipe). */
+  addLabel?: string;
   /** Remove a food you made yourself. */
   onDelete?: () => void;
 }
@@ -26,7 +29,7 @@ interface Props {
 const stepFor = (unit: UnitKey) => (unit === 'g' ? 10 : unit === 'oz' ? 0.5 : 0.5);
 
 /** One food: how much of it, what it adds up to (calories, protein, carbs, fat and the finer detail), and the add button. */
-export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite, onToggleFavorite, onBack, onAdd, onDelete }) => {
+export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite, onToggleFavorite, onBack, onAdd, onDelete, addLabel }) => {
   const start = defaultAmount(rec);
   const [unit, setUnit] = useState<UnitKey>(start.unit);
   const [qtyText, setQtyText] = useState(String(start.qty));
@@ -58,9 +61,13 @@ export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite
   const total = n.p * 4 + n.c * 4 + n.f * 9;
   const pct = (kcal: number) => (total > 0 ? Math.round((kcal / total) * 100) : 0);
   const facts: [string, string][] = [];
-  if (n.fiber > 0) facts.push(['Fibre', `${n.fiber} g`]);
+  if (n.fiber > 0) facts.push(['Fiber', `${n.fiber} g`]);
   if (n.sugar > 0) facts.push(['Sugar', `${n.sugar} g`]);
   if (n.sodium > 0) facts.push(['Sodium', `${n.sodium} mg`]);
+  for (const def of MICROS) {
+    const v = n.micros?.[def.id] ?? 0;
+    if (v > 0) facts.push([def.label, microText(def, v)]);
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 slide-in">
@@ -68,7 +75,7 @@ export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite
         <button aria-label="Back to results" onClick={onBack} className="round-btn !w-10 !h-10">
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <button aria-label={favorite ? 'Remove from favourites' : 'Add to favourites'} aria-pressed={favorite} onClick={onToggleFavorite} className="round-btn !w-10 !h-10">
+        <button aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={favorite} onClick={onToggleFavorite} className="round-btn !w-10 !h-10">
           <Star className="w-5 h-5" style={{ color: favorite ? 'var(--g-yellow)' : undefined, fill: favorite ? 'var(--g-yellow)' : 'none' }} />
         </button>
       </div>
@@ -78,8 +85,8 @@ export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite
           <FoodIcon group={rec.group} size={52} />
           <div className="min-w-0">
             <h2 className="text-lg font-extrabold leading-tight" style={{ color: 'var(--ink)' }}>{displayName(rec)}</h2>
-            <p className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>
-              {rec.src === 'off' ? 'Packaged food' : rec.src === 'mine' ? 'Your food' : GROUPS[rec.group]} · {rec.perServing ? 'per serving' : 'values per 100 g'}
+            <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+              {rec.src === 'off' || rec.src === 'usda' ? 'Packaged food' : rec.src === 'mine' ? 'Your food' : GROUPS[rec.group]} · {rec.perServing ? 'per serving' : 'values per 100 g'}
             </p>
           </div>
         </div>
@@ -110,7 +117,7 @@ export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite
                 role="radio"
                 aria-checked={unit === u.key}
                 onClick={() => pickUnit(u.key)}
-                className="sport-pill shrink-0 !py-1.5 !px-3 !text-[11px]"
+                className="sport-pill shrink-0 !py-1.5 !px-3 !text-xs"
                 aria-pressed={unit === u.key}
               >
                 {u.label}
@@ -123,7 +130,7 @@ export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite
         <div className="rounded-3xl border p-4 flex items-center gap-4 pop-in" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)', '--i': 1 } as React.CSSProperties}>
           <MacroDonut theme={theme} p={n.p} c={n.c} f={n.f} size={124}>
             <div className="hero-num text-[2rem]"><CountUp value={n.kcal} ms={350} /></div>
-            <div className="text-[10px] font-bold tracking-widest" style={{ color: 'var(--ink-dim)' }}>KCAL</div>
+            <div className="text-xs font-bold tracking-widest" style={{ color: 'var(--ink-dim)' }}>KCAL</div>
           </MacroDonut>
           <div className="flex-1 space-y-2.5">
             {[
@@ -157,13 +164,13 @@ export const FoodDetail: React.FC<Props> = ({ theme, rec, meal, onMeal, favorite
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar" role="radiogroup" aria-label="Meal">
           {MEALS.map((m) => (
-            <button key={m} role="radio" aria-checked={meal === m} aria-pressed={meal === m} onClick={() => onMeal(m)} className="sport-pill shrink-0">
+            <button key={m} role="radio" aria-checked={meal === m} onClick={() => onMeal(m)} className="sport-pill shrink-0">
               {m}
             </button>
           ))}
         </div>
         {onDelete && (
-          <button onClick={onDelete} className="text-[11px] underline" style={{ color: 'var(--ink-dim)' }}>
+          <button onClick={onDelete} className="text-xs underline" style={{ color: 'var(--ink-dim)' }}>
             Delete this food from My foods
           </button>
         )}

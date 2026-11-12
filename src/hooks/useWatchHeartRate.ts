@@ -19,7 +19,7 @@ export type WatchLinkState =
 const EMPTY_STATUS: WatchStatus = { available: true, connected: false, nodeName: '', watchAppInstalled: false };
 
 /**
- * Live heart rate streamed from a Wear OS watch (Pixel Watch) through the Data Layer.
+ * Live heart rate streamed from a linked Wear OS watch through the Data Layer.
  * The watch app measures heart rate with Health Services and messages each reading to the phone.
  */
 export function useWatchHeartRate() {

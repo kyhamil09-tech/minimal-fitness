@@ -33,7 +33,10 @@ export type PatternId =
   | 'row' | 'seatedrow' | 'pulldown' | 'pullup' | 'superman'
   | 'curl' | 'pushdown' | 'skull' | 'ohext' | 'kickback'
   | 'plank' | 'crunch' | 'legraise' | 'hangraise' | 'climber' | 'deadbug' | 'rollout' | 'kneelcrunch' | 'twist' | 'pallof'
-  | 'carry' | 'swing' | 'cleanpress' | 'thruster' | 'burpee' | 'slam' | 'donkey';
+  | 'carry' | 'swing' | 'cleanpress' | 'thruster' | 'burpee' | 'slam' | 'donkey'
+  | 'armcircle' | 'legswing' | 'torsotwist' | 'inchworm' | 'wgs' | 'catcow' | 'highknees' | 'buttkicks' | 'jack'
+  | 'hamdoor' | 'couch' | 'chestdoor' | 'child' | 'pigeon' | 'butterfly' | 'calfwall' | 'tricepstretch' | 'cobra' | 'seatedfold'
+  | 'figure4' | 'quadstretch' | 'needle' | 'situp' | 'vup' | 'tuck' | 'birddog' | 'hollow';
 
 const S = { torso: 0, thigh: 180, shin: 180, ua: 180, fa: 180 };
 const line = (a: Pt, b: Pt, w = 3): Shape => ({ t: 'line', a, b, w });
@@ -457,4 +460,253 @@ export const MOTIONS: Record<PatternId, Motion> = {
     prop: 'none',
     cues: ['Start on your hands and knees with a flat back.', 'Kick one heel up toward the ceiling, keeping your knee bent.', 'Squeeze your glute at the top and do not arch your lower back.'],
   },
+
+  // ---- Warm-ups ----
+  armcircle: {
+    frames: [-180, -90, 0, 90, 180].map((a) => ({ ...S, ua: a, fa: a })),
+    prop: 'none',
+    cues: ['Stand tall with your arms straight out and your core lightly braced.', 'Sweep your arms in big smooth circles, forward first and then backward.', 'Start small and grow the circles. Keep your shoulders down away from your ears.'],
+  },
+  legswing: {
+    frames: [
+      { ...S, thigh2: 140, shin2: 150 },
+      { ...S, thigh2: 222, shin2: 235 },
+    ],
+    prop: 'none',
+    cues: ['Stand tall next to a wall or post and hold it for balance.', 'Swing one leg forward and back like a pendulum, keeping your torso upright.', 'Let the swing grow a little each time. Turn and repeat side to side too.'],
+    note: 'Side-to-side swings cross in front of you, which a side view cannot show.',
+  },
+  torsotwist: {
+    frames: [
+      { ...S, ua: 60, fa: 60 },
+      { ...S, ua: 120, fa: 120 },
+    ],
+    prop: 'none',
+    cues: ['Stand with your feet hip width apart and your arms loose at chest height.', 'Rotate your torso from side to side and let your arms swing with you.', 'Turn through your ribs, keep your hips facing forward and stay relaxed.'],
+    note: 'The twist turns your torso side to side, which a side view cannot show.',
+  },
+  inchworm: {
+    frames: [
+      { ...S, at: [30, 150] },
+      { torso: 150, thigh: 180, shin: 180, ua: 180, fa: 180, at: [30, 150] },
+      { root: 'ankle', at: [30, 142], foot: 140, torso: 78, thigh: 258, shin: 258, ua: 180, fa: 180 },
+    ],
+    prop: 'none',
+    cues: ['Stand tall, then fold forward and put your hands on the floor.', 'Walk your hands forward until you are in a long plank, then pause.', 'Walk your hands back to your feet and stand up. Keep your legs as straight as you comfortably can.'],
+  },
+  wgs: {
+    frames: [
+      { root: 'ankle', at: [112, 150], torso: 25, thigh: 150, shin: 180, thigh2: 255, shin2: 275, ua: 160, fa: 175 },
+      { root: 'ankle', at: [112, 150], torso: 345, thigh: 150, shin: 180, thigh2: 255, shin2: 275, ua: 0, fa: 0 },
+    ],
+    prop: 'none',
+    cues: ['Step into a deep lunge and put your hands on the floor inside your front foot.', 'Rotate your chest open and reach one arm toward the ceiling.', 'Keep your back leg long, then return and switch sides.'],
+    note: 'The twist turns your chest to the side, which a side view cannot show.',
+  },
+  catcow: {
+    frames: [
+      { root: 'hip', at: [95, 118], torso: 80, head: 150, thigh: 180, shin: 270, ua: 180, fa: 180 },
+      { root: 'hip', at: [95, 118], torso: 92, head: 55, thigh: 180, shin: 270, ua: 180, fa: 180 },
+    ],
+    prop: 'none',
+    cues: ['Start on your hands and knees with your hands under your shoulders.', 'Round your back toward the ceiling and tuck your chin, then drop your belly and lift your head.', 'Move slowly with your breathing, one breath for each direction.'],
+  },
+  highknees: {
+    frames: [
+      { root: 'hip', at: [100, 90], torso: 355, thigh: 95, shin: 185, thigh2: 180, shin2: 180, ua: 130, fa: 20 },
+      { root: 'hip', at: [100, 90], torso: 355, thigh: 180, shin: 180, thigh2: 95, shin2: 185, ua: 230, fa: 340 },
+    ],
+    prop: 'none',
+    cues: ['Stand tall and start jogging on the spot.', 'Drive each knee up to about hip height and pump your arms.', 'Stay on the balls of your feet and keep your chest up.'],
+  },
+  buttkicks: {
+    frames: [
+      { root: 'hip', at: [100, 90], torso: 355, thigh: 185, shin: 315, thigh2: 180, shin2: 180, ua: 130, fa: 20 },
+      { root: 'hip', at: [100, 90], torso: 355, thigh: 180, shin: 180, thigh2: 185, shin2: 315, ua: 230, fa: 340 },
+    ],
+    prop: 'none',
+    cues: ['Stand tall and start jogging on the spot.', 'Kick each heel up toward your glutes with a quick, light step.', 'Keep your knees pointing down and your chest up.'],
+  },
+  jack: {
+    frames: [
+      { root: 'hip', at: [100, 91], torso: 0, thigh: 180, shin: 180, ua: 180, fa: 180 },
+      { root: 'hip', at: [100, 91], torso: 0, thigh: 165, shin: 170, thigh2: 195, shin2: 190, ua: 0, fa: 0 },
+    ],
+    prop: 'none',
+    cues: ['Stand tall with your feet together and your arms by your sides.', 'Jump your feet apart while your arms sweep overhead, then jump back together.', 'Land softly on the balls of your feet and keep a steady rhythm.'],
+    note: 'Your feet and arms move out to the sides, which a side view cannot show. Seal jacks, star jumps, step jacks and cross jacks follow the same rhythm.',
+  },
+
+  // ---- Stretches ----
+  hamdoor: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [100, 147], torso: 90, thigh: 340, shin: 340, thigh2: 272, shin2: 272, ua: 90, fa: 90 },
+      { root: 'hip', at: [100, 147], torso: 90, thigh: 322, shin: 322, thigh2: 272, shin2: 272, ua: 90, fa: 90 },
+    ],
+    shapes: [line([43, 60], [43, 153], 5)],
+    prop: 'none',
+    cues: ['Lie on your back with your hips close to a doorframe and one leg flat through the doorway.', 'Rest the other leg straight up the frame until you feel a stretch behind your thigh.', 'Breathe slowly for 30 to 60 seconds, then switch legs.'],
+  },
+  couch: {
+    hold: true,
+    frames: [
+      { root: 'ankle', at: [112, 150], torso: 5, thigh: 90, shin: 180, thigh2: 205, shin2: 305, ua: 160, fa: 170 },
+      { root: 'ankle', at: [112, 150], torso: 0, thigh: 90, shin: 180, thigh2: 200, shin2: 300, ua: 160, fa: 170 },
+    ],
+    shapes: [line([28, 60], [28, 153], 5)],
+    prop: 'none',
+    cues: ['Kneel with your back foot up against a wall or a couch behind you.', 'Bring your other foot forward into a lunge and lift your chest.', 'Squeeze your glute on the back leg and hold. Stop if your knee hurts.'],
+  },
+  chestdoor: {
+    hold: true,
+    frames: [
+      { ...S, torso: 0, ua: 90, fa: 0 },
+      { ...S, torso: 8, ua: 95, fa: 0 },
+    ],
+    shapes: [line([122, 40], [122, 153], 5)],
+    prop: 'none',
+    cues: ['Stand in a doorway with your forearm on the frame and your elbow at shoulder height.', 'Step through gently until you feel a stretch across your chest.', 'Keep your ribs down, hold, then switch arms.'],
+  },
+  child: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [75, 148], torso: 40, thigh: 85, shin: 270, ua: 90, fa: 90 },
+      { root: 'hip', at: [75, 148], torso: 86, thigh: 85, shin: 270, ua: 95, fa: 95 },
+    ],
+    prop: 'none',
+    cues: ['Kneel and sit your hips back toward your heels.', 'Fold forward and reach your arms out in front of you.', 'Rest your forehead down, breathe into your back and relax.'],
+  },
+  pigeon: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [95, 140], torso: 20, thigh: 75, shin: 195, thigh2: 270, shin2: 270, ua: 140, fa: 175 },
+      { root: 'hip', at: [95, 140], torso: 62, thigh: 75, shin: 195, thigh2: 270, shin2: 270, ua: 100, fa: 120 },
+    ],
+    prop: 'none',
+    note: 'In real life your front shin lies across your body, which a side view cannot show. Keep your hips level.',
+    cues: ['From hands and knees, slide one knee forward behind your wrist and stretch the other leg straight back.', 'Walk your hands forward and lower your chest over your front leg.', 'Breathe, keep your hips square and ease out if your knee complains.'],
+  },
+  butterfly: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [95, 148], torso: 5, thigh: 78, shin: 190, ua: 150, fa: 170 },
+      { root: 'hip', at: [95, 148], torso: 40, thigh: 78, shin: 190, ua: 120, fa: 150 },
+    ],
+    prop: 'none',
+    note: 'Your knees fall out to the sides, which a side view cannot show.',
+    cues: ['Sit with the soles of your feet together and your heels close to you.', 'Let your knees fall open and hold your feet.', 'Sit tall, then hinge forward from your hips without forcing your knees down.'],
+  },
+  calfwall: {
+    hold: true,
+    frames: [
+      { root: 'ankle', at: [60, 150], torso: 18, thigh: 197, shin: 197, ua: 78, fa: 78 },
+      { root: 'ankle', at: [60, 150], torso: 28, thigh: 207, shin: 207, ua: 80, fa: 80 },
+    ],
+    shapes: [line([141, 35], [141, 153], 5)],
+    prop: 'none',
+    cues: ['Stand an arm and a half from a wall and put your hands on it.', 'Step one foot back and press its heel into the floor with your leg straight.', 'Lean in until you feel the calf stretch. Bend that knee slightly to reach the lower calf.'],
+  },
+  tricepstretch: {
+    hold: true,
+    frames: [
+      { ...S, ua: 0, fa: 200 },
+      { ...S, ua: 0, fa: 215 },
+    ],
+    prop: 'none',
+    cues: ['Reach one arm overhead and bend the elbow so your hand drops behind your head.', 'Use your other hand to press the elbow gently back and down.', 'Keep your ribs down and hold for 20 to 30 seconds each side.'],
+  },
+  cobra: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [70, 148], torso: 85, thigh: 270, shin: 270, ua: 170, fa: 150 },
+      { root: 'hip', at: [70, 148], torso: 52, thigh: 270, shin: 270, ua: 175, fa: 170 },
+    ],
+    prop: 'none',
+    cues: ['Lie face down with your hands under your shoulders.', 'Press gently through your hands and lift your chest, keeping your hips on the floor.', 'Keep your neck long and your shoulders down. Stop if your lower back pinches.'],
+  },
+  seatedfold: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [60, 148], torso: 5, thigh: 90, shin: 90, ua: 100, fa: 100 },
+      { root: 'hip', at: [60, 148], torso: 65, thigh: 90, shin: 90, ua: 105, fa: 105 },
+    ],
+    prop: 'none',
+    cues: ['Sit with your legs straight out in front of you and your toes pointing up.', 'Hinge forward from your hips with a long spine and reach toward your feet.', 'Stop where you feel a gentle stretch behind your legs and breathe.'],
+  },
+  figure4: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [100, 147], torso: 90, thigh: 322, shin: 195, ua: 20, fa: 130 },
+      { root: 'hip', at: [100, 147], torso: 90, thigh: 335, shin: 195, thigh2: 310, shin2: 95, ua: 20, fa: 130 },
+    ],
+    prop: 'none',
+    cues: ['Lie on your back with your knees bent and your feet flat.', 'Cross one ankle over the opposite knee and pull that thigh gently toward you.', 'Keep your head down and breathe, then switch sides.'],
+  },
+  quadstretch: {
+    hold: true,
+    frames: [
+      { ...S },
+      { ...S, thigh2: 188, shin2: 335, ua: 190, fa: 215 },
+    ],
+    prop: 'none',
+    cues: ['Stand tall, holding a wall for balance if you need it.', 'Bend one knee and pull your heel toward your glutes.', 'Keep your knees together and your hips tucked slightly. Hold, then switch.'],
+  },
+  needle: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [95, 118], torso: 86, thigh: 180, shin: 270, ua: 180, fa: 180 },
+      { root: 'hip', at: [95, 118], torso: 78, thigh: 180, shin: 270, ua: 145, fa: 100 },
+    ],
+    prop: 'none',
+    note: 'The arm threads under your body toward the opposite side, which a side view cannot show.',
+    cues: ['Start on your hands and knees.', 'Slide one arm underneath your body and let your shoulder rest on the floor.', 'Look under your arm, breathe, then reach back out and switch.'],
+  },
+
+  // ---- Core and floor work ----
+  situp: {
+    frames: [
+      { root: 'hip', at: [100, 147], torso: 90, thigh: 310, shin: 200, ua: 20, fa: 140 },
+      { root: 'hip', at: [100, 147], torso: 8, thigh: 310, shin: 200, ua: 20, fa: 140 },
+    ],
+    prop: 'none',
+    cues: ['Lie on your back with your knees bent and your feet flat or anchored.', 'Curl all the way up until your chest is over your thighs.', 'Lower slowly and do not yank on your neck.'],
+  },
+  vup: {
+    frames: [
+      { root: 'hip', at: [100, 147], torso: 90, thigh: 272, shin: 272, ua: 90, fa: 90 },
+      { root: 'hip', at: [100, 147], torso: 40, thigh: 322, shin: 322, ua: 50, fa: 50 },
+    ],
+    prop: 'none',
+    cues: ['Lie flat with your legs straight and your arms stretched overhead.', 'Lift your chest and legs at the same time and reach toward your toes.', 'Lower with control and keep your legs as straight as you can.'],
+  },
+  tuck: {
+    frames: [
+      { root: 'hip', at: [100, 147], torso: 90, thigh: 285, shin: 200, ua: 20, fa: 140 },
+      { root: 'hip', at: [100, 147], torso: 58, thigh: 340, shin: 235, ua: 40, fa: 150 },
+    ],
+    prop: 'none',
+    cues: ['Lie on your back with your knees bent and your hands by your head.', 'Crunch up while bringing your knees in toward your chest.', 'Move slowly and keep your lower back on the floor.'],
+  },
+  birddog: {
+    frames: [
+      { root: 'hip', at: [95, 118], torso: 86, thigh: 180, shin: 270, ua: 180, fa: 180 },
+      { root: 'hip', at: [95, 118], torso: 86, thigh: 180, shin: 270, thigh2: 268, shin2: 270, ua: 180, fa: 180 },
+      { root: 'hip', at: [95, 118], torso: 86, thigh: 180, shin: 270, thigh2: 268, shin2: 270, ua: 90, fa: 90 },
+    ],
+    prop: 'none',
+    cues: ['Start on your hands and knees with a flat back.', 'Reach one arm forward and the opposite leg back until they are level with your body.', 'Do not let your hips twist. Pause, return and switch sides.'],
+    note: 'Only one arm and one leg lift at a time in real life: the side view shows the reach.',
+  },
+  hollow: {
+    hold: true,
+    frames: [
+      { root: 'hip', at: [100, 143], torso: 80, thigh: 290, shin: 290, ua: 80, fa: 80 },
+      { root: 'hip', at: [100, 143], torso: 78, thigh: 292, shin: 292, ua: 80, fa: 80 },
+    ],
+    prop: 'none',
+    cues: ['Lie on your back and press your lower back into the floor.', 'Lift your shoulders and straight legs a few inches with your arms overhead.', 'Hold the shallow banana shape and breathe. Lower your legs a little if your back lifts.'],
+  },
 };
+
+

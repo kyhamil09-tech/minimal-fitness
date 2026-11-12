@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Encoder, Profile } from '@garmin/fitsdk';
 import { gzipSync, zipSync, strToU8 } from 'fflate';
 import { parseGpx, parseGpxRoute, parseTcx } from '../lib/importers/xmlActivities';
 import { parseFit } from '../lib/importers/fitActivity';
+import { FitWriter } from './fitWriter';
 import { looksLikeNike, parseFitbitExercise, parseFitbitSleep, parseNikeActivity } from '../lib/importers/jsonExports';
 import { activityToWorkout, mapSport } from '../lib/importers/convert';
 import { mergeImportedNights, mergeImportedWorkouts } from '../lib/importers/merge';
@@ -63,37 +63,76 @@ test('TCX: sport, laps, heart rate and positions are read', () => {
 });
 
 const SEMI = 2 ** 31 / 180;
-const asMesg = (m: Record<string, unknown>) => m as never;
-const fitRun = (): Uint8Array => {
-  const enc = new Encoder();
-  enc.onMesg(Profile.MesgNum.FILE_ID, asMesg({ type: 'activity', manufacturer: 'development', product: 0, serialNumber: 1234, timeCreated: new Date(T0) }));
+const fitSecs = (ms: number) => Math.round(ms / 1000) - 631_065_600;
+const fitRun = (little = true): Uint8Array => {
+  const w = new FitWriter(little);
+  w.message(0, [{ num: 0, type: 0, value: 4 }, { num: 4, type: 6, value: fitSecs(T0) }]);
   for (let i = 0; i <= 120; i++) {
-    enc.onMesg(Profile.MesgNum.RECORD, asMesg({
-      timestamp: new Date(T0 + i * 10_000),
-      positionLat: Math.round((51 + i * 0.0003) * SEMI),
-      positionLong: Math.round(-0.1 * SEMI),
-      heartRate: 155,
-      distance: i * 33,
-      altitude: 40,
-    }));
+    w.message(20, [
+      { num: 253, type: 6, value: fitSecs(T0 + i * 10_000) },
+      { num: 0, type: 5, value: Math.round((51 + i * 0.0003) * SEMI) },
+      { num: 1, type: 5, value: Math.round(-0.1 * SEMI) },
+      { num: 2, type: 4, value: (40 + 500) * 5 },
+      { num: 3, type: 2, value: 155 },
+      { num: 5, type: 6, value: i * 33 * 100 },
+    ], 1);
   }
-  enc.onMesg(Profile.MesgNum.SESSION, asMesg({ timestamp: new Date(T0 + 1_200_000), startTime: new Date(T0), totalElapsedTime: 1200, totalTimerTime: 1190, totalDistance: 3960, sport: 'running', subSport: 'generic', avgHeartRate: 155, maxHeartRate: 168, totalCalories: 280, totalAscent: 12 }));
-  return enc.close();
+  w.message(18, [
+    { num: 253, type: 6, value: fitSecs(T0 + 1_200_000) },
+    { num: 2, type: 6, value: fitSecs(T0) },
+    { num: 5, type: 0, value: 1 },
+    { num: 6, type: 0, value: 0 },
+    { num: 7, type: 6, value: 1200 * 1000 },
+    { num: 8, type: 6, value: 1190 * 1000 },
+    { num: 9, type: 6, value: 3960 * 100 },
+    { num: 11, type: 4, value: 280 },
+    { num: 16, type: 2, value: 155 },
+    { num: 17, type: 2, value: 168 },
+    { num: 22, type: 4, value: 12 },
+  ], 2);
+  return w.bytes();
 };
 
-test('FIT: a real encoded activity decodes to positions, heart rate and the session summary', () => {
-  const [a] = parseFit(fitRun());
-  assert.ok(a, 'expected an activity');
-  assert.equal(a.sport, 'running');
-  assert.equal(a.start, T0);
-  assert.equal(a.points.length, 121);
-  assert.ok(Math.abs(a.points[0].lat - 51) < 1e-5);
-  assert.ok(Math.abs(a.points[0].lng + 0.1) < 1e-5);
-  assert.equal(a.points[5].hr, 155);
-  assert.equal(a.distanceKm, 3.96);
-  assert.equal(a.calories, 280);
-  assert.equal(a.ascentM, 12);
+test('FIT: an encoded activity decodes to positions, heart rate and the session summary', () => {
+  for (const little of [true, false]) {
+    const [a] = parseFit(fitRun(little));
+    assert.ok(a, 'expected an activity');
+    assert.equal(a.sport, 'running');
+    assert.equal(a.start, T0);
+    assert.equal(a.points.length, 121);
+    assert.ok(Math.abs(a.points[0].lat - 51) < 1e-5);
+    assert.ok(Math.abs(a.points[0].lng + 0.1) < 1e-5);
+    assert.equal(a.points[5].hr, 155);
+    assert.ok(Math.abs((a.points[0].alt ?? 0) - 40) < 0.01);
+    assert.equal(a.distanceKm, 3.96);
+    assert.equal(a.calories, 280);
+    assert.equal(a.ascentM, 12);
+    assert.equal(a.elapsedSec, 1200);
+  }
   assert.deepEqual(parseFit(new Uint8Array([1, 2, 3, 4])), []);
+});
+
+test('FIT: damaged, cut-off and empty files give nothing instead of throwing', () => {
+  const good = fitRun();
+  assert.deepEqual(parseFit(good.subarray(0, 60)), []);
+  assert.deepEqual(parseFit(new Uint8Array(0)), []);
+  const junk = Uint8Array.from(good);
+  junk[20] = 0x4f; // a record header that points to a layout that was never defined
+  assert.doesNotThrow(() => parseFit(junk));
+});
+
+test('FIT: compressed timestamps, developer fields and chest-strap heart rate messages', () => {
+  const w = new FitWriter();
+  w.message(20, [{ num: 253, type: 6, value: fitSecs(T0) }, { num: 0, type: 5, value: Math.round(51 * SEMI) }, { num: 1, type: 5, value: Math.round(-0.1 * SEMI) }], 3, 5);
+  w.define(20, [{ num: 0, type: 5 }, { num: 1, type: 5 }], 1);
+  const base = fitSecs(T0);
+  for (let i = 1; i <= 5; i++) w.compressed(20, 1, (base + i * 4) & 0x1f, [{ num: 0, type: 5, value: Math.round((51 + i * 0.0005) * SEMI) }, { num: 1, type: 5, value: Math.round(-0.1 * SEMI) }]);
+  w.message(132, [{ num: 253, type: 6, value: base + 2 }, { num: 6, type: 2, value: [140, 141] }], 2);
+  const [a] = parseFit(w.bytes());
+  assert.ok(a);
+  assert.equal(a.points.length, 6);
+  assert.equal(a.points[5].t - a.points[0].t, 20_000, 'timestamps step by 4 s each, carried by the 5 bit offset');
+  assert.equal(a.hr?.[0][1], 140, 'heart rate comes from the strap message when the records have none');
 });
 
 const nikeJson = () => ({
@@ -183,8 +222,22 @@ test('sports map onto this app, and ones it has no place for are dropped', () =>
   assert.equal(mapSport('WeightTraining'), 'Strength');
   assert.equal(mapSport('Hike'), 'Hiking');
   assert.equal(mapSport('running generic'), 'Running');
-  assert.equal(mapSport('Swim'), null);
-  assert.equal(mapSport('AlpineSki'), null);
+  assert.equal(mapSport('Swim'), 'Swimming');
+  assert.equal(mapSport('swimming lapSwimming'), 'Swimming');
+  assert.equal(mapSport('swimming openWater'), 'OpenWaterSwim');
+  assert.equal(mapSport('AlpineSki'), 'AlpineSkiing');
+  assert.equal(mapSport('alpineSkiing'), 'AlpineSkiing');
+  assert.equal(mapSport('NordicSki'), 'CrossCountrySkiing');
+  assert.equal(mapSport('crossCountrySkiing'), 'CrossCountrySkiing');
+  assert.equal(mapSport('Snowboard'), 'Snowboarding');
+  assert.equal(mapSport('Snowshoe'), 'Snowshoeing');
+  assert.equal(mapSport('IceSkate'), 'IceSkating');
+  assert.equal(mapSport('Kayaking'), 'Kayaking');
+  assert.equal(mapSport('StandUpPaddling'), 'Paddleboarding');
+  assert.equal(mapSport('standUpPaddleboarding'), 'Paddleboarding');
+  assert.equal(mapSport('Surfing'), null);
+  assert.equal(mapSport('InlineSkate'), null);
+  assert.notEqual(mapSport('Superset'), 'Paddleboarding', 'a word that only contains sup is not paddleboarding');
   assert.equal(mapSport(undefined, false), null);
 });
 
@@ -202,8 +255,8 @@ test('a GPX run becomes a full workout with route, heart rate, load and climb', 
   assert.ok((w.cardioLoadPoints ?? 0) > 0);
   assert.equal(w.gpsTracked, true);
   assert.equal(w.importedFrom, 'GPX file');
-  // a swim is not supported; something under a minute is not a workout
-  assert.equal(activityToWorkout({ ...a, sport: 'swimming' }, profile), null);
+  // surfing has no place here; something under a minute is not a workout
+  assert.equal(activityToWorkout({ ...a, sport: 'surfing' }, profile), null);
   assert.equal(activityToWorkout({ ...a, elapsedSec: 30, points: [] }, profile), null);
 });
 
@@ -248,10 +301,10 @@ test('CSV parsing handles quotes, commas and line breaks inside cells', () => {
 
 test('a Strava-style zip imports through the whole pipeline', async () => {
   const zip = zipSync({
-    'activities.csv': strToU8('Activity ID,Activity Name,Activity Type,Filename\n1,Lunch Run,Run,activities/1.gpx\n2,Evening spin,Ride,activities/2.fit.gz\n3,Lap swim,Swim,activities/3.gpx\n'),
+    'activities.csv': strToU8('Activity ID,Activity Name,Activity Type,Filename\n1,Lunch Run,Run,activities/1.gpx\n2,Evening spin,Ride,activities/2.fit.gz\n3,Wave session,Surf,activities/3.gpx\n'),
     'activities/1.gpx': strToU8(gpxRun('9')),
     'activities/2.fit.gz': gzipSync(fitRun()),
-    'activities/3.gpx': strToU8(gpxRun('swimming')),
+    'activities/3.gpx': strToU8(gpxRun('surfing')),
     'media/photo.jpg': new Uint8Array(1000),
     '__MACOSX/._junk': new Uint8Array(10),
   });
@@ -262,7 +315,7 @@ test('a Strava-style zip imports through the whole pipeline', async () => {
   const types = out.workouts.map((w) => w.type).sort();
   assert.deepEqual(types, ['Cycling', 'Running']);
   assert.ok(out.workouts.find((w) => w.notes === 'Lunch Run'));
-  assert.equal(out.skipped.length, 1); // the swim
+  assert.equal(out.skipped.length, 1); // the surf
   assert.ok(seen.length > 0);
 });
 
@@ -273,4 +326,36 @@ test('loose files and the Fitbit sleep JSON import too', async () => {
   assert.equal(out.workouts.length, 2);
   assert.equal(out.nights.length, 1);
   assert.equal(out.workouts.some((w) => w.importedFrom === 'Nike Run Club export'), true);
+});
+
+test('a pool swim from a FIT file has no GPS and still imports as a swim', () => {
+  const w = new FitWriter();
+  for (let i = 0; i <= 60; i++) w.message(20, [{ num: 253, type: 6, value: fitSecs(T0 + i * 30_000) }, { num: 3, type: 2, value: 140 }, { num: 5, type: 6, value: i * 40 * 100 }], 1);
+  w.message(18, [{ num: 253, type: 6, value: fitSecs(T0 + 1_800_000) }, { num: 2, type: 6, value: fitSecs(T0) }, { num: 5, type: 0, value: 5 }, { num: 6, type: 0, value: 17 }, { num: 7, type: 6, value: 1800 * 1000 }, { num: 8, type: 6, value: 1700 * 1000 }, { num: 9, type: 6, value: 2400 * 100 }, { num: 11, type: 4, value: 320 }], 2);
+  const [a] = parseFit(w.bytes());
+  assert.equal(a.sport, 'swimming lapSwimming');
+  const workout = activityToWorkout(a, profile);
+  assert.equal(workout?.type, 'Swimming');
+  assert.equal(workout?.gpsTracked, false);
+  assert.equal(workout?.distanceKm, 2.4);
+  assert.equal(workout?.caloriesBurned, 320);
+});
+
+test('a ski day from a FIT file keeps its descent and imports as downhill skiing', () => {
+  const w = new FitWriter();
+  for (let i = 0; i <= 60; i++) {
+    w.message(20, [
+      { num: 253, type: 6, value: fitSecs(T0 + i * 20_000) },
+      { num: 0, type: 5, value: Math.round((46 + i * 0.0004) * SEMI) },
+      { num: 1, type: 5, value: Math.round(7.2 * SEMI) },
+      { num: 2, type: 4, value: (2400 - i * 8 + 500) * 5 },
+      { num: 5, type: 6, value: i * 120 * 100 },
+    ], 1);
+  }
+  w.message(18, [{ num: 253, type: 6, value: fitSecs(T0 + 1_200_000) }, { num: 2, type: 6, value: fitSecs(T0) }, { num: 5, type: 0, value: 13 }, { num: 6, type: 0, value: 0 }, { num: 7, type: 6, value: 1200 * 1000 }, { num: 8, type: 6, value: 1200 * 1000 }, { num: 9, type: 6, value: 7200 * 100 }], 2);
+  const [a] = parseFit(w.bytes());
+  assert.equal(a.sport, 'alpineSkiing');
+  const workout = activityToWorkout(a, profile);
+  assert.equal(workout?.type, 'AlpineSkiing');
+  assert.equal(workout?.distanceKm, 7.2);
 });

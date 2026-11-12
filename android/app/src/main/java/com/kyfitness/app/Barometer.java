@@ -8,7 +8,7 @@ import android.hardware.SensorManager;
 
 /**
  * Altitude from the phone's barometer, for climbing and descending that GPS alone measures badly (GPS altitude wanders by
- * ten metres or more). Air pressure gives accurate changes in height but not the absolute height, and the weather slowly shifts
+ * ten meters or more). Air pressure gives accurate changes in height but not the absolute height, and the weather slowly shifts
  * it, so the barometer is anchored to the GPS altitude at the start and nudged back toward GPS very gently (over a few
  * minutes). The result keeps the barometer's fine detail and GPS's overall level. Without a barometer the GPS altitude is used.
  */

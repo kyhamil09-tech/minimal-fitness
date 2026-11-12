@@ -23,7 +23,8 @@ public class WaterPlugin extends Plugin {
             call.getInt("goalMl", 2500),
             Boolean.TRUE.equals(call.getBoolean("imperial", false)),
             call.getInt("step1Ml", 250),
-            call.getInt("step2Ml", 500)
+            call.getInt("step2Ml", 500),
+            call.getInt("lastMl", 0)
         );
         WaterWidgetProvider.refreshAll(getContext());
         WaterStore.pushToWatch(getContext());

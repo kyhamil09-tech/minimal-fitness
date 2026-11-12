@@ -10,7 +10,7 @@ const MAIN_TABS: TabId[] = ['today', 'exercise', 'nutrition', 'progress', 'setti
 
 /** The tab that holds a sub-screen: Fasting, Sleep and the Health log live under Health, and the Health id stands for Progress > Vitals. */
 const mainTabOf = (tab: TabId): TabId =>
-  tab === 'fasting' || tab === 'sleep' || tab === 'healthlog' ? 'nutrition' : tab === 'health' ? 'progress' : tab;
+  tab === 'fasting' || tab === 'sleep' || tab === 'healthlog' || tab === 'breathe' ? 'nutrition' : tab === 'health' ? 'progress' : tab;
 
 /**
  * Where you are in the app and how you move: the current tab, swiping between tabs, the back button, the map and the jumps it makes
@@ -100,6 +100,7 @@ export function useAppNavigation(swipeEnabled: boolean) {
   const [mapOpen, setMapOpen] = useState(false);
   const [runOpen, setRunOpen] = useState<{ view: RunSection; nonce: number } | null>(null);
   const [mealPlanToken, setMealPlanToken] = useState(0);
+  const [eatToken, setEatToken] = useState(0);
   const navigateTo = (t: MapTarget) => {
     setMapOpen(false);
     setSlideDir(null);
@@ -107,6 +108,8 @@ export function useAppNavigation(swipeEnabled: boolean) {
     setCurrentTab(t.tab);
     if (t.run) setRunOpen({ view: t.run, nonce: Date.now() });
     if (t.mealPlan) setMealPlanToken(Date.now());
+    if (t.eat) setEatToken(Date.now());
+    if (t.tour) window.setTimeout(() => window.dispatchEvent(new CustomEvent('kyfit-show-tour')), 150);
     // Settings has to be on screen before one of its groups can be asked to open.
     if (t.settings) window.setTimeout(() => window.dispatchEvent(new CustomEvent('kyfit-open-settings-group', { detail: t.settings })), 250);
   };
@@ -129,6 +132,8 @@ export function useAppNavigation(swipeEnabled: boolean) {
     runOpen,
     mealPlanToken,
     setMealPlanToken,
+    eatToken,
+    setEatToken,
     navigateTo,
   };
 }

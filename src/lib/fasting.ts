@@ -17,7 +17,7 @@ export const stageIndexAt = (hours: number): number => {
   return i < 0 ? FAST_STAGES.length - 1 : i;
 };
 
-/** The feelings you can tap while fasting. Tone only decides the colour and how the summary groups them. */
+/** The feelings you can tap while fasting. Tone only decides the color and how the summary groups them. */
 export const FEELING_TAGS = [
   { id: 'energetic', label: 'Energetic', tone: 'good' },
   { id: 'focused', label: 'Focused', tone: 'good' },

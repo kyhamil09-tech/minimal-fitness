@@ -26,6 +26,9 @@ export const TabEditorModal: React.FC<TabEditorModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Customize dashboard"
         className="relative w-full max-w-lg border rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar"
         style={{
           backgroundColor: theme.surface,
@@ -39,12 +42,13 @@ export const TabEditorModal: React.FC<TabEditorModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-[#1A1E26]">
           <div>
             <h3 className="text-lg font-bold text-white tracking-tight">Customize Dashboard</h3>
-            <p className="text-xs text-[#7E889B]">
+            <p className="text-xs text-[#9AA3B2]">
               Silence or hide metrics you do not want to see.
             </p>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -70,11 +74,11 @@ export const TabEditorModal: React.FC<TabEditorModalProps> = ({
                     >
                       {metric.label}
                     </span>
-                    <span className="text-[10px] text-[#7E889B] uppercase tracking-wider font-mono">
+                    <span className="text-xs text-[#9AA3B2] uppercase tracking-wider font-mono">
                       {metric.category}
                     </span>
                   </div>
-                  <p className="text-xs text-[#7E889B] leading-relaxed">
+                  <p className="text-xs text-[#9AA3B2] leading-relaxed">
                     {metric.description}
                   </p>
                 </div>
@@ -93,7 +97,7 @@ export const TabEditorModal: React.FC<TabEditorModalProps> = ({
                   {isChecked ? (
                     <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
                   ) : (
-                    <EyeOff className="w-3 h-3 text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <EyeOff className="w-3 h-3 text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                   )}
                 </button>
               </div>
@@ -102,11 +106,11 @@ export const TabEditorModal: React.FC<TabEditorModalProps> = ({
         </div>
 
         {/* Summary note */}
-        <div className="mt-4 p-3 rounded-xl bg-black/60 border border-[#1A1E26] text-xs text-[#7E889B] flex items-center justify-between">
+        <div className="mt-4 p-3 rounded-xl bg-black/60 border border-[#1A1E26] text-xs text-[#9AA3B2] flex items-center justify-between">
           <span>{enabledMetrics.size} of {METRIC_CONFIGS.length} widgets active</span>
           <button
             onClick={onResetDefaults}
-            className="flex items-center gap-1 text-[11px] hover:underline"
+            className="flex items-center gap-1 text-xs hover:underline"
             style={{ color: theme.primary }}
           >
             <RotateCcw className="w-3 h-3" />

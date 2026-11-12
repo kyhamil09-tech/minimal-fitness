@@ -124,13 +124,14 @@ test('the figure keeps its limb lengths and keeps its pinned joint still while i
       assert.ok(Math.abs(d(j.knee, j.ankle) - L.shin) < 0.01, `${id} shin`);
       assert.ok(Math.abs(d(j.shoulder, j.elbow) - L.ua) < 0.01, `${id} upper arm`);
     }
-    if (m.frames.length > 1 && (m.frames[0].root ?? 'ankle') === (m.frames[1].root ?? 'ankle') && !m.oneWay) {
+    if (m.frames.length > 1 && m.frames.every((f) => (f.root ?? 'ankle') === (m.frames[0].root ?? 'ankle')) && !m.oneWay) {
       const root = (m.frames[0].root ?? 'ankle') === 'wrist' ? 'wrist' : (m.frames[0].root ?? 'ankle') === 'hip' ? 'hip' : 'ankle';
       const a = solve(poseAt(m.frames, 1000, 300))[root];
       const b = solve(poseAt(m.frames, 1000, 700))[root];
-      if (m.frames[0].at === undefined || JSON.stringify(m.frames[0].at) === JSON.stringify(m.frames[1].at)) {
+      if (m.frames.every((f) => JSON.stringify(f.at) === JSON.stringify(m.frames[0].at))) {
         assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.01, `${id} pinned joint moved`);
       }
     }
   }
 });
+

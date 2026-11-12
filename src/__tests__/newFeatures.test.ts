@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readiness } from '../lib/readiness';
+import { hrvScore, readiness } from '../lib/readiness';
 import { monthProgress, monthTotal, sanitizeMonthlyGoal } from '../lib/monthlyGoal';
 import { changePct, weeklyRecap } from '../lib/weeklyRecap';
 import { addCheckIn, endFast, feelingMap, removeCheckIn, startFast, stageIndexAt } from '../lib/fasting';
@@ -58,6 +58,27 @@ test('readiness leaves out missing parts and shares their weight, and needs two 
   assert.equal(two!.parts.length, 2);
   assert.equal(two!.parts.reduce((s, p) => s + p.weight, 0), 100);
   assert.ok(two!.missing.length >= 2);
+});
+
+test('hrvScore judges a dip against how much your own nights vary, and only a drop costs points', () => {
+  const steady = [60, 61, 59, 60, 60, 61, 59];
+  const swingy = [40, 80, 55, 70, 45, 75, 60];
+  // A rise or a normal night is full marks.
+  assert.equal(hrvScore(66, steady), 100);
+  assert.equal(hrvScore(60, steady), 100);
+  // The same 15% dip means more to someone whose HRV is steady than to someone whose HRV swings a lot.
+  assert.ok(hrvScore(51, steady) < hrvScore(51, swingy), `${hrvScore(51, steady)} vs ${hrvScore(51, swingy)}`);
+  // A big collapse is near zero, and the score never rises as HRV falls.
+  assert.ok(hrvScore(30, steady) <= 5);
+  let prev = 101;
+  for (let v = 70; v >= 20; v -= 2) {
+    const s = hrvScore(v, steady);
+    assert.ok(s <= prev, `HRV ${v} scored ${s} after ${prev}`);
+    prev = s;
+  }
+  // Nothing to compare with, or a reading that makes no sense, gives no score.
+  assert.equal(hrvScore(60, []), 0);
+  assert.equal(hrvScore(0, steady), 0);
 });
 
 test('readiness ignores nights older than yesterday for the sleep part', () => {
@@ -156,7 +177,7 @@ test('fasting check-ins are added to the running fast, cleaned, and mapped to st
 });
 
 test('share card route is fitted into the box with its shape kept', () => {
-  // A route twice as wide as tall (at the equator) in a square box: it fills the width, is centred, and keeps 2:1
+  // A route twice as wide as tall (at the equator) in a square box: it fills the width, is centered, and keeps 2:1
   const route: [number, number][] = [[0, 0], [0, 2], [1, 2], [1, 0]];
   const pts = projectRoute(route, 400, 400, 20);
   const xs = pts.map((p) => p[0]);

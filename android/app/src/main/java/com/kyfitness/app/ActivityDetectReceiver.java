@@ -22,9 +22,7 @@ public class ActivityDetectReceiver extends BroadcastReceiver {
             return;
         }
         if (Intent.ACTION_BOOT_COMPLETED.equals(action) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
-            if (ActivityDetect.prefs(context).getBoolean("enabled", false)) {
-                ActivityDetect.register(context.getApplicationContext(), ActivityDetect.prefs(context).getBoolean("walks", false));
-            }
+            ActivityDetect.refresh(context.getApplicationContext());
             return;
         }
         if (!ActivityTransitionResult.hasResult(intent)) return;

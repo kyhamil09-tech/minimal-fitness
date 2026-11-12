@@ -39,7 +39,7 @@ test('step progress counts time and distance', () => {
 
 test('describeStep speaks time and distance', () => {
   assert.equal(describeStep({ kind: 'work', label: 'Run', durationSec: 90 }, false), 'Run. 1 minute 30 seconds.');
-  assert.equal(describeStep({ kind: 'work', label: 'Rep', distanceKm: 0.4 }, false), 'Rep. 400 metres.');
+  assert.equal(describeStep({ kind: 'work', label: 'Rep', distanceKm: 0.4 }, false), 'Rep. 400 meters.');
 });
 
 test('pace verdict compares with the target', () => {

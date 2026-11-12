@@ -20,7 +20,9 @@ import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeightRecord
 import androidx.health.connect.client.records.HydrationRecord
+import androidx.health.connect.client.feature.ExperimentalMindfulnessSessionApi
 import androidx.health.connect.client.records.MealType
+import androidx.health.connect.client.records.MindfulnessSessionRecord
 import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
@@ -68,11 +70,15 @@ import kotlinx.coroutines.launch
  * workouts (with route, heart rate, distance and calories), body weight and fat, meals, water and sleep.
  * The user grants access in Android's own permission screen.
  */
+@OptIn(ExperimentalMindfulnessSessionApi::class)
 @CapacitorPlugin(name = "HealthConnect")
 class HealthConnectPlugin : Plugin() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val prefix = "android.permission.health."
+
+    /** The most heart-rate samples or route points written for one workout. */
+    private val MAX_SAMPLES = 2000
 
     /** Data types the app reads. Keep in step with AndroidManifest.xml: a type that is never read or written is not asked for. */
     private val readTypes = listOf(
@@ -84,13 +90,39 @@ class HealthConnectPlugin : Plugin() {
     /** Data types the app writes (and removes again when you delete the matching entry). */
     private val writeTypes = listOf(
         "EXERCISE", "DISTANCE", "TOTAL_CALORIES_BURNED", "HEART_RATE", "WEIGHT", "BODY_FAT", "NUTRITION", "HYDRATION",
-        "SLEEP", "BLOOD_PRESSURE", "BLOOD_GLUCOSE", "EXERCISE_ROUTE",
+        "SLEEP", "BLOOD_PRESSURE", "BLOOD_GLUCOSE", "EXERCISE_ROUTE", "MINDFULNESS",
     )
 
     private val permissions: Set<String> =
         readTypes.map { "${prefix}READ_$it" }.toSet() +
             writeTypes.map { "${prefix}WRITE_$it" }.toSet() +
             setOf("${prefix}READ_HEALTH_DATA_HISTORY")
+
+    /**
+     * The permissions grouped by what they are for, so the app can ask for one feature at a time (when the person turns it on)
+     * instead of showing one long list. Together the groups cover exactly the set above.
+     */
+    private val groups: Map<String, Set<String>> = mapOf(
+        "activity" to setOf(
+            "READ_STEPS", "READ_DISTANCE", "READ_TOTAL_CALORIES_BURNED", "READ_ACTIVE_CALORIES_BURNED", "READ_FLOORS_CLIMBED",
+            "READ_EXERCISE", "WRITE_EXERCISE", "WRITE_DISTANCE", "WRITE_TOTAL_CALORIES_BURNED", "WRITE_EXERCISE_ROUTE", "READ_HEALTH_DATA_HISTORY",
+        ),
+        "heart" to setOf("READ_HEART_RATE", "WRITE_HEART_RATE", "READ_RESTING_HEART_RATE", "READ_VO2_MAX"),
+        "sleep" to setOf(
+            "READ_SLEEP", "WRITE_SLEEP", "READ_HEART_RATE_VARIABILITY", "READ_RESPIRATORY_RATE", "READ_OXYGEN_SATURATION", "READ_SKIN_TEMPERATURE",
+        ),
+        "body" to setOf("READ_WEIGHT", "WRITE_WEIGHT", "READ_BODY_FAT", "WRITE_BODY_FAT", "READ_HEIGHT"),
+        "nutrition" to setOf("WRITE_NUTRITION", "WRITE_HYDRATION"),
+        "mindfulness" to setOf("WRITE_MINDFULNESS"),
+        "vitals" to setOf("READ_BLOOD_PRESSURE", "WRITE_BLOOD_PRESSURE", "READ_BLOOD_GLUCOSE", "WRITE_BLOOD_GLUCOSE"),
+    ).mapValues { (_, v) -> v.map { "$prefix$it" }.toSet() }
+
+    /** The permissions for the named groups (all of them when none are named); unknown names are ignored. */
+    private fun permissionsFor(names: List<String>): Set<String> {
+        if (names.isEmpty()) return permissions
+        val picked = names.mapNotNull { groups[it] }.flatten().toSet()
+        return if (picked.isEmpty()) permissions else picked
+    }
 
     private fun available() = HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
 
@@ -112,6 +144,23 @@ class HealthConnectPlugin : Plugin() {
         out.put("allGranted", have == permissions.size)
         out.put("canRead", grantedSet.contains("${prefix}READ_EXERCISE") && grantedSet.contains("${prefix}READ_HEART_RATE"))
         out.put("canWrite", grantedSet.contains("${prefix}WRITE_EXERCISE") && grantedSet.contains("${prefix}WRITE_NUTRITION"))
+        // The same counts for receive-only use: only the permissions that let the app read.
+        val readPerms = permissions.filter { it.startsWith("${prefix}READ_") }
+        val readHave = readPerms.count { grantedSet.contains(it) }
+        out.put("readTotal", readPerms.size)
+        out.put("readGrantedCount", readHave)
+        out.put("allReadGranted", readHave == readPerms.size)
+        val perGroup = JSObject()
+        for ((name, perms) in groups) {
+            val g = JSObject()
+            g.put("total", perms.size)
+            g.put("granted", perms.count { grantedSet.contains(it) })
+            val reads = perms.filter { it.startsWith("${prefix}READ_") }
+            g.put("readTotal", reads.size)
+            g.put("readGranted", reads.count { grantedSet.contains(it) })
+            perGroup.put(name, g)
+        }
+        out.put("groups", perGroup)
         val missing = JSArray()
         permissions.filter { !grantedSet.contains(it) }.sorted().forEach { missing.put(it.removePrefix(prefix)) }
         out.put("missing", missing)
@@ -140,7 +189,16 @@ class HealthConnectPlugin : Plugin() {
             call.reject("Health Connect is not available on this phone. Install or update it from Google Play.")
             return
         }
-        val intent = PermissionController.createRequestPermissionResultContract().createIntent(context, permissions)
+        val asked = call.getArray("groups")
+        val names = (0 until (asked?.length() ?: 0)).mapNotNull { asked!!.optString(it).ifEmpty { null } }
+        // Receive-only: ask for nothing that lets the app write, so Android's screen lists only the reads.
+        val readOnly = call.getBoolean("readOnly", false) == true
+        val wanted = permissionsFor(names).filter { !readOnly || it.startsWith("${prefix}READ_") }.toSet()
+        if (wanted.isEmpty()) {
+            status(call)
+            return
+        }
+        val intent = PermissionController.createRequestPermissionResultContract().createIntent(context, wanted)
         startActivityForResult(call, intent, "accessResult")
     }
 
@@ -244,6 +302,7 @@ class HealthConnectPlugin : Plugin() {
                 val to = Instant.ofEpochMilli(list.maxOf { it.getLong("end") })
                 val range = TimeRangeFilter.between(from, to)
                 // Read once for all the nights, then match each reading to its night.
+                val heart = try { readAll(HeartRateRecord::class, range) } catch (e: Exception) { emptyList() }
                 val hrv = try { readAll(HeartRateVariabilityRmssdRecord::class, range) } catch (e: Exception) { emptyList() }
                 val breathing = try { readAll(RespiratoryRateRecord::class, range) } catch (e: Exception) { emptyList() }
                 val oxygen = try { readAll(OxygenSaturationRecord::class, range) } catch (e: Exception) { emptyList() }
@@ -270,6 +329,17 @@ class HealthConnectPlugin : Plugin() {
                         }
                     } catch (e: Exception) {
                         // heart rate not shared
+                    }
+                    // The night's heart rate as five-minute averages, for the curve on the Sleep screen.
+                    val buckets = java.util.TreeMap<Long, MutableList<Long>>()
+                    for (rec in heart) for (s in rec.samples) {
+                        if (s.time < start || s.time > end || s.beatsPerMinute !in 25..250) continue
+                        buckets.getOrPut(s.time.toEpochMilli() / 300_000L * 300_000L) { mutableListOf() }.add(s.beatsPerMinute)
+                    }
+                    if (buckets.size >= 6) {
+                        val series = JSArray()
+                        for ((t, v) in buckets) series.put(JSArray().also { it.put(t); it.put(Math.round(v.average())) })
+                        o.put("hrSeries", series)
                     }
                     val hv = hrv.filter { it.time >= start && it.time <= end }.map { it.heartRateVariabilityMillis }.filter { it > 0 }
                     if (hv.isNotEmpty()) {
@@ -723,7 +793,17 @@ class HealthConnectPlugin : Plugin() {
         "Yoga" -> ExerciseSessionRecord.EXERCISE_TYPE_YOGA
         "Elliptical" -> ExerciseSessionRecord.EXERCISE_TYPE_ELLIPTICAL
         "Calisthenics", "Core" -> ExerciseSessionRecord.EXERCISE_TYPE_CALISTHENICS
-        "Mobility" -> ExerciseSessionRecord.EXERCISE_TYPE_STRETCHING
+        "Mobility", "Stretching" -> ExerciseSessionRecord.EXERCISE_TYPE_STRETCHING
+        "Swimming" -> ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL
+        "OpenWaterSwim" -> ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_OPEN_WATER
+        "StairClimbing" -> ExerciseSessionRecord.EXERCISE_TYPE_STAIR_CLIMBING
+        "Dance" -> ExerciseSessionRecord.EXERCISE_TYPE_DANCING
+        "Pilates" -> ExerciseSessionRecord.EXERCISE_TYPE_PILATES
+        "AlpineSkiing", "CrossCountrySkiing" -> ExerciseSessionRecord.EXERCISE_TYPE_SKIING
+        "Snowboarding" -> ExerciseSessionRecord.EXERCISE_TYPE_SNOWBOARDING
+        "Snowshoeing" -> ExerciseSessionRecord.EXERCISE_TYPE_SNOWSHOEING
+        "IceSkating" -> ExerciseSessionRecord.EXERCISE_TYPE_ICE_SKATING
+        "Kayaking", "Paddleboarding" -> ExerciseSessionRecord.EXERCISE_TYPE_PADDLING
         else -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
     }
 
@@ -741,7 +821,9 @@ class HealthConnectPlugin : Plugin() {
                 call.resolve()
                 return
             }
-            client().insertRecords(records)
+            // Health Connect takes at most 1000 records in one call, so a long batch goes in pieces. Every record carries its own
+            // clientRecordId, so a piece sent twice (a retry, or the same workout from phone and watch) updates instead of duplicating.
+            for (piece in records.chunked(1000)) client().insertRecords(piece)
             call.resolve()
         } catch (e: Exception) {
             call.reject("Could not save $what to Health Connect: ${e.message}")
@@ -778,7 +860,11 @@ class HealthConnectPlugin : Plugin() {
                     val alt = if (p.isNull(3)) null else Length.meters(p.getDouble(3))
                     points.add(ExerciseRoute.Location(time = t, latitude = p.getDouble(1), longitude = p.getDouble(2), altitude = alt))
                 }
-                if (points.size >= 2) route = ExerciseRoute(points)
+                if (points.size >= 2) {
+                    val step = (points.size + MAX_SAMPLES - 1) / MAX_SAMPLES
+                    val kept = if (step > 1) points.filterIndexed { i, _ -> i % step == 0 || i == points.size - 1 } else points
+                    route = ExerciseRoute(kept)
+                }
             }
             records.add(
                 ExerciseSessionRecord(
@@ -811,7 +897,10 @@ class HealthConnectPlugin : Plugin() {
                     if (!t.isBefore(start) && !t.isAfter(end) && bpm in 20..250) samples.add(HeartRateRecord.Sample(t, bpm))
                 }
                 if (samples.isNotEmpty()) {
-                    records.add(HeartRateRecord(start, so, end, eo, samples, meta("$id-hr", live)))
+                    // A very long workout is thinned to an even spread so one record never grows past what Health Connect accepts.
+                    val step = (samples.size + MAX_SAMPLES - 1) / MAX_SAMPLES
+                    val kept = if (step > 1) samples.filterIndexed { i, _ -> i % step == 0 } else samples
+                    records.add(HeartRateRecord(start, so, end, eo, kept, meta("$id-hr", live)))
                 }
             }
             insert(call, records, "the workout")
@@ -877,6 +966,36 @@ class HealthConnectPlugin : Plugin() {
             val end = start.plusSeconds(60)
             val record = HydrationRecord(start, offset(start), end, offset(end), Volume.milliliters(ml), meta(id, false))
             insert(call, listOf(record), "the water entry")
+        }
+    }
+
+    /** A finished guided-breathing session, saved as a mindfulness session (Health Connect marks this record type as experimental). */
+    @OptIn(ExperimentalMindfulnessSessionApi::class)
+    @PluginMethod
+    fun writeMindfulness(call: PluginCall) {
+        scope.launch {
+            val id = call.getString("id") ?: return@launch call.reject("Missing id")
+            val startMs = call.getDouble("start")?.toLong() ?: return@launch call.reject("Missing start")
+            val endMs = call.getDouble("end")?.toLong() ?: return@launch call.reject("Missing end")
+            if (endMs <= startMs) return@launch call.resolve()
+            val start = Instant.ofEpochMilli(startMs)
+            val end = Instant.ofEpochMilli(endMs)
+            try {
+                val record = MindfulnessSessionRecord(
+                    startTime = start,
+                    startZoneOffset = offset(start),
+                    endTime = end,
+                    endZoneOffset = offset(end),
+                    metadata = meta(id, false),
+                    mindfulnessSessionType = MindfulnessSessionRecord.MINDFULNESS_SESSION_TYPE_BREATHING,
+                    title = call.getString("title"),
+                    notes = call.getString("notes"),
+                )
+                insert(call, listOf(record), "the breathing session")
+            } catch (e: Throwable) {
+                // an older Health Connect without mindfulness sessions: nothing to save, and nothing to report
+                call.resolve()
+            }
         }
     }
 
@@ -1021,6 +1140,7 @@ class HealthConnectPlugin : Plugin() {
         "nutrition" to NutritionRecord::class,
         "hydration" to HydrationRecord::class,
         "sleep" to SleepSessionRecord::class,
+        "mindfulness" to MindfulnessSessionRecord::class,
     )
 
     /** Removes records this app wrote earlier, by the ids it used (e.g. when you delete a workout). */
@@ -1044,3 +1164,4 @@ class HealthConnectPlugin : Plugin() {
         }
     }
 }
+

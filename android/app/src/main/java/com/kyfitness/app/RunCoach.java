@@ -6,10 +6,17 @@ import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.speech.tts.Voice;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
- * Speaks a short update each kilometre or mile while a GPS workout runs: lap time, pace and (optionally)
+ * Speaks a short update each kilometer or mile while a GPS workout runs: lap time, pace and (optionally)
  * heart rate. It runs inside the location service, so the cues keep coming with the screen off.
  */
 final class RunCoach {
@@ -22,10 +29,18 @@ final class RunCoach {
     private static boolean ttsReady = false;
     private static AudioFocusRequest focus;
 
+    /** Spoken interval cues (Run, Walk, the warning and the countdown): on whether or not the running updates are. */
+    private static boolean intervalCues = false;
+    /** The voice chosen in Settings, or empty for the best one installed. */
+    private static String preferredVoice = "";
+    /** Cues asked for before the voice engine was ready: spoken as soon as it is. */
+    private static final List<String> pendingCues = new ArrayList<>();
+    private static TextToSpeech previewTts;
+
     private static boolean enabled = false;
     private static boolean speakHeartRate = true;
     private static double unitKm = 1.0;
-    private static String unitName = "kilometre";
+    private static String unitName = "kilometer";
     /** Distance between updates in km (0 when announcing by time) and minutes between updates (0 when by distance). */
     private static double stepKm = 1.0;
     private static long everyMs = 0;
@@ -54,7 +69,15 @@ final class RunCoach {
 
     static synchronized void begin(Context context, boolean cuesOn, boolean miles, boolean hr,
                                    double everyKm, int everyMin, boolean distance, boolean time, boolean pace) {
+        begin(context, cuesOn, miles, hr, everyKm, everyMin, distance, time, pace, false, "");
+    }
+
+    static synchronized void begin(Context context, boolean cuesOn, boolean miles, boolean hr,
+                                   double everyKm, int everyMin, boolean distance, boolean time, boolean pace,
+                                   boolean intervals, String voice) {
         app = context.getApplicationContext();
+        intervalCues = intervals;
+        preferredVoice = voice == null ? "" : voice;
         stepKm = everyMin > 0 ? 0 : Math.max(0.1, everyKm);
         everyMs = everyMin > 0 ? everyMin * 60_000L : 0;
         nextTimeMs = everyMs;
@@ -65,7 +88,7 @@ final class RunCoach {
         enabled = cuesOn;
         speakHeartRate = hr;
         unitKm = miles ? 1.609344 : 1.0;
-        unitName = miles ? "mile" : "kilometre";
+        unitName = miles ? "mile" : "kilometer";
         startMs = System.currentTimeMillis();
         pausedAccumMs = 0;
         pausedSince = 0;
@@ -74,11 +97,13 @@ final class RunCoach {
         distanceKm = 0;
         nextUnit = 1;
         lastBoundaryElapsedMs = 0;
-        if (enabled) ensureTts();
+        if (enabled || intervalCues) ensureTts();
     }
 
     static synchronized void end() {
         enabled = false;
+        intervalCues = false;
+        pendingCues.clear();
         if (tts != null) {
             tts.stop();
             tts.shutdown();
@@ -146,7 +171,7 @@ final class RunCoach {
     }
 
     /**
-     * Speaks one update. `unit` is the whole kilometre or mile just completed (0 when updates are not on the unit);
+     * Speaks one update. `unit` is the whole kilometer or mile just completed (0 when updates are not on the unit);
      * `deltaKm` is how far you went since the last update, used for the pace over that stretch.
      */
     private static void announce(int unit, long elapsedMs, long lapMs, double deltaKm) {
@@ -209,6 +234,9 @@ final class RunCoach {
                 ttsReady = status == TextToSpeech.SUCCESS;
                 if (ttsReady && tts != null) {
                     tts.setLanguage(Locale.getDefault());
+                    applyVoice(tts, preferredVoice);
+                    // A little slower than the default, which sounds hurried and flat, reads more naturally.
+                    tts.setSpeechRate(0.95f);
                     tts.setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -218,6 +246,8 @@ final class RunCoach {
                         @Override public void onDone(String id) { abandonFocus(); }
                         @Override public void onError(String id) { abandonFocus(); }
                     });
+                    for (String text : new ArrayList<>(pendingCues)) speak(text, false);
+                    pendingCues.clear();
                 }
             }
         });
@@ -226,6 +256,25 @@ final class RunCoach {
     /** Speaks text if cues are enabled (used for lap announcements from the app). */
     static synchronized void say(String text) {
         if (!enabled || !ttsReady || tts == null || app == null) return;
+        speak(text, false);
+    }
+
+    /**
+     * Speaks an interval cue (Run, Walk, the ten-second warning, 3-2-1). These do not depend on the running updates being on, and a
+     * countdown number cuts off whatever is still being said so it lands on its second.
+     */
+    static synchronized void sayCue(String text, boolean flush) {
+        if (app == null || text == null || text.isEmpty()) return;
+        if (!ttsReady || tts == null) {
+            ensureTts();
+            if (pendingCues.size() < 4) pendingCues.add(text);
+            return;
+        }
+        speak(text, flush);
+    }
+
+    private static void speak(String text, boolean flush) {
+        if (tts == null || app == null) return;
         AudioManager am = (AudioManager) app.getSystemService(Context.AUDIO_SERVICE);
         if (am != null) {
             focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
@@ -236,7 +285,128 @@ final class RunCoach {
                 .build();
             am.requestAudioFocus(focus);
         }
-        tts.speak(text, TextToSpeech.QUEUE_ADD, null, "ky-" + System.nanoTime());
+        tts.speak(text, flush ? TextToSpeech.QUEUE_FLUSH : TextToSpeech.QUEUE_ADD, null, "ky-" + System.nanoTime());
+    }
+
+    // ---- choosing a natural voice ----
+
+    /** How good a voice is likely to sound: its quality first, then that it works without signal, then a match for your region. */
+    private static int score(Voice v, Locale locale) {
+        int s = v.getQuality() * 10;
+        if (!v.isNetworkConnectionRequired()) s += 1200;
+        if (v.getLocale().getCountry().equals(locale.getCountry())) s += 50;
+        if (v.getLatency() <= Voice.LATENCY_LOW) s += 5;
+        return s;
+    }
+
+    private static boolean usable(Voice v, Locale locale) {
+        if (v.getLocale() == null || !v.getLocale().getLanguage().equals(locale.getLanguage())) return false;
+        Set<String> features = v.getFeatures();
+        return features == null || !features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED);
+    }
+
+    /** The best installed voice for the language, or null. */
+    static Voice bestVoice(Set<Voice> voices, Locale locale) {
+        Voice best = null;
+        int bestScore = Integer.MIN_VALUE;
+        if (voices == null) return null;
+        for (Voice v : voices) {
+            if (!usable(v, locale)) continue;
+            int s = score(v, locale);
+            if (s > bestScore) {
+                best = v;
+                bestScore = s;
+            }
+        }
+        return best;
+    }
+
+    /** Uses the voice you picked (by name) or, with none picked, the best one. */
+    static void applyVoice(TextToSpeech t, String name) {
+        try {
+            Set<Voice> voices = t.getVoices();
+            if (voices == null) return;
+            Voice chosen = null;
+            if (name != null && !name.isEmpty()) for (Voice v : voices) if (v.getName().equals(name)) chosen = v;
+            if (chosen == null) chosen = bestVoice(voices, Locale.getDefault());
+            if (chosen != null) t.setVoice(chosen);
+        } catch (RuntimeException ignored) {
+            // the engine keeps its own default voice
+        }
+    }
+
+    interface VoiceList {
+        void done(JSONArray voices, String autoName);
+    }
+
+    /** The installed voices for your language, best first, for the picker in Settings. */
+    static void listVoices(Context c, final VoiceList cb) {
+        final Context ctx = c.getApplicationContext();
+        final TextToSpeech[] box = new TextToSpeech[1];
+        box[0] = new TextToSpeech(ctx, status -> {
+            JSONArray out = new JSONArray();
+            String auto = "";
+            TextToSpeech t = box[0];
+            if (status == TextToSpeech.SUCCESS && t != null) {
+                try {
+                    Locale locale = Locale.getDefault();
+                    Set<Voice> voices = t.getVoices();
+                    Voice best = bestVoice(voices, locale);
+                    if (best != null) auto = best.getName();
+                    List<Voice> list = new ArrayList<>();
+                    if (voices != null) for (Voice v : voices) if (usable(v, locale)) list.add(v);
+                    list.sort((a, b) -> score(b, locale) - score(a, locale));
+                    for (Voice v : list) {
+                        JSONObject o = new JSONObject();
+                        o.put("name", v.getName());
+                        o.put("quality", v.getQuality());
+                        o.put("online", v.isNetworkConnectionRequired());
+                        o.put("locale", v.getLocale().getDisplayName());
+                        out.put(o);
+                    }
+                } catch (RuntimeException | JSONException ignored) {
+                    // an empty list: the picker then offers only Automatic
+                }
+            }
+            try {
+                if (t != null) t.shutdown();
+            } catch (RuntimeException ignored) {
+                // already gone
+            }
+            cb.done(out, auto);
+        });
+    }
+
+    /** Says a sample in the named voice (or the best one, for an empty name) so you can hear it before choosing. */
+    static synchronized void preview(Context c, final String name, final String text) {
+        if (previewTts != null) {
+            try {
+                previewTts.stop();
+                previewTts.shutdown();
+            } catch (RuntimeException ignored) {
+                // already gone
+            }
+            previewTts = null;
+        }
+        final TextToSpeech[] box = new TextToSpeech[1];
+        box[0] = new TextToSpeech(c.getApplicationContext(), status -> {
+            TextToSpeech t = box[0];
+            if (status != TextToSpeech.SUCCESS || t == null) return;
+            t.setLanguage(Locale.getDefault());
+            applyVoice(t, name);
+            t.setSpeechRate(0.95f);
+            t.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build());
+            t.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String id) {}
+                @Override public void onDone(String id) { t.shutdown(); }
+                @Override public void onError(String id) { t.shutdown(); }
+            });
+            t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ky-preview");
+        });
+        previewTts = box[0];
     }
 
     private static void abandonFocus() {

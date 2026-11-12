@@ -84,7 +84,7 @@ public class KyTileService extends TileService {
 
     private LayoutElementBuilders.LayoutElement layout() {
         int steps = WatchSteps.today(this);
-        // Colours from the look chosen on the phone.
+        // Colors from the look chosen on the phone.
         Ui.apply(this);
         LayoutElementBuilders.Row buttons = new LayoutElementBuilders.Row.Builder()
             .addContent(button("RUN", "Running", Ui.ACCENT, Ui.ON_ACCENT))

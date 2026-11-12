@@ -24,6 +24,15 @@ public class PhoneCommandService extends WearableListenerService {
             case "/ky/hr/stop":
                 stopService(new Intent(this, HeartRateService.class));
                 break;
+            case "/ky/food/result": {
+                // The phone logged the meal that was said into the watch (or could not): say so for a moment.
+                final String note = new String(event.getData(), StandardCharsets.UTF_8);
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    Haptics.lap(this);
+                    android.widget.Toast.makeText(this, note, android.widget.Toast.LENGTH_LONG).show();
+                });
+                break;
+            }
             case "/ky/detect/notified":
                 // The phone already offered to record: stay quiet for a while.
                 WatchDetect.onPeerNotified(this);

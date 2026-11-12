@@ -24,11 +24,14 @@ const POSES = new Set(['front', 'side', 'back', 'other']);
 
 const isAppKey = (k: string) => STORAGE_PREFIXES.some((p) => k.startsWith(p));
 
+/** The workout in progress belongs to this phone's session, not to a backup. */
+const isBackedUp = (k: string) => isAppKey(k) && k !== 'kyfit_lift_draft';
+
 export const buildBackup = (storage: Pick<Storage, 'length' | 'key' | 'getItem'>): BackupFile => {
   const data: Record<string, string> = {};
   for (let i = 0; i < storage.length; i++) {
     const k = storage.key(i);
-    if (k && isAppKey(k)) {
+    if (k && isBackedUp(k)) {
       const v = storage.getItem(k);
       if (v !== null) data[k] = v;
     }
@@ -47,6 +50,7 @@ export const parseBackup = (text: string): BackupFile => {
   if (!raw || raw.app !== 'ky-fitness' || typeof raw.data !== 'object' || raw.data === null) {
     throw new Error('That file is not a Minimal Fitness backup.');
   }
+  if (typeof raw.version === 'number' && raw.version > 1) throw new Error('Unsupported backup version: it was made by a newer version of the app. Update the app first, then restore it; nothing was changed.');
   if (raw.version !== 1) throw new Error(`Unsupported backup version: ${String(raw.version)}`);
   const data: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw.data)) {
@@ -69,13 +73,34 @@ export const applyBackup = (
   backup: BackupFile,
   storage: Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'>
 ): number => {
-  clearAppData(storage);
-  let n = 0;
-  for (const [k, v] of Object.entries(backup.data)) {
-    storage.setItem(k, v);
-    n++;
+  // Keep a copy of what is there now, so a write that fails halfway (storage full, say) puts everything back rather than leaving a half-restored app.
+  const before: Record<string, string> = {};
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i);
+    if (k && isAppKey(k)) {
+      const v = storage.getItem(k);
+      if (v !== null) before[k] = v;
+    }
   }
-  return n;
+  try {
+    clearAppData(storage);
+    let n = 0;
+    for (const [k, v] of Object.entries(backup.data)) {
+      storage.setItem(k, v);
+      n++;
+    }
+    return n;
+  } catch (e) {
+    clearAppData(storage);
+    for (const [k, v] of Object.entries(before)) {
+      try {
+        storage.setItem(k, v);
+      } catch {
+        // nothing more can be done for this key
+      }
+    }
+    throw new Error('The backup could not be restored (is the phone out of space?). Your current data was kept.');
+  }
 };
 
 export const clearAppData = (storage: Pick<Storage, 'length' | 'key' | 'removeItem'>) => {
@@ -132,6 +157,10 @@ export const workoutsToCsv = (workouts: WorkoutSession[]): string => {
   return [header.join(','), ...rows].join('\n');
 };
 
+/** Lifting history as a plain JSON file with a small header (format version, when, how many), weights in kg. */
+export const workoutsToJson = (workouts: WorkoutSession[]): string =>
+  JSON.stringify({ app: 'ky-fitness', kind: 'lifting-history', version: 1, exportedAt: new Date().toISOString(), units: 'kg', count: workouts.length, workouts }, null, 2);
+
 export const downloadTextFile = async (filename: string, text: string, mime = 'application/json') => {
   // Android WebViews can't save blob downloads, so write to cache and open the share sheet instead.
   if (Capacitor.isNativePlatform()) {
@@ -146,6 +175,29 @@ export const downloadTextFile = async (filename: string, text: string, mime = 'a
   }
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const toBase64 = (bytes: Uint8Array): string => {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+
+/** Saves a binary file (a zip): through the share sheet in the Android app, as a download in a browser. */
+export const downloadBinaryFile = async (filename: string, bytes: Uint8Array, mime = 'application/zip') => {
+  if (Capacitor.isNativePlatform()) {
+    const written = await Filesystem.writeFile({ path: filename, data: toBase64(bytes), directory: Directory.Cache });
+    await Share.share({ title: filename, url: written.uri, dialogTitle: 'Save or send your export' });
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;

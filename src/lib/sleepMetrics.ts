@@ -50,7 +50,7 @@ export const countAwakenings = (segments: Segment[], minMs = 2 * MIN): number =>
   return segments.slice(first + 1, last).filter((s) => s[0] === 0 && s[2] - s[1] >= minMs).length;
 };
 
-/** Fixed stage colours, so the four stages stay easy to tell apart whatever theme is chosen. */
+/** Fixed stage colors, so the four stages stay easy to tell apart whatever theme is chosen. */
 export const STAGE_COLORS = { awake: '#FFB066', rem: '#B18CFF', light: '#7FB3FF', deep: '#4C6FFF' } as const;
 
 /** Typical adult shares of the time asleep, in percent (the ranges Google Health and Fitbit show). */

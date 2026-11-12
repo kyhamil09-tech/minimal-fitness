@@ -18,7 +18,7 @@ interface Props {
   enabled: boolean;
 }
 
-const CONFETTI = ['#CBFF00', '#FF5A1F', '#7DD3FC', '#F9A8D4', '#FDE68A', '#86EFAC'];
+const CONFETTI = ['#FF5500', '#FF5A1F', '#7DD3FC', '#F9A8D4', '#FDE68A', '#86EFAC'];
 
 /** Falling pieces behind the badge. Pure CSS; Reduce motion hides it (see .confetti in index.css). */
 const Confetti: React.FC<{ count: number }> = ({ count }) => (
@@ -120,7 +120,7 @@ export const RewardsHost: React.FC<Props> = ({ workouts, fasts, goals, enabled }
         <div className="fixed inset-0 z-[95] flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.72)' }} role="dialog" aria-modal="true" aria-label="Award unlocked">
           <Confetti count={party.main.tier >= 4 ? 46 : 28} />
           <div className="pop-in relative w-full max-w-xs rounded-[28px] border p-6 text-center" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
-            <div className="text-[11px] font-extrabold tracking-[0.18em] uppercase" style={{ color: 'var(--accent)' }}>
+            <div className="text-xs font-extrabold tracking-[0.18em] uppercase" style={{ color: 'var(--accent)' }}>
               Award unlocked
             </div>
             <div

@@ -3,6 +3,7 @@ import { Home, Activity, HeartPulse, BarChart3, User, Star } from 'lucide-react'
 import { TabId } from '../types/health';
 import { ColorPalette } from '../types/theme';
 import { DayProgress, dayProgressText } from '../lib/dayProgress';
+import { useT } from '../lib/i18n';
 
 interface BottomNavBarProps {
   currentTab: TabId;
@@ -14,7 +15,6 @@ interface BottomNavBarProps {
 
 const RING_R = 15;
 const RING = 2 * Math.PI * RING_R;
-const SPARKS = [0, 60, 120, 180, 240, 300];
 
 /** True while a text box has focus, which is when the on-screen keyboard is up and the bar would only be in the way. */
 const useTyping = (): boolean => {
@@ -40,55 +40,36 @@ const useTyping = (): boolean => {
 };
 
 /**
- * A floating pill with a slow sheen across the glass. It stays put on every screen and only steps aside while you type. The
- * selected tab gets a highlight that slides across with a little overshoot, a popping icon and a burst of sparks. The Home icon
- * wears a ring that fills as you finish today's goals, and bursts when all three are done.
+ * A flat bar docked to the bottom: five tabs with an icon and a short label, the chosen one in the accent color with a bar on top.
+ * It stays put on every screen and only steps aside while you type. The Home icon wears a ring that fills as you finish today's
+ * goals, and a star when all three are done.
  */
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({ currentTab, onSelectTab, theme, progress }) => {
   const typing = useTyping();
+  const t = useT();
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
-    { id: 'today', label: 'Home', icon: Home },
-    { id: 'exercise', label: 'Run', icon: Activity },
-    { id: 'nutrition', label: 'Health', icon: HeartPulse },
-    { id: 'progress', label: 'Progress', icon: BarChart3 },
-    { id: 'settings', label: 'You', icon: User },
+    { id: 'today', label: t('nav.home'), icon: Home },
+    { id: 'exercise', label: t('nav.run'), icon: Activity },
+    { id: 'nutrition', label: t('nav.health'), icon: HeartPulse },
+    { id: 'progress', label: t('nav.progress'), icon: BarChart3 },
+    { id: 'settings', label: t('nav.you'), icon: User },
   ];
   const activeIndex = tabs.findIndex(
     (tab) =>
       currentTab === tab.id ||
-      (tab.id === 'nutrition' && (currentTab === 'fasting' || currentTab === 'sleep' || currentTab === 'healthlog')) ||
+      (tab.id === 'nutrition' && (currentTab === 'fasting' || currentTab === 'sleep' || currentTab === 'healthlog' || currentTab === 'breathe')) ||
       (tab.id === 'progress' && currentTab === 'health')
   );
-
-  // The pop and the burst run when a tab is chosen, not when the app first draws.
-  const [popKey, setPopKey] = useState(0);
-  const first = useRef(true);
+  const prevDone = useRef(progress?.done ?? 0);
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    setPopKey((k) => k + 1);
-  }, [activeIndex]);
-
-  // Finishing the last of today's goals while the app is open sets off a celebration on the Home icon.
-  const done = progress?.done ?? 0;
-  const prevDone = useRef(done);
-  const [celebrate, setCelebrate] = useState(0);
-  useEffect(() => {
-    if (prevDone.current < 3 && done === 3) setCelebrate((c) => c + 1);
-    prevDone.current = done;
-  }, [done]);
+    prevDone.current = progress?.done ?? 0;
+  }, [progress?.done]);
 
   if (typing) return null;
 
   return (
-    <nav aria-label="Main" className="relative shrink-0 z-0 w-full px-4 pt-1" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), var(--sys-gesture-bottom, 0px), 12px)' }}>
-      <div className="pill-nav relative mx-auto grid w-full max-w-md grid-cols-5 items-stretch rounded-full p-1.5">
-        {/* The highlight behind the chosen tab */}
-        {activeIndex >= 0 && (
-          <span aria-hidden="true" className="pill-thumb" style={{ transform: `translateX(${activeIndex * 100}%)` }} />
-        )}
+    <div className="nav-dock">
+      <nav aria-label="Main" className="flat-nav pill-nav-wrap grid w-full grid-cols-5">
         {tabs.map((tab, i) => {
           const Icon = tab.icon;
           const isActive = i === activeIndex;
@@ -101,13 +82,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ currentTab, onSelect
               aria-label={tab.label}
               aria-current={isActive ? 'page' : undefined}
               title={ring ? dayProgressText(ring) : tab.label}
-              className="relative z-[1] flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-full"
-              style={{ color: isActive ? theme.primary : '#8a8a8a' }}
+              className="relative flex min-h-[58px] flex-col items-center justify-center gap-0.5"
+              style={{ color: isActive ? theme.primary : '#A1A1AA' }}
             >
-              <span className="relative flex h-[34px] w-[34px] items-center justify-center">
+              <span className="relative flex h-[30px] w-[30px] items-center justify-center">
                 {ring && (
                   <svg className="absolute inset-0 -rotate-90" viewBox="0 0 34 34" aria-hidden="true">
-                    <circle cx="17" cy="17" r={RING_R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                    <circle cx="17" cy="17" r={RING_R} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2.5" />
                     <circle
                       cx="17"
                       cy="17"
@@ -118,42 +99,20 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ currentTab, onSelect
                       strokeLinecap="round"
                       strokeDasharray={RING}
                       strokeDashoffset={RING * (1 - ring.fraction)}
-                      style={{ transition: 'stroke-dashoffset 0.7s cubic-bezier(0.34, 1.2, 0.64, 1), stroke 0.3s' }}
+                      style={{ transition: 'stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.3s' }}
                     />
                   </svg>
                 )}
-                <span key={isActive ? `on-${popKey}` : 'off'} className={isActive ? 'nav-pop' : undefined}>
-                  <Icon className="h-[21px] w-[21px]" strokeWidth={isActive ? 2.6 : 1.9} />
-                </span>
-                {isActive && popKey > 0 && (
-                  <span key={`burst-${popKey}`} aria-hidden="true" className="nav-burst" style={{ ['--burst' as string]: theme.primary }}>
-                    {SPARKS.map((a) => (
-                      <i key={a} style={{ ['--a' as string]: `${a}deg` }} />
-                    ))}
-                  </span>
-                )}
-                {isHome && ring && ring.done === 3 && (
-                  <Star
-                    aria-hidden="true"
-                    className="absolute -right-1 -top-1 h-3.5 w-3.5"
-                    style={{ color: theme.secondary, fill: theme.secondary }}
-                  />
-                )}
-                {isHome && celebrate > 0 && (
-                  <span key={`party-${celebrate}`} aria-hidden="true" className="nav-burst nav-burst-big" style={{ ['--burst' as string]: theme.secondary }}>
-                    {SPARKS.map((a) => (
-                      <i key={a} style={{ ['--a' as string]: `${a}deg` }} />
-                    ))}
-                  </span>
-                )}
+                <Icon className="h-[21px] w-[21px]" strokeWidth={isActive ? 2.4 : 1.9} />
+                {isHome && ring && ring.done === 3 && <Star aria-hidden="true" className="absolute -right-1 -top-1 h-3.5 w-3.5" style={{ color: theme.secondary, fill: theme.secondary }} />}
               </span>
-              <span className="text-[9px] font-extrabold uppercase leading-none" style={{ letterSpacing: '0.1em' }}>
+              <span className="max-w-full px-0.5 text-[11px] font-extrabold uppercase leading-none" style={{ letterSpacing: '0.06em' }}>
                 {tab.label}
               </span>
             </button>
           );
         })}
-      </div>
-    </nav>
+      </nav>
+    </div>
   );
 };

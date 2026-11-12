@@ -13,7 +13,7 @@ interface WorkoutEditModalProps {
   onClose: () => void;
 }
 
-const TYPES: WorkoutType[] = ['Running', 'Walking', 'Hiking', 'Cycling', 'Rowing', 'Strength', 'Calisthenics', 'HIIT', 'Core', 'Mobility'];
+const TYPES: WorkoutType[] = ['Running', 'Walking', 'Hiking', 'Cycling', 'Rowing', 'Strength', 'Calisthenics', 'HIIT', 'Core', 'Mobility', 'Swimming', 'OpenWaterSwim', 'AlpineSkiing', 'CrossCountrySkiing', 'Snowboarding', 'Snowshoeing', 'IceSkating', 'Kayaking', 'Paddleboarding'];
 const STEPS = 1000;
 
 /** Fix a saved workout: change its type, notes, effort or calories, and trim the start or end of a recorded route. */
@@ -93,7 +93,7 @@ export const WorkoutEditModal: React.FC<WorkoutEditModalProps> = ({ workout, pro
         {canTrim ? (
           <div className="rounded-2xl glass-inset p-3 space-y-3">
             <div className="text-xs font-semibold text-white">Trim the route</div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
+            <p className="text-xs text-neutral-400 leading-relaxed">
               Cut off a forgotten stop at the end or a late start. Distance, time, climb, heart rate and calories are
               recalculated for what you keep.
             </p>
@@ -107,20 +107,20 @@ export const WorkoutEditModal: React.FC<WorkoutEditModalProps> = ({ workout, pro
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <div>
-                <div className="text-[10px] text-neutral-400">Distance</div>
+                <div className="text-xs text-neutral-400">Distance</div>
                 <div className="font-semibold text-white tabular-nums">{formatDistance(base.distanceKm ?? 0, units)}</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-400">Time</div>
+                <div className="text-xs text-neutral-400">Time</div>
                 <div className="font-semibold text-white tabular-nums">{formatDuration(base.durationSec ?? base.durationMinutes * 60)}</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-400">Calories</div>
+                <div className="text-xs text-neutral-400">Calories</div>
                 <div className="font-semibold text-white tabular-nums">{base.caloriesBurned}</div>
               </div>
             </div>
             {trimmed && (
-              <p className="text-[11px] text-amber-200">
+              <p className="text-xs text-amber-200">
                 Trimming removes {formatDistance(Math.max(0, (workout.distanceKm ?? 0) - (trimmed.distanceKm ?? 0)), units)} and{' '}
                 {formatDuration(Math.max(0, (workout.durationSec ?? workout.durationMinutes * 60) - (trimmed.durationSec ?? 0)))}. This cannot be undone.
               </p>
