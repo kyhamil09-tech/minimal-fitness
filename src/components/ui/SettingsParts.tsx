@@ -86,7 +86,8 @@ export const SubHeading: React.FC<{ children: React.ReactNode }> = ({ children }
 /**
  * One row of the settings list: an icon, a title and one line saying what is inside. Tapping it opens that part of the settings as its
  * own page, with a Back button (the phone's Back button works too). Other parts of the app can ask for a page to be opened (the
- * On-device badge opens Privacy & data).
+ * On-device badge opens Privacy & data). The page sits at z-45, just under the app's sheets and dialogs (z-50), so a sheet opened from
+ * a row on the page (Profile & Goals, Reminders) shows on top of it instead of behind it.
  */
 export const SettingsGroup: React.FC<{
   id: string;
@@ -137,7 +138,7 @@ export const SettingsGroup: React.FC<{
       </button>
       {open &&
         createPortal(
-          <div role="dialog" aria-modal="true" aria-label={title} className="animate-fadeIn fixed inset-0 z-50 overflow-y-auto" style={{ backgroundColor: 'var(--page-bg)', color: 'var(--ink)' }}>
+          <div role="dialog" aria-modal="true" aria-label={title} className="animate-fadeIn fixed inset-0 z-[45] overflow-y-auto" style={{ backgroundColor: 'var(--page-bg)', color: 'var(--ink)' }}>
             <div className="sticky top-0 z-10 flex items-center gap-3 border-b px-4 pb-3" style={{ backgroundColor: 'var(--page-bg)', borderColor: 'var(--hairline)', paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
               <button type="button" onClick={() => setOpen(false)} aria-label="Back" className="flex h-11 w-11 items-center justify-center rounded-full border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline-strong)' }}>
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
