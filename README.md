@@ -3,6 +3,19 @@
 A privacy-first fitness tracker that runs entirely in the browser (installable as a PWA). There is no account,
 no server and no analytics: everything you log is stored in your own browser's `localStorage`.
 
+<p align="center">
+  <img src="docs/screenshots/privacy-welcome.jpg" width="23%" alt="Private. Always. The welcome screen: everything you log stays on this phone." />
+  <img src="docs/screenshots/move.jpg" width="23%" alt="Move: start a run, walk, cycle, hike or strength workout." />
+  <img src="docs/screenshots/lift.jpg" width="23%" alt="Lift: routines, programs and a workout logger." />
+  <img src="docs/screenshots/fasting.jpg" width="23%" alt="Fasting: a 24-hour clock and one-tap start." />
+</p>
+<p align="center">
+  <img src="docs/screenshots/progress.jpg" width="23%" alt="Progress: weekly coach, recap and trends." />
+  <img src="docs/screenshots/look-picker.jpg" width="23%" alt="Pick a look: four themes, with custom colors later." />
+  <img src="docs/screenshots/you.jpg" width="23%" alt="You: profile, devices, backup and settings." />
+  <img src="docs/screenshots/privacy.jpg" width="23%" alt="Privacy: live proof of requests made and blocked." />
+</p>
+
 ## License
 
 Minimal Fitness is **free and open-source software**, released under the [GNU General Public License v3.0 or later](LICENSE) (`GPL-3.0-or-later`).
