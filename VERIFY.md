@@ -43,7 +43,7 @@ If that passes, the file was produced by this repository's release workflow and 
 Every release is signed with the same key, so updates install over the old version. Its fingerprint is:
 
 ```
-SHA-256: 71:35:7A:E4:3B:67:9F:92:D8:6B:C5:19:D8:65:90:D7:9E:91:AB:48:DB:87:44:B6:9F:1F:35:7B:75:18:B6:28
+SHA-256: 0E:1E:28:19:28:A9:E6:05:E3:AD:9D:84:74:71:C6:2C:89:57:5A:5B:8B:F7:CD:D3:35:F9:55:31:21:4B:FF:EB
 ```
 
 Check it with `apksigner verify --print-certs minimal-fitness.apk` (part of the Android SDK build-tools). A different
