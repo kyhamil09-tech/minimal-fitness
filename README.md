@@ -1,7 +1,25 @@
-﻿# Minimal Fitness
+# Minimal Fitness
 
 A privacy-first fitness tracker that runs entirely in the browser (installable as a PWA). There is no account,
 no server and no analytics: everything you log is stored in your own browser's `localStorage`.
+
+## License
+
+Minimal Fitness is **free and open-source software**, released under the [GNU General Public License v3.0 or later](LICENSE) (`GPL-3.0-or-later`).
+
+You may use, study, change and share it, including commercially. If you share a changed version (an app, an APK, a fork), you must
+share its source under the same license and keep the copyright notices. Nobody can take it closed. Contributions are welcome,
+see [CONTRIBUTING.md](CONTRIBUTING.md). The name "Minimal Fitness", its logo and icon are not covered by the license, see
+[TRADEMARK.md](TRADEMARK.md). Third-party components keep their own licenses, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+## Install on your phone
+
+1. On your Android phone open this repository's **Releases** page and download `minimal-fitness.apk` (and `minimal-fitness-wear.apk` if you have a Wear OS watch).
+2. Open the file. Android will ask you to allow installs from your browser or file manager for this one install; allow it.
+3. Open **Minimal Fitness**. Nothing is sent anywhere unless you turn a feature on, and everything you log stays on your phone.
+
+Updates: download the newer APK from Releases and install it over the old one. Your data is kept, because every release is signed
+with the same key. Prefer to build it yourself? See "Run locally" and the watch steps below.
 
 ## What it does
 
@@ -25,23 +43,23 @@ Being honest about what is and isn't measured:
 * **Estimated:** calories burned (MET x weight x time), average HR when no sensor is connected (from effort), max HR
   (Tanaka), BMR/TDEE.
 * **No demo data:** a new install starts completely empty (no workouts, sleep, fasts or health numbers). Screens show
-  "â€”" until you log something or connect a sensor. Earlier builds seeded sample history; that is removed automatically
+  "—" until you log something or connect a sensor. Earlier builds seeded sample history; that is removed automatically
   on launch (anything you logged yourself is kept).
-* Without a connected sensor there is no live heart-rate number (it shows "â€”"), never a made-up one.
+* Without a connected sensor there is no live heart-rate number (it shows "—"), never a made-up one.
 
 Out of scope: cloud accounts, cross-device sync, friends/leaderboards, reading Health Connect. Use
 **Settings > Backup, Restore & Export** to move data between devices.
 
-## Pixel Watch live heart rate (Android app)
+## Watch live heart rate (Android app)
 
-The Android app links to a Pixel Watch (any Wear OS 3+ watch) over the Wear OS Data Layer:
+The Android app links to a Wear OS 3+ watch over the Wear OS Data Layer. Other watches work too: any watch or strap that broadcasts heart rate over Bluetooth connects under Settings, and watches that sync to Health Connect (through their own app) feed steps, sleep and workouts in. Only the on-watch app and live link need Wear OS:
 
 ```
 Watch: Health Services heart-rate sensor --> foreground service --> message /ky/hr
 Phone: WatchHeartRatePlugin (Capacitor) --> "heartRate" event --> Today / Heart Rate / workouts
 ```
 
-1. Pair the watch with the phone in the Pixel Watch app.
+1. Pair the watch with the phone in the watch maker's companion app.
 2. Build both APKs (phone and watch use the same `applicationId` and must be signed with the same key; building both
    on one machine uses the same debug key):
    ```bash
@@ -82,8 +100,7 @@ and **glass style** (Frosted, Clear, Minimal, Smoked, and tinted glass). The fac
 `android/watchface/generate-watchface.ps1`; edit the palettes there and re-run it.
 ### Watch face
 
-`android/watchface` is a Watch Face Format face (declarative XML, no code; needs Wear OS 4+, i.e. Pixel Watch 2/3, or
-Pixel Watch 1 updated to Wear OS 4). It is pure black (AMOLED) with liquid-glass bubbles: time, date, battery ring, live heart rate and five editable complication slots.
+`android/watchface` is a Watch Face Format face (declarative XML, no code; needs Wear OS 4 or newer). It is pure black (AMOLED) with liquid-glass bubbles: time, date, battery ring, live heart rate and five editable complication slots.
 
 ```bash
 cd android && ./gradlew :watchface:assembleDebug     # android/watchface/build/outputs/apk/debug/watchface-debug.apk
@@ -137,11 +154,11 @@ GPS, Bluetooth and notifications need a secure context: `localhost` or HTTPS.
 ## Automatic data, backup and run features
 
 **Steps and sleep (Settings > Automatic data)**
-* Steps are counted automatically by the phone's hardware step counter (works with the screen off) and by the Pixel
-  Watch (sent to the phone once a day total updates). The highest source wins, so a number you type is only used when
+* Steps are counted automatically by the phone's hardware step counter (works with the screen off) and by a linked watch
+  (sent to the phone once a day total updates). The highest source wins, so a number you type is only used when
   it is higher. Health Connect steps are included if you connect it.
 * **Health Connect** (read-only) imports your watch's sleep sessions with measured stages, and steps, from
-  whichever app syncs to it (Pixel Watch / Google Health / Fitbit). Imported nights never overwrite a night you logged
+  whichever app syncs to it (a watch app, Google Health, Health Connect). Imported nights never overwrite a night you logged
   by hand. Naps under 90 minutes are ignored.
 
 **Automatic backup (Settings > Automatic backup)**
@@ -174,7 +191,7 @@ existing app if it is signed with the same key, so keep a copy somewhere safe (s
 Every finished workout opens a full breakdown (also available from **Move > any past workout > Route map and full
 breakdown**):
 
-* **Route map** (OpenStreetMap, with Dark / Street / Satellite) with the line coloured by speed, start and finish markers.
+* **Route map** (Esri basemaps: Dark, Street, Terrain and Satellite) with the line coloured by speed, start and finish markers.
 * **Open in Google Maps** (a walking or cycling route through your recorded points, up to 10 stops so it is approximate),
   **Export GPX** (exact route with time, elevation and heart rate; opens in Strava, Garmin Connect, Komoot, Google Earth)
   and **Share**.
@@ -243,7 +260,7 @@ policy that forbids every network connection, so the file cannot leave your comp
 ## Data & privacy
 
 * All data lives under `kyfit_*` keys in `localStorage` (theme keys use `aegis_*`).
-* Network requests the app can make: the optional barcode lookup (sends just the barcode number to [Open Food Facts](https://world.openfoodfacts.org)), and map tiles when you open a workout's route map (the tile server sees which area you view, not who you are or what you did). Street and dark maps use OpenStreetMap tiles; Satellite uses Esri. Your route itself is never uploaded.
+* Network requests the app can make: the optional barcode lookup (sends just the barcode number to [Open Food Facts](https://world.openfoodfacts.org)), and map tiles when you open a workout's route map (the tile server sees which area you view, not who you are or what you did). All map styles (dark, street, terrain, satellite) come from Esri. Your route itself is never uploaded.
 * Reminders are local and only fire while the app is open or running in the background.
 * Each install holds only its own user's data. **Settings > Erase all my data** returns the app to first-run setup.
 
@@ -276,7 +293,7 @@ android/        phone app (Java/Kotlin plugins and widgets), watch app, watch fa
 * **Progress > Calendar:** a month of workouts with the plan's days and the ones that slipped by. **Progress > Trends** now has Nutrition (calories and protein against your targets, macro split, on-target days) and a **Weekly coach** (score, a verdict per area and what to do next week).
 * **Meal plan and groceries:** Food & water > Meal plan and groceries. Plan a week from saved meals, log a meal in one tap, and get a shopping list from the plan.
 * **Supersets and circuits:** in the strength logger, tap "Superset with next" between exercises. No rest between them, rest after the last of the round, on the phone and on the watch.
-* **Best-signal GPS:** the watch also uses Fused Location as a fallback, sends its route at the end of a shared workout, and the phone fills gaps in its own route from it.
+* **Best-signal GPS:** the watch also listens to its own GPS as a fallback (Google's fused provider only if the watch has none), sends its route at the end of a shared workout, and the phone fills gaps in its own route from it. On the phone, Android's own GPS is used first too; Google's provider is only a backup if that cannot start.
 * **Water:** a home-screen Water widget (one-tap add without opening the app) and a watch **Fuel** tile (water and the running fast). Water added there is logged the next time the app runs.
 
 The Android changes (steps by time, Health Connect hourly steps, watch fallback location, the water widget and tile) were written without a build toolchain on the development PC, so build and try them on a device before relying on them.
